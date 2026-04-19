@@ -2,7 +2,7 @@
 
 xcodebuild test \
     -scheme ExampleProjectSpm \
-    -destination 'platform=iOS Simulator,OS=17.4,name=iPhone 15' \
+    -destination 'platform=iOS Simulator,OS=26.4,name=iPhone 17 Pro' \
     -configuration "Debug" \
     -sdk "iphonesimulator" \
     -skipPackagePluginValidation \
