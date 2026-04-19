@@ -1,15 +1,47 @@
 # swift-sourcery-templates
 
-Advanced Protocol Mock and Type Erasure Code-generation templates for Swift language (using Sourcery).
+Advanced Protocol Mock and Type Erasure Code-generation templates for Swift (using [Sourcery](https://github.com/krzysztofzablocki/Sourcery)).
 
-This repository contains two code-generation templates (to be used along with [Sourcery](https://github.com/krzysztofzablocki/Sourcery) engine):
+Two templates:
 
-1. `Mocks.swifttemplate` — to generate advanced protocol mock classes that can be used as [test doubles](https://martinfowler.com/bliki/TestDouble.html) in place of object dependencies for unit-testing;
-2. `TypeErase.swifttemplate` — to generate advanced [type erasures](https://www.bignerdranch.com/blog/breaking-down-type-erasure-in-swift/).
+1. **`Mocks.swifttemplate`** — generates protocol mock classes for [test doubles](https://martinfowler.com/bliki/TestDouble.html) with call counting, handler closures, and smart defaults
+2. **`TypeErase.swifttemplate`** — generates [type erasure](https://www.bignerdranch.com/blog/breaking-down-type-erasure-in-swift/) wrappers
 
-Both templates support protocols with associated types and generic functions (with constraints on generic types),
-provide reasonable default values for primitive types, and support advanced types and use cases typically found in projects
-that use [RxSwift](https://github.com/ReactiveX/RxSwift), and, in particular, User's [RIBs](https://github.com/uber/RIBs) frameworks.
+Both support protocols with associated types, generic functions with constraints, `@escaping` closure parameters,
+and provide smart defaults for RxSwift types. Compatible with [RIBs](https://github.com/uber/RIBs) architecture patterns.
+
+## Generated Mock API
+
+For a protocol method:
+
+```swift
+/// sourcery: CreateMock
+protocol DataService {
+    func fetchData(id: String, completion: @escaping (String?, Error?) -> Void)
+}
+```
+
+The template generates:
+
+```swift
+class DataServiceMock: DataService {
+    func fetchData(id: String, completion: @escaping (String?, Error?) -> Void) {
+        fetchDataCallCount += 1
+        if let __fetchDataHandler = self.fetchDataHandler {
+            __fetchDataHandler(id, completion)
+        }
+    }
+    var fetchDataCallCount: Int = 0
+    var fetchDataHandler: ((_ id: String, _ completion: @escaping (String?, Error?) -> Void) -> ())? = nil
+}
+```
+
+**Key features:**
+- **Call counting** — `methodCallCount` tracks invocation count
+- **Handler closures** — `methodHandler` lets tests control behavior
+- **`@escaping` preservation** — closure parameters retain `@escaping` in both the method signature and the handler type, so handlers can capture and async-dispatch closures
+- **Smart defaults** — Optional returns `nil`, Void returns nothing, known types get sensible defaults
+- **Overload disambiguation** — overloaded methods get distinct handler names automatically
 
 ## Rationale
 
@@ -206,6 +238,59 @@ please feel free to clone and see its workings. Accompanying blog post is coming
    This command will generate `Mocks.generated.swift` file in the `output` folder as specified in the config file.
 
 6. Add the generated file to the test target in the Xcode project.
+
+### Standalone CLI (pre-generated mocks)
+
+For projects that ship pre-generated mocks (so consumers don't need Sourcery installed), run the CLI directly:
+
+```bash
+sourcery \
+  --sources Sources/MyModule \
+  --templates /path/to/swift-sourcery-templates/templates/Mocks.swifttemplate \
+  --output Sources/MyMocks/Generated/MyModuleMocks.swift \
+  --args "import=Foundation,testable=MyModule"
+```
+
+Multiple `--args` flags can be used for additional imports:
+
+```bash
+sourcery \
+  --args "import=Foundation,testable=MyModule" \
+  --args "import=UIKit"
+```
+
+## Annotating External Protocols
+
+To generate mocks for protocols defined in external packages (without modifying their source), use empty extensions with the `CreateMock` annotation:
+
+```swift
+// In your SourceryAnnotations/ directory:
+import ExternalFramework
+
+/// sourcery: CreateMock
+extension ExternalProtocol {}
+
+/// sourcery: CreateMock
+extension AnotherProtocol {}
+```
+
+Sourcery picks up annotations from extensions on the protocol. Pass the annotations directory as an additional `--sources` path. This pattern keeps the public API files clean — no `/// sourcery:` annotations in protocol definitions.
+
+## Annotations Reference
+
+| Annotation | Target | Effect |
+|------------|--------|--------|
+| `CreateMock` | Protocol / extension | Generate mock class |
+| `TypeErase` | Protocol | Generate type erasure wrapper |
+| `associatedType = "T: Constraint"` | Protocol | Associated type for type erasure |
+| `genericType = "T: Constraint"` | Method | Generic type parameter |
+| `annotatedGenericTypes = "{T}"` | Parameter | Generic placeholder marker |
+| `methodName = "customName"` | Method | Override mock variable name |
+| `const` | Variable | Use `let` in mock |
+| `init` | Variable | Include in mock initializer |
+| `handler` | Variable | Generate handler closure |
+| `import = "Module"` | Protocol | Add `import` to output |
+| `ObjcProtocol` | Protocol | Add `NSObject` superclass |
 
 # License
 
