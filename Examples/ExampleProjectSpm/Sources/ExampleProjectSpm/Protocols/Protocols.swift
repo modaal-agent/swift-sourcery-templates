@@ -373,3 +373,28 @@ public protocol MultiplicationByCountingTaskVariationBuildable {
     answer: CurrentValueSubject<String, Never>,
     cancellables: inout Set<AnyCancellable>) -> TaskAuxilliaryView
 }
+
+// MARK: - @escaping preservation tests
+
+typealias EscapingNotificationBlock = (_ value: String) -> Void
+
+/// sourcery: CreateMock
+protocol EscapingClosureService: AnyObject {
+  /// Completion handler — must preserve @escaping so the handler type
+  /// allows storing/dispatching the completion asynchronously.
+  func fetchData(completion: @escaping (_ value: String?, _ error: Error?) -> Void)
+
+  /// Listener pattern — must preserve @escaping so the handler can
+  /// capture the listener and call it later (async).
+  func addListener(_ listener: @escaping (String) -> Void) -> Any
+
+  /// Typealias'd closure — @escaping on a typealias'd closure type.
+  func observe(_ block: @escaping EscapingNotificationBlock) -> Any
+
+  /// Multiple closure parameters — only some are @escaping.
+  func transform(
+    input: String,
+    using transformer: (String) -> String,
+    completion: @escaping (_ output: String) -> Void
+  )
+}

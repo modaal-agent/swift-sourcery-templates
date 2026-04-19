@@ -124,7 +124,10 @@ extension MockMethod {
     }
 
     private var mockHandlerImpl: (String, SourceCode) {
-        let handlerParameters = method.parameters.map { "_ \($0.name): \($0.typeName.name)" }.joined(separator: ", ")
+        let handlerParameters = method.parameters.map {
+            let escaping = $0.typeName.isClosure && $0.typeName.attributes["escaping"] != nil ? "@escaping " : ""
+            return "_ \($0.name): \(escaping)\($0.typeName.name)"
+        }.joined(separator: ", ")
         return (mockMethodHandlerName, SourceCode("var \(mockMethodHandlerName): ((\(handlerParameters))\(method.throwingHandlerDecl) -> (\(mockMethodHandlerReturnType)))? = nil"))
     }
 
@@ -200,7 +203,8 @@ private extension SourceryRuntime.Method {
 private extension SourceryRuntime.MethodParameter {
     var parametersDecl: String {
         let argumentLabel = argumentLabel == nil ? "_ " : argumentLabel != name ? "\(argumentLabel!) " : ""
-        return "\(argumentLabel)\(name): \(typeName.name)"
+        let escaping = typeName.isClosure && typeName.attributes["escaping"] != nil ? "@escaping " : ""
+        return "\(argumentLabel)\(name): \(escaping)\(typeName.name)"
     }
 }
 
