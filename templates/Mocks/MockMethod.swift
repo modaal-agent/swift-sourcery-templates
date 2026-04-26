@@ -6,12 +6,14 @@ class MockMethod {
     let method: SourceryRuntime.Method
     fileprivate let genericTypePrefix: String
     fileprivate let useShortName: Bool
+    fileprivate let useReturnTypeInName: Bool
 
-    init(type: SourceryRuntime.`Type`, method: SourceryRuntime.Method, genericTypePrefix: String, useShortName: Bool) {
+    init(type: SourceryRuntime.`Type`, method: SourceryRuntime.Method, genericTypePrefix: String, useShortName: Bool, useReturnTypeInName: Bool = false) {
         self.type = type
         self.method = method
         self.genericTypePrefix = genericTypePrefix
         self.useShortName = useShortName
+        self.useReturnTypeInName = useReturnTypeInName
     }
 
     static func from(_ type: Type, genericTypePrefix: String) throws -> [MockMethod] {
@@ -56,7 +58,19 @@ extension MockMethod {
                 return "\(argumentLabel)\($0.name.uppercasedFirstLetter())"
             }
         }
+        if useReturnTypeInName {
+            result += [returnTypeDiscriminator]
+        }
         return result.joined().swiftifiedMethodName
+    }
+
+    /// Suffix derived from the method's return type, used to disambiguate
+    /// overloads that share the same name *and* the same parameter list but
+    /// differ only by return type (e.g., a refining protocol overriding
+    /// `func data() -> [String: Any]?` with `func data() -> [String: Any]`).
+    /// Such overloads cannot be distinguished by parameter labels alone.
+    fileprivate var returnTypeDiscriminator: String {
+        return method.returnTypeName.name.returnTypeDiscriminatorSuffix
     }
 
     func mockImpl() throws -> [SourceCode] {
@@ -172,6 +186,39 @@ private extension String {
     func resolvingGenericPlaceholders(prefix genericTypePrefix: String) -> String {
         return replacingOccurrences(of: Regex.placeholderPattern, with: "\(genericTypePrefix)$1", options: .regularExpression)
     }
+
+    /// Sanitizes a return-type string into a stable, readable suffix suitable
+    /// for inclusion in a mock variable name. Used as the last-resort
+    /// disambiguator for overloads that share name and parameter list.
+    ///
+    /// Examples:
+    /// - `[String: Any]?` → `StringAnyOptional`
+    /// - `[String: Any]`  → `StringAny`
+    /// - `String?`        → `StringOptional`
+    /// - `String`         → `String`
+    var returnTypeDiscriminatorSuffix: String {
+        var sanitized = self
+            .replacingOccurrences(of: "?", with: "_Optional")
+            .replacingOccurrences(of: "!", with: "_Forced")
+            .replacingOccurrences(of: "[", with: "_")
+            .replacingOccurrences(of: "]", with: "_")
+            .replacingOccurrences(of: "(", with: "_")
+            .replacingOccurrences(of: ")", with: "_")
+            .replacingOccurrences(of: "<", with: "_")
+            .replacingOccurrences(of: ">", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+            .replacingOccurrences(of: ",", with: "_")
+            .replacingOccurrences(of: ".", with: "_")
+            .replacingOccurrences(of: "&", with: "_")
+            .replacingOccurrences(of: "`", with: "")
+            .replacingOccurrences(of: " ", with: "_")
+        while sanitized.contains("__") {
+            sanitized = sanitized.replacingOccurrences(of: "__", with: "_")
+        }
+        sanitized = sanitized.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        // Force snake_case → CamelCase. `camelCased()` splits on `_`.
+        return sanitized.camelCased().uppercasedFirstLetter()
+    }
 }
 
 private extension MockMethod {
@@ -260,7 +307,25 @@ private extension Collection where Element == MockMethod {
     }
 
     private func makeUniqueByUsingLongNames() -> [MockMethod] {
-        return map { MockMethod(type: $0.type, method: $0.method, genericTypePrefix: $0.genericTypePrefix, useShortName: false) }
+        let longNames = map { MockMethod(type: $0.type, method: $0.method, genericTypePrefix: $0.genericTypePrefix, useShortName: false) }
+        guard longNames.hasDuplicateMockedMethodNames else { return longNames }
+        // Long names still collide — overloads share the same parameter list
+        // but differ only by return type (e.g., a refining protocol overriding
+        // `data() -> [String: Any]?` with `data() -> [String: Any]`). Append a
+        // return-type-derived suffix to disambiguate.
+        return makeUniqueByAppendingReturnTypeDiscriminator()
+    }
+
+    private func makeUniqueByAppendingReturnTypeDiscriminator() -> [MockMethod] {
+        return map {
+            MockMethod(
+                type: $0.type,
+                method: $0.method,
+                genericTypePrefix: $0.genericTypePrefix,
+                useShortName: false,
+                useReturnTypeInName: true
+            )
+        }
     }
 
     var hasDuplicateMockedMethodNames: Bool {

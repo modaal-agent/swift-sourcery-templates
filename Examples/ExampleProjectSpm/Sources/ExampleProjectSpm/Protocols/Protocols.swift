@@ -374,6 +374,42 @@ public protocol MultiplicationByCountingTaskVariationBuildable {
     cancellables: inout Set<AnyCancellable>) -> TaskAuxilliaryView
 }
 
+// MARK: - Refining protocol with return-type-only overload
+//
+// Reproducer for the Firebase iOS SDK's `QueryDocumentSnapshot : DocumentSnapshot`
+// shape: a refining protocol overrides `data()` with a non-optional return type,
+// while the parent's `data()` remains optional. Both methods must be mocked
+// distinctly even though they have identical names and identical (empty)
+// parameter lists — disambiguation must fall back to a return-type-derived
+// suffix for the mock variable names.
+
+/// sourcery: CreateMock
+protocol DocumentSnapshotting {
+  var documentID: String { get }
+  func data() -> [String: Any]?
+}
+
+/// sourcery: CreateMock
+protocol QueryDocumentSnapshotting: DocumentSnapshotting {
+  /// Refining override — non-optional. Mirrors Firebase iOS SDK's
+  /// `QueryDocumentSnapshot : DocumentSnapshot` class hierarchy.
+  func data() -> [String: Any]
+}
+
+// Same shape with primitive return types — verifies the discriminator works
+// for non-collection returns too.
+
+/// sourcery: CreateMock
+protocol OptionalIDProviding {
+  func id() -> String?
+}
+
+/// sourcery: CreateMock
+protocol RequiredIDProviding: OptionalIDProviding {
+  /// Refining override — non-optional `String` instead of `String?`.
+  func id() -> String
+}
+
 // MARK: - @escaping preservation tests
 
 typealias EscapingNotificationBlock = (_ value: String) -> Void
