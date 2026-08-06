@@ -19,6 +19,82 @@ pod.
 
 ---
 
+## 0.5.0 — 2026-08-06
+
+Every `AnyPublisher` member is backed by a `PassthroughSubject` — variable and method alike — and a
+stream that replays is the test's to supply through the member's closure. This is the rule the
+RxSwift members have always followed with `PublishSubject`; the Combine members were running a
+second policy, and seeding made the double emit values no test wrote.
+
+### Generated output
+
+The seeded `CurrentValueSubject` is gone from the automatic path. Nothing else about the member
+changes — the getter, the call count, the handler and the `Args` array are as they were.
+
+```swift
+protocol InviteRepositoryProtocol {
+    var friends: AnyPublisher<[Connection], Never> { get }
+    func getOrCreateShareLink() -> AnyPublisher<String, Error>
+}
+```
+
+```swift
+// before
+lazy var friendsSubject = CurrentValueSubject<[Connection], Never>([])
+lazy var getOrCreateShareLinkSubject = CurrentValueSubject<String, Error>("")
+
+// after
+lazy var friendsSubject = PassthroughSubject<[Connection], Never>()
+lazy var getOrCreateShareLinkSubject = PassthroughSubject<String, Error>()
+```
+
+Three things followed from seeding:
+
+1. **The double answered on subscribe** — with `""`, `[:]`, `[]` — a value no test wrote. Code that
+   mapped it then failed on the empty payload, and the test read that failure as the behaviour under
+   test.
+2. **It answered twice.** The test's own `subject.send(realValue)` was the *second* element. A bridge
+   that awaits the first value resumed its continuation twice and trapped: `SWIFT TASK CONTINUATION
+   MISUSE … tried to resume its continuation more than once`.
+3. **A test could not opt out by construction.** `mock.fooSubject = PassthroughSubject()` does not
+   compile against a `CurrentValueSubject`-typed property.
+
+Measured on the first consumer to hit it: 30 failing tests across 8 spec files, one suite aborted by
+the continuation trap (261 tests, 250 executed). After the method half of the change: 261/0.
+
+### Replay, when a test wants it
+
+Through the closure the member already generates — `<name>GetHandler` on a variable,
+`<name>Handler` on a method:
+
+```swift
+let state = CurrentValueSubject<UserSummary?, Never>(me)
+mock.meStreamGetHandler = { state.eraseToAnyPublisher() }
+```
+
+Or at the declaration, when every test for that member wants it:
+`/// sourcery: subject = "CurrentValue"`. That annotation is unchanged, works on methods as well as
+variables, and still rejects an `Output` with no default value rather than downgrading silently.
+
+### Breaking
+
+A member whose `Output` has a default value no longer replays. A test that pushed a value **before**
+the code under test subscribed now sees nothing: send after subscribing, set the member's closure to
+a `CurrentValueSubject`-backed stream, or annotate the declaration.
+
+A test that relied on a request answering by itself must state the answer — `fooSubject.send(value)`
+where the server would have replied, or a `fooHandler` returning `Just(value)…` in `beforeEach` when
+every row in the file wants the same one.
+
+Any assignment of a fresh subject changes type: `CurrentValueSubject(…)` → `PassthroughSubject()`.
+
+### Adopting
+
+Bump the tag and regenerate. `modaal-firebase-wrappers` regenerates to an **empty diff** for this
+change — it declares no `AnyPublisher` members at all.
+
+---
+
 ## 0.4.0 — 2026-08-06
 
 Generated mocks record their arguments. A spec that needs to know *what* a call was passed reads an

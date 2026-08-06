@@ -10,10 +10,12 @@ import Foundation
 
 // MARK: - The default rule
 
-/// `Output` has a default value (`[MemoryDrop]` → `[]`, `Bool` → `false`), so
-/// each of these is backed by a `CurrentValueSubject`: a subscriber attaching
-/// after the value was pushed still receives it, which is what a state stream
-/// needs.
+/// Every member here is backed by a `PassthroughSubject`, whether it is a
+/// variable or a method and whether or not `Output` has a default value
+/// (`[MemoryDrop]` → `[]`, `Bool` → `false`, `String` → `""`). The double emits
+/// what the test sends it; a stream that replays comes from the member's own
+/// closure — `ownMemoriesGetHandler`, `shareHandler` — or from the annotation on
+/// `token` below.
 ///
 /// sourcery: CreateMock
 public protocol MemoryRepositoryProtocol: AnyObject {
@@ -21,11 +23,15 @@ public protocol MemoryRepositoryProtocol: AnyObject {
   var isRefreshing: AnyPublisher<Bool, Never> { get }
   func delete(id: String) -> AnyPublisher<Void, Error>
   func fetch(id: String) -> AnyPublisher<MemoryDrop?, Error>
+  func share(id: String) -> AnyPublisher<String, Error>
+
+  /// The override reaches a method too: this one answers `""` on subscribe.
+  /// sourcery: subject = "CurrentValue"
+  func token() -> AnyPublisher<String, Error>
 }
 
-/// `Output` has no default value, so the subject falls back to
-/// `PassthroughSubject` — the alternative is a generated file that does not
-/// compile.
+/// `Output` has no default value. It takes the same subject as one that does:
+/// there is nothing left for a default value to decide.
 ///
 /// sourcery: CreateMock
 public protocol MemoryEventStreaming: AnyObject {
@@ -37,6 +43,7 @@ public protocol MemoryEventStreaming: AnyObject {
 /// sourcery: CreateMock
 public protocol NotificationSignalling: AnyObject {
   /// A signal, not a state: a late subscriber must NOT receive the last one.
+  /// The annotation states the default rather than changing it.
   /// sourcery: subject = "Passthrough"
   var friendGraphChanged: AnyPublisher<Void, Never> { get }
 

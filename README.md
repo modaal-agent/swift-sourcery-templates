@@ -130,11 +130,27 @@ mock.meStreamSubject.send(UserSummary(uid: "u1", displayName: "Ada"))   // state
 mock.bootstrapSubject.send(())                                          // event
 ```
 
-The subject kind follows the element type: **`CurrentValueSubject`** when `Output` has a default
-value (so a subscriber attaching after the push still receives it — what a state stream needs), and
-**`PassthroughSubject`** when it does not, or when `Output` is `Void` (a mutation's completion is an
-event, not a state). Override per member with `/// sourcery: subject = "CurrentValue"` or
-`"Passthrough"`.
+The subject is a **`PassthroughSubject`**, for a variable and for a method alike — the same rule the
+RxSwift members follow with `PublishSubject`. The double emits what the test sends it and nothing
+else, so a subscriber that attaches after a send has missed it.
+
+**A stream that replays is the test's to supply**, through the closure every publisher member already
+has — `<name>GetHandler` on a variable, `<name>Handler` on a method:
+
+```swift
+let state = CurrentValueSubject<UserSummary?, Never>(me)
+mock.meStreamGetHandler = { state.eraseToAnyPublisher() }   // now it replays
+```
+
+Seeding by default instead would make the double emit a value nobody wrote — `""`, `[:]`, `[]` — the
+moment the code under test subscribes, and turn the test's own `send` into a *second* element; a
+bridge awaiting the first value then resumes its continuation twice and traps. It is also
+un-opt-out-able by construction, since assigning a `PassthroughSubject` to a
+`CurrentValueSubject`-typed property does not compile.
+
+`/// sourcery: subject = "CurrentValue"` states the seeded form at the declaration, for the member
+where every test wants it; asking for it where `Output` has no default value is an error, not a
+silent downgrade.
 
 A method returning `AnyCancellable` gets a token whose `cancel()` is counted —
 `<method>CancelCallCount` and `<method>CancelHandler` — mirroring the RxSwift `Disposable` case, so a

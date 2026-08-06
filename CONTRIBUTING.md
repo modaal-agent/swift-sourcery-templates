@@ -150,6 +150,20 @@ halves with a `weak var`. A generic method records nothing: its parameter types 
 generic parameters and a stored property can only name the class's, so the array would be typed
 against a different `S` than the call has.
 
+**An `AnyPublisher` member is backed by a `PassthroughSubject` — variable and method alike — and a
+replaying stream is the test's to supply through the member's closure.** This is the rule the
+RxSwift branch has always applied with `PublishSubject`, and the Combine branch now matches it
+rather than running a second policy. A seeded `CurrentValueSubject` makes the double emit a value no
+test wrote — `""`, `[:]`, `[]` — the moment the code under test subscribes; the test's own `send` is
+then a *second* element, and a bridge awaiting the first value resumes its continuation twice and
+traps. It cannot be opted out of at the call site either: assigning a `PassthroughSubject` to a
+`CurrentValueSubject`-typed property does not compile. Replay goes through `<name>GetHandler` /
+`<name>Handler`, which every publisher member already generates, or through
+`/// sourcery: subject = "CurrentValue"` when every test for that member wants it.
+`Checks/Behaviour/Main.swift`'s `checkCombineStreams` asserts all four corners: the default does not
+replay, a get handler that returns a `CurrentValueSubject` does, `share(id:)` says nothing until the
+test sends, and the annotated `token()` answers on subscribe.
+
 **A Component refuses what it cannot forward** — `static`, `init` and `subscript` requirements, and
 associated types — with a diagnostic naming the member. Check `isInitializer` **before** `isStatic`:
 Sourcery reports an initializer requirement as static too, and the wrong branch produces a sentence

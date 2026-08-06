@@ -3,6 +3,11 @@ import SourceryRuntime
 
 enum MockError: Error {
 case noDefaultValue(typeName: TypeName)
+/// `subject = "CurrentValue"` on a member whose `Output` cannot be constructed.
+/// Distinct from `noDefaultValue`, which a caller may legitimately catch to fall
+/// through to a shape it does handle: this one is the author asking for
+/// something impossible and must reach them.
+case unseedableSubject(typeName: TypeName, member: String)
 case duplicateGenericTypeName(context: String)
 case internalError(message: String)
 }
@@ -124,6 +129,12 @@ extension MockError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noDefaultValue(let typeName): return "Unable to generate default value for \(typeName)"
+        case .unseedableSubject(let typeName, let member):
+            return """
+                `sourcery: subject = "CurrentValue"` on `\(member)`: a CurrentValueSubject has to be \
+                seeded and there is no default value for \(typeName). Drop the annotation and set \
+                `\(member)GetHandler` in the test to a stream that replays, or give the type a default value.
+                """
         case .duplicateGenericTypeName(let context): return "Duplicate generic type name found while generating mock implementation: \(context)"
         case .internalError(let message): return "Internal error: \(message)"
         }

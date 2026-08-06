@@ -123,13 +123,25 @@ func checkNonisolatedMembers() async {
 func checkCombineStreams() {
   var cancellables: Set<AnyCancellable> = []
 
-  // CurrentValueSubject by default: a subscriber attaching after the push still
-  // sees the value. This is what a state stream's spec needs.
+  // PassthroughSubject by default, for a variable and for a method alike: the
+  // double emits what the test sends it, and nothing else. A subscriber that
+  // attaches after a send has missed it.
   let repository = MemoryRepositoryProtocolMock()
   repository.ownMemoriesSubject.send([MemoryDrop(id: "a")])
   var seen: [[MemoryDrop]] = []
   repository.ownMemories.sink { seen.append($0) }.store(in: &cancellables)
-  expectEqual(seen, [[MemoryDrop(id: "a")]], "a state stream replays to a late subscriber")
+  expectEqual(seen, [], "the default subject does not replay to a late subscriber")
+  repository.ownMemoriesSubject.send([MemoryDrop(id: "b")])
+  expectEqual(seen, [[MemoryDrop(id: "b")]], "a variable delivers what the test sends after subscribe")
+
+  // Replay is the test's to supply, through the closure every publisher member
+  // has. This is the RxSwift branch's contract in Combine terms.
+  let replaying = MemoryRepositoryProtocolMock()
+  let state = CurrentValueSubject<[MemoryDrop], Never>([MemoryDrop(id: "seed")])
+  replaying.ownMemoriesGetHandler = { state.eraseToAnyPublisher() }
+  var replayed: [[MemoryDrop]] = []
+  replaying.ownMemories.sink { replayed.append($0) }.store(in: &cancellables)
+  expectEqual(replayed, [[MemoryDrop(id: "seed")]], "a get handler supplies a stream that replays")
 
   // A method returning a publisher is driven the same way.
   var completions = 0
@@ -139,15 +151,32 @@ func checkCombineStreams() {
   expectEqual(completions, 1, "a publisher-returning method is driven by its subject")
   expectEqual(repository.deleteCallCount, 1, "a publisher-returning method counts its calls")
 
-  // No default value for the element type, so the subject is a Passthrough and
-  // the mock still compiles and delivers.
+  // An element type with no default value takes the same subject as one with a
+  // default: there is nothing left for a default value to decide.
   let events = MemoryEventStreamingMock()
   var latest: [MemoryDrop] = []
   events.latestDrop.sink { latest.append($0) }.store(in: &cancellables)
   events.latestDropSubject.send(MemoryDrop(id: "b"))
-  expectEqual(latest, [MemoryDrop(id: "b")], "an element type with no default falls back to a passthrough subject")
+  expectEqual(latest, [MemoryDrop(id: "b")], "an element type with no default is driven by its subject")
 
-  // The per-member override.
+  // A method says nothing until the test answers. A seeded subject would answer
+  // `""` on subscribe — a server response the test never wrote — and then
+  // deliver a second element when the test sends the real one.
+  var shared: [String] = []
+  repository.share(id: "a").sink(receiveCompletion: { _ in }, receiveValue: { shared.append($0) })
+    .store(in: &cancellables)
+  expectEqual(shared, [], "a request answers nothing until the test sends")
+  repository.shareSubject.send("link")
+  expectEqual(shared, ["link"], "a request delivers exactly what the test sent")
+
+  // …and the override reaches a method, for the double that should answer.
+  var tokens: [String] = []
+  repository.token().sink(receiveCompletion: { _ in }, receiveValue: { tokens.append($0) })
+    .store(in: &cancellables)
+  expectEqual(tokens, [""], "`subject = CurrentValue` on a method answers on subscribe")
+
+  // The per-member override, for a declaration where every test wants the seeded
+  // form. `Passthrough` states the default explicitly.
   let signals = NotificationSignallingMock()
   signals.friendGraphChangedSubject.send(())
   var signalled = 0

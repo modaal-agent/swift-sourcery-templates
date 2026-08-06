@@ -43,13 +43,31 @@ extension MockVar {
         return isNonisolated ? "nonisolated(unsafe) " : ""
     }
 
+    /// `nil` when this variable's type has no smart default *of a shape this
+    /// branch handles* — an `AnyCancellable` or `Disposable` property, say, which
+    /// falls through to plain storage below. An impossible `subject` annotation
+    /// is not that case and is rethrown: swallowing it emitted a stored property
+    /// with no initializer, and the generated file did not compile.
+    private func smartDefaultValueImplementation() throws -> (getterImplementation: SourceCode, mockedVariableHandlers: [SourceCode])? {
+        do {
+            return try variable.typeName.smartDefaultValueImplementation(
+                isProperty: true,
+                mockVariablePrefix: mockedVariableName,
+                requestedSubjectKind: variable.requestedSubjectKind)
+        } catch MockError.unseedableSubject(let typeName, let member) {
+            throw MockError.unseedableSubject(typeName: typeName, member: member)
+        } catch {
+            return nil
+        }
+    }
+
     func mockImpl() throws -> [SourceCode] {
         let mockedVariableImplementation: SourceCode
         let mockedVariableHandlers = TopScope()
 
         if !variable.isMutable,
             variable.typeName.hasComplexTypeWithSmartDefaultValue(isProperty: true),
-            let smartDefaultValueImplementation = try? variable.typeName.smartDefaultValueImplementation(isProperty: true, mockVariablePrefix: mockedVariableName, requestedSubjectKind: variable.requestedSubjectKind) {
+            let smartDefaultValueImplementation = try smartDefaultValueImplementation() {
 
             mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)") {[
                 SourceCode("\(mockedVariableName)GetCount += 1"),

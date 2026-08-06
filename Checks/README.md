@@ -45,8 +45,9 @@ and registration methods returning `AnyCancellable`.
 | `@escaping` closure parameter | `AudioSessionConfiguring` |
 | `@Sendable` closure parameter | `UploadScheduling` |
 | `AnyPublisher` variable and method | `MemoryRepositoryProtocol` |
-| element type with no default value | `MemoryEventStreaming` |
-| `subject` annotation override | `NotificationSignalling` |
+| element type with no default value (same subject as one with a default) | `MemoryEventStreaming` |
+| a method whose `Output` has a default value — never seeded | `MemoryRepositoryProtocol.share` |
+| `subject` annotation override | `NotificationSignalling`, and `MemoryRepositoryProtocol.token` for the override on a method |
 | protocol inheritance / composite | `AppServicesRegistering` |
 | empty protocol | `RootDependency` |
 | requirement with no synthesizable default | `TimelineDependency` (five of them) |

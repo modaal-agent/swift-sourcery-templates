@@ -326,21 +326,26 @@ extension SourceryRuntime.TypeName {
             generic.typeParameters.count == 2 {
 
             // Combine's `AnyPublisher<Output, Failure>` is backed by a subject the
-            // test drives: `mock.<name>Subject.send(value)`. The subject kind is
-            // chosen by whether a late subscriber needs the current value:
+            // test drives: `mock.<name>Subject.send(value)`. It is a
+            // `PassthroughSubject`, for a variable and for a method alike — the
+            // same rule the RxSwift branch above applies with `PublishSubject`.
             //
-            //   CurrentValueSubject — when `Output` has a default value, so the
-            //     subject can be seeded and a subscriber attaching after the fact
-            //     still receives one element. This is what a state stream needs.
-            //   PassthroughSubject  — otherwise, because CurrentValueSubject has
-            //     no initial value to construct; and for `Output == Void`, where
-            //     a seeded subject would report a mutation as already completed
-            //     to every subscriber. A Void publisher carries an event, not a
-            //     state.
+            // A subject that replays is the test's to supply, through the closure
+            // every publisher member already has: `<name>GetHandler` on a
+            // variable, `<name>Handler` on a method, each returning whatever
+            // stream that test needs. Seeding by default instead would make the
+            // double emit a value nobody wrote — an empty string, an empty
+            // dictionary — the moment the code under test subscribes, and turn
+            // the test's own `send` into a SECOND element (a bridge awaiting the
+            // first value then resumes its continuation twice and traps). It is
+            // also unopt-out-able by construction: assigning a
+            // `PassthroughSubject` to a `CurrentValueSubject`-typed property does
+            // not compile.
             //
-            // Override per member with `/// sourcery: subject = "Passthrough"` or
-            // `"CurrentValue"`; requesting `CurrentValue` for an `Output` with no
-            // default value is an error rather than a silent downgrade.
+            // `/// sourcery: subject = "CurrentValue"` states the seeded form at
+            // the declaration, for the member where every test wants it;
+            // requesting it for an `Output` with no default value is an error
+            // rather than a silent downgrade.
             let outputTypeName = generic.typeParameters[0].typeName
             let outputType = outputTypeName.mockTypeName
             let failureType = generic.typeParameters[1].typeName.mockTypeName
@@ -351,14 +356,13 @@ extension SourceryRuntime.TypeName {
             switch requestedSubjectKind {
             case .currentValue:
                 guard let seedValue = seedValue else {
-                    throw MockError.noDefaultValue(typeName: outputTypeName)
+                    throw MockError.unseedableSubject(typeName: outputTypeName, member: mockVariablePrefix)
                 }
                 subjectDecl = "CurrentValueSubject<\(outputType), \(failureType)>(\(seedValue))"
             case .passthrough:
                 subjectDecl = "PassthroughSubject<\(outputType), \(failureType)>()"
             case .automatic:
-                subjectDecl = seedValue.map { "CurrentValueSubject<\(outputType), \(failureType)>(\($0))" }
-                    ?? "PassthroughSubject<\(outputType), \(failureType)>()"
+                subjectDecl = "PassthroughSubject<\(outputType), \(failureType)>()"
             }
 
             let getterImplementation = SourceCode("return \(mockVariablePrefix)Subject.eraseToAnyPublisher()\(forceCasting)")

@@ -385,7 +385,7 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
     }
     var isRefreshingGetCount: Int = 0
     var isRefreshingGetHandler: (() -> AnyPublisher<Bool, Never>)? = nil
-    lazy var isRefreshingSubject = CurrentValueSubject<Bool, Never>(false)
+    lazy var isRefreshingSubject = PassthroughSubject<Bool, Never>()
     var ownMemories: AnyPublisher<[MemoryDrop], Never> {
         ownMemoriesGetCount += 1
         if let handler = ownMemoriesGetHandler {
@@ -395,7 +395,7 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
     }
     var ownMemoriesGetCount: Int = 0
     var ownMemoriesGetHandler: (() -> AnyPublisher<[MemoryDrop], Never>)? = nil
-    lazy var ownMemoriesSubject = CurrentValueSubject<[MemoryDrop], Never>([])
+    lazy var ownMemoriesSubject = PassthroughSubject<[MemoryDrop], Never>()
 
     // MARK: - Methods
     func delete(id: String) -> AnyPublisher<Void, Error> {
@@ -421,7 +421,29 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
     var fetchCallCount: Int = 0
     var fetchArgs: [String] = []
     var fetchHandler: ((_ id: String) -> (AnyPublisher<MemoryDrop?, Error>))? = nil
-    lazy var fetchSubject = CurrentValueSubject<MemoryDrop?, Error>(nil)
+    lazy var fetchSubject = PassthroughSubject<MemoryDrop?, Error>()
+    func share(id: String) -> AnyPublisher<String, Error> {
+        shareCallCount += 1
+        shareArgs.append(id)
+        if let __shareHandler = self.shareHandler {
+            return __shareHandler(id)
+        }
+        return shareSubject.eraseToAnyPublisher()
+    }
+    var shareCallCount: Int = 0
+    var shareArgs: [String] = []
+    var shareHandler: ((_ id: String) -> (AnyPublisher<String, Error>))? = nil
+    lazy var shareSubject = PassthroughSubject<String, Error>()
+    func token() -> AnyPublisher<String, Error> {
+        tokenCallCount += 1
+        if let __tokenHandler = self.tokenHandler {
+            return __tokenHandler()
+        }
+        return tokenSubject.eraseToAnyPublisher()
+    }
+    var tokenCallCount: Int = 0
+    var tokenHandler: (() -> (AnyPublisher<String, Error>))? = nil
+    lazy var tokenSubject = CurrentValueSubject<String, Error>("")
 }
 
 // MARK: - NotificationSignalling
@@ -612,7 +634,7 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
     }
     var meStreamGetCount: Int = 0
     var meStreamGetHandler: (() -> AnyPublisher<UserSummary?, Never>)? = nil
-    lazy var meStreamSubject = CurrentValueSubject<UserSummary?, Never>(nil)
+    lazy var meStreamSubject = PassthroughSubject<UserSummary?, Never>()
 
     // MARK: - Methods
     func bootstrap(displayName: String?) -> AnyPublisher<Void, Error> {
