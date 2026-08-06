@@ -1,5 +1,7 @@
 # swift-sourcery-templates
 
+[![CI](https://github.com/ivanmisuno/swift-sourcery-templates/actions/workflows/ci.yml/badge.svg)](https://github.com/ivanmisuno/swift-sourcery-templates/actions/workflows/ci.yml)
+
 Advanced Protocol Mock and Type Erasure Code-generation templates for Swift (using [Sourcery](https://github.com/krzysztofzablocki/Sourcery)).
 
 Two templates:
@@ -105,7 +107,8 @@ registration API's deregistration is observable without setting a handler.
 | fast | `Checks/run-checks.sh` | snapshot of generated output, both language modes, runtime behaviour. No simulator, no third-party packages, seconds |
 | full | `Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
 
-Run both before cutting a tag.
+Both run on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), the fast lane first.
+Run both locally before cutting a tag.
 
 Release notes, including what each version changes in the generated output and what breaks:
 [CHANGELOG.md](CHANGELOG.md).

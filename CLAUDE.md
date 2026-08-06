@@ -71,6 +71,9 @@ Run both before cutting a tag. The example script builds and runs on an iOS Simu
 build-tool plugin runs Sourcery as a prebuild step — generated mocks land in DerivedData, not in the
 source tree, which is why `Checks/Snapshots/` exists.
 
+CI (`.github/workflows/ci.yml`) runs both on every push, fast lane first. Xcode is pinned there — see
+AGENTS.md for why and what bumping it requires.
+
 ## How Mock Generation Works
 
 ### Annotation → Template → Output

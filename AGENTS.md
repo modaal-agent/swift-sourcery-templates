@@ -187,6 +187,12 @@ The `modaal-firebase-wrappers` repo uses CLI mode — mocks are generated locall
 | fast | `Checks/run-checks.sh` | nothing but a Swift toolchain; ~10s |
 | full | `cd Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
+Both run in CI on every push (`.github/workflows/ci.yml`), fast lane first, full lane gated on it.
+Xcode is pinned there via `XCODE_VERSION`: the fast lane's gate is *zero diagnostics*, so a runner
+image that ships a compiler emitting one new warning would turn it red for a reason unrelated to the
+templates. Bumping the pin is a deliberate change — re-run both lanes locally on the new version
+first. The gate has been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4).
+
 The fast lane has no test framework: assertions live in `Checks/Behaviour/Main.swift`, compiled into
 one executable. The full lane is Quick + Nimble specs in
 `Examples/ExampleProjectSpm/Sources/ExampleProjectSpmTests/`, driven by the prebuild plugin.

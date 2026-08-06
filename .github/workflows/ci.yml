@@ -1,0 +1,85 @@
+name: CI
+
+# Push-triggered on every branch. Tag pushes are excluded: a tag is cut from a
+# commit that was already built, so running again would only duplicate the
+# result.
+on:
+  push:
+    tags-ignore: ['**']
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Xcode is pinned rather than tracking the runner image. The `checks` job's
+# gate is *zero diagnostics*, not zero errors, so a compiler that adds one new
+# warning turns it red for a reason that has nothing to do with the templates.
+# Pinning makes that a deliberate bump. The gate was measured to hold on Swift
+# 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4), so the pin is for
+# reproducibility, not fragility.
+env:
+  XCODE_VERSION: '26.3'
+  SOURCERY_VERSION: '2.3.0'
+
+jobs:
+  # ── Fast lane ────────────────────────────────────────────────────
+  # Runs first, and alone, because it catches most template regressions in
+  # about a minute: it is the only lane that diffs the generated output against
+  # a recorded snapshot, and the only one that compiles it in the Swift 6
+  # language mode. It needs no simulator and no third-party package.
+  checks:
+    name: Checks (snapshot, both language modes, behaviour)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Cache Sourcery artifact bundle
+        # Keyed on the version alone: the bundle at a given version is
+        # immutable, so there is nothing else for the key to depend on.
+        uses: actions/cache@v4
+        with:
+          path: .build/sourcery-${{ env.SOURCERY_VERSION }}
+          key: sourcery-${{ runner.os }}-${{ env.SOURCERY_VERSION }}
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Run checks
+        run: Checks/run-checks.sh
+
+  # ── Full lane ────────────────────────────────────────────────────
+  # Covers what the fast lane structurally cannot: the RxSwift smart defaults
+  # (`Single`, `Observable`, `AnyObserver`, `Disposable`), the RIBs
+  # external-protocol annotation pattern, the TypeErase template, and the SPM
+  # build-tool plugin — which is how most consumers invoke the templates, and
+  # which only exists inside a real package build. Gated on `checks` so a
+  # broken template does not also pay for a simulator boot and six package
+  # resolutions.
+  example-project:
+    name: Example project (RxSwift, RIBs, type erasure, SPM plugin)
+    needs: checks
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: List simulators
+        # test-ios.sh resolves the newest installed iOS runtime's UDID. Logging
+        # the available devices makes a resolution failure diagnosable from the
+        # run alone.
+        run: xcrun simctl list devices available
+
+      - name: Run example project tests
+        working-directory: Examples/ExampleProjectSpm
+        run: ./test-ios.sh
+        # If this lane's wall time becomes a problem, the fix is to teach
+        # test-ios.sh a `-derivedDataPath` and cache it, the way the
+        # modaal-firebase-wrappers workflow caches `.build/DerivedData`.

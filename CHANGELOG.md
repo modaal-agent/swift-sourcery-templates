@@ -19,6 +19,14 @@ pod.
 
 ---
 
+## Unreleased
+
+- CI on every push (`.github/workflows/ci.yml`): the fast `Checks/` lane, then the example project's
+  simulator suite gated on it. Xcode is pinned, because the fast lane's gate is zero *diagnostics* —
+  a compiler that adds one warning would fail it for a reason unrelated to the templates.
+
+---
+
 ## 0.2.15 — 2026-08-06
 
 Generated mocks now compile with **zero diagnostics** under `-strict-concurrency=complete` and in the
