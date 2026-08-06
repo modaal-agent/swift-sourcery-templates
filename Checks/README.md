@@ -30,7 +30,7 @@ instead of reaching consumers.
 Every protocol in `Fixtures/` is a shape taken from a consumer, not an invented
 one. [`Composition.swift`](Fixtures/Composition.swift),
 [`Isolation.swift`](Fixtures/Isolation.swift) and
-[`Streams.swift`](Fixtures/Streams.swift) mirror the WikiMemory reference app:
+[`Streams.swift`](Fixtures/Streams.swift) mirror the Duet reference app:
 a `<X>Dependency` protocol per composition level, `@MainActor` repositories, a
 `nonisolated` subtree port, `async` staging seams, `AnyPublisher` state streams,
 and registration methods returning `AnyCancellable`.

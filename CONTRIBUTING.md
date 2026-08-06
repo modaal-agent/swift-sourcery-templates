@@ -189,10 +189,10 @@ that does not tell the author what to do.
   inherited requirement only when the inherited protocol is among the `--sources`. A protocol
   refining one from *another module* generates a mock missing those requirements, and the failure
   surfaces in the consumer's build as "type 'XMock' does not conform to protocol 'Y'" — never here.
-  The fix belongs to whatever drives generation: pass the other module's sources too. WikiMemory's
-  `scripts/generate-mocks.sh` derives them from `swift package dump-package` (every path dependency,
-  plus the framework at its exact pin) rather than listing paths, so a new refinement across a
-  first-party module boundary needs no change to the script.
+  The fix belongs to whatever drives generation: pass the other module's sources too. The Duet
+  reference app's `scripts/generate-mocks.sh` derives them from `swift package dump-package` (every
+  path dependency, plus the framework at its exact pin) rather than listing paths, so a new
+  refinement across a first-party module boundary needs no change to the script.
 
 ### SourceryRuntime API notes
 
@@ -282,7 +282,7 @@ version first.
   `scripts/generate-mocks.sh` is the adopter pattern worth copying — templates cloned at a pinned tag,
   annotations in their own directory, one output file per module, `TEMPLATES_DIR` override for local
   iteration. Regenerate it when measuring a release's consumer impact.
-- **WikiMemory (Duet reference app)** — drove 0.2.15 and the Component template. 93
+- **The Duet reference app** — drove 0.2.15 and the Component template. 93
   `/// sourcery: CreateMock` annotations including an `<X>Dependency` protocol at each of its 13
   composition levels, built with `-strict-concurrency=complete`; the `Checks/Fixtures/` shapes are
   taken from it. The shape the Component template emits is specified in `modaal-agent`'s

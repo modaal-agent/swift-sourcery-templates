@@ -63,7 +63,7 @@ public final class StubThemeProvider: ThemeProviding, @unchecked Sendable {
 
 /// The kind of object a composition level owns: built from collaborators the
 /// level forwards, with a lifetime tied to the Component that holds it. Stands
-/// in for WikiMemory's `FeedAudioPlayer`.
+/// in for the reference app's `FeedAudioPlayer`.
 public final class FeedAudioPlayer {
   public let memoryRepository: MemoryRepositoryProtocol
   public let analytics: AnalyticsTracking

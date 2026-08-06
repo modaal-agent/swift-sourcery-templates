@@ -40,7 +40,7 @@ public protocol DiagnosticsReporting: AnyObject {
 // MARK: - The opt-out
 
 /// A level that hands the observer an object whose lifetime a churn spec
-/// asserts — WikiMemory's `FeedAudioPlayer`, owned by `MainComponent` and
+/// asserts — the reference app's `FeedAudioPlayer`, owned by `MainComponent` and
 /// expected to deallocate when the level detaches.
 ///
 /// `attach` records, and the mock therefore holds the player until the spec

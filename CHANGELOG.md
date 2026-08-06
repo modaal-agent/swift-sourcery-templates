@@ -107,8 +107,9 @@ None for a compiling consumer, but two name collisions are possible after a rege
 Bump the tag and regenerate. Nothing else is required: every existing member keeps its name, its type
 and its behaviour.
 
-Then consider what the arrays replace. In WikiMemory that was a hand-written `ArgumentLog<Value>`
-wired into a handler in each spec; the file is deleted and its call sites read the arrays directly.
+Then consider what the arrays replace. For the consumer app that adopted 0.3.1 that was a
+hand-written `ArgumentLog<Value>` wired into a handler in each spec; the file is deleted and its call
+sites read the arrays directly.
 
 Measured on `modaal-firebase-wrappers` (7 modules, 33 mocks): **+218 lines, 0 deletions** — 109
 arrays and 109 appends, and no existing line changed. `ModaalFirebaseMocks` builds for iOS from that
@@ -119,9 +120,9 @@ diff with zero warnings, over element types the fixtures do not have: `[Any]`, `
 
 ## 0.3.1 — 2026-08-06
 
-An optional existential now generates as valid Swift. Found by the first adopter of 0.3.0
-(WikiMemory: `func buildStore(… restoredSheet: (any DetailSheet)?, …)`), whose generated mock did not
-compile.
+An optional existential now generates as valid Swift. Found by the first adopter of 0.3.0 — a
+consumer app whose annotated protocol declares
+`func buildStore(… restoredSheet: (any DetailSheet)?, …)`, and whose generated mock did not compile.
 
 ### Generated output
 

@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - A `@MainActor` protocol, all members isolated
 
-/// Shape of WikiMemory's `UserRepositoryProtocol`: a main-actor repository whose
+/// Shape of the reference app's `UserRepositoryProtocol`: a main-actor repository whose
 /// surface is a state stream plus mutations returning publishers.
 ///
 /// sourcery: CreateMock
@@ -70,7 +70,7 @@ public protocol AnalyticsTracking: Sendable {
 
 // MARK: - Member-level isolation, non-isolated protocol
 
-/// Shape of WikiMemory's `<X>Buildable`: the protocol is not isolated, the mount
+/// Shape of the reference app's `<X>Buildable`: the protocol is not isolated, the mount
 /// method is. A non-isolated witness satisfies a `@MainActor` requirement, so
 /// the generated mock stays callable from a non-isolated test body — this
 /// fixture exists to keep that true.

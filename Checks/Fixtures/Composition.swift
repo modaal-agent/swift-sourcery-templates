@@ -2,7 +2,7 @@
 // protocol per level, the `<X>Component` that satisfies it, and the
 // `<X>Buildable` that mounts it.
 //
-// Source: the WikiMemory reference app, where every composition level declares
+// Source: the Duet reference app, where every composition level declares
 // a Dependency protocol naming exactly what it consumes and a Component that
 // forwards or owns each member. Generated mocks are what makes one protocol per
 // level cheap enough to be the rule, so the shape is checked here.
@@ -106,7 +106,7 @@ public protocol AppServicesRegistering: AppServicesAPNSHandlerRegistering,
 
 // MARK: - Optional existentials
 
-/// The shape a `MemoryDetail` Builder takes in WikiMemory: a restored sheet
+/// The shape a `MemoryDetail` Builder takes in the reference app: a restored sheet
 /// arrives as `(any DetailSheet)?`, and one of the closures takes it too.
 ///
 /// The parser reports every one of these without its parentheses — `any
