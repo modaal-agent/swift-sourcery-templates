@@ -12,6 +12,7 @@ Distributed as an **SPM build-tool plugin** (`SourcerySwiftCodegenPlugin`) and a
 ## Repository Layout
 
 ```
+CHANGELOG.md                        # Per-release: generated-output diff, breaking changes, adoption
 templates/                          # Template source (the core product)
   Mocks.swifttemplate               # Entry point — includes all Mocks/* files, filters by CreateMock annotation
   TypeErase.swifttemplate            # Entry point for type erasure
@@ -31,8 +32,14 @@ templates/                          # Template source (the core product)
 Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin
   SourcerySwiftCodegenPlugin.swift  # Locates Sourcery binary, exports env vars, runs codegen
 
+Checks/                             # Fast lane — no simulator, no third-party packages
+  run-checks.sh                     # generate → snapshot diff → typecheck ×2 → behaviour
+  Fixtures/                         # protocol shapes taken from consumers (WikiMemory)
+  Snapshots/Mocks.generated.swift   # recorded generated output; --record to update
+  Behaviour/Main.swift              # runtime assertions, one executable, no test framework
+
 Examples/
-  ExampleProjectSpm/                # Primary test project (SPM-based)
+  ExampleProjectSpm/                # Full lane — RxSwift/RIBs/type erasure/plugin (SPM-based)
     Package.swift
     test-ios.sh                     # CI script: xcodebuild test on iOS Simulator
     Sources/ExampleProjectSpm/
@@ -50,12 +57,19 @@ Package.swift                       # Plugin package definition
 
 ## Running Tests
 
+Two lanes. **Start with the fast one** — a template edit that breaks a shape shows up in seconds, and
+the snapshot diff is the only place generated output is reviewable.
+
 ```bash
-cd Examples/ExampleProjectSpm
-./test-ios.sh
+Checks/run-checks.sh              # snapshot + both language modes + behaviour, ~10s
+Checks/run-checks.sh --record     # after reviewing the diff, rewrite the snapshot
+
+cd Examples/ExampleProjectSpm && ./test-ios.sh    # RxSwift, RIBs, type erasure, the plugin
 ```
 
-The test script builds and runs on iOS Simulator. The SPM build-tool plugin runs Sourcery as a prebuild step — generated mocks land in DerivedData, not in the source tree.
+Run both before cutting a tag. The example script builds and runs on an iOS Simulator; the SPM
+build-tool plugin runs Sourcery as a prebuild step — generated mocks land in DerivedData, not in the
+source tree, which is why `Checks/Snapshots/` exists.
 
 ## How Mock Generation Works
 
@@ -85,6 +99,29 @@ func fetchData(id: String, completion: @escaping (String) -> Void) {
 var fetchDataCallCount: Int = 0
 var fetchDataHandler: ((_ id: String, _ completion: @escaping (String) -> Void) -> ())? = nil
 ```
+
+### Concurrency Emission (since 0.2.15)
+
+The generated file must compile with zero diagnostics under `-swift-version 5
+-strict-concurrency=complete` **and** `-swift-version 6`. Four rules produce that, and
+`Checks/run-checks.sh` enforces it:
+
+| source construct | emission | where |
+|---|---|---|
+| protocol attribute `@MainActor` / `@*Actor`, or `sourcery: globalActor` | attribute line before `class` | `MockGenerator.swift`, via `Type.globalActorAttributeName` |
+| `nonisolated` member of an isolated protocol | `nonisolated` on the member, `nonisolated(unsafe)` on its counter and handler | `MockMethod.storageIsolationDecl`, `MockVar.storageIsolationDecl` |
+| `method.isAsync` | ` async` in the signature and the handler type, `await` at the handler call | `MockMethod.asyncDecl` |
+| `@Sendable` closure parameter | the attribute in the signature and the handler type | `MethodParameter.closureAttributesDecl`, shared with `@escaping` |
+| protocol refines `Sendable` | `final class …, @unchecked Sendable` | `MockGenerator.swift`, via `Type.requiresUncheckedSendable` |
+
+`nonisolated(unsafe)` is what a mutable stored property outside the actor requires — a plain
+`nonisolated var` on a stored property is rejected. The modifiers are emitted **only** when the mock
+class carries a global actor (`Type.emitsNonisolatedMembers`); on a non-isolated mock they would be
+noise.
+
+Member-level global actors are deliberately **not** propagated: a non-isolated witness satisfies a
+`@MainActor` requirement, and propagating would make the mock uncallable from a non-isolated test
+body. `Checks/Fixtures/Isolation.swift`'s `TimelineBuildable` is the fixture that keeps this true.
 
 ### Key Files for Method Signature Generation
 
@@ -132,6 +169,9 @@ Key properties on `TypeName`:
 | `handler` | Variable | Generate handler closure for variable |
 | `import = "Module"` | Protocol | Add `import Module` to generated output |
 | `ObjcProtocol` | Protocol | Generate `NSObject` superclass for mock |
+| `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
+| `uncheckedSendable` | Protocol | Force `@unchecked Sendable` when the `Sendable` refinement is not visible to Sourcery (e.g. inherited through an unresolved protocol) |
+| `subject = "CurrentValue"` / `"Passthrough"` | Variable / method | Choose the subject backing an `AnyPublisher` member |
 
 ## External Protocol Annotation Pattern
 
@@ -161,8 +201,10 @@ Multiple imports: use repeated `--args` flags or YAML array syntax.
 
 ## Common Pitfalls
 
-- **`typeName.name` vs `typeName.asSource`**: `.name` strips type attributes (`@escaping`). Use `.name` for type identity comparisons; check `typeName.attributes` explicitly when emitting declarations.
-- **`@autoclosure`**: Valid on function parameters but NOT on closure type parameters. Don't blindly use `asSource` in handler closure types — check for specific attributes.
+- **`typeName.name` vs `typeName.asSource`**: `.name` strips type attributes (`@escaping`, `@Sendable`). Use `.name` for type identity comparisons; check `typeName.attributes` explicitly when emitting declarations. `MethodParameter.closureAttributesDecl` is the one place that does this — add new closure attributes there, not at the two call sites.
+- **`@autoclosure`**: Valid on function parameters but NOT on closure type parameters. This is why `asSource` cannot be used wholesale in handler closure types — each attribute is opted into explicitly.
 - **Handler closure parameter escaping**: The handler's closure type must preserve `@escaping` on inner closure parameters so the handler implementation can capture/dispatch them async.
 - **Method name disambiguation**: When a protocol has overloaded methods, the template automatically falls back to long-form names (including parameter labels) to avoid duplicate mock variable names. If long-form names also collide — overloads sharing the same name *and* parameter list, differing only by return type, e.g. a refining protocol overriding `func data() -> [String: Any]?` with `func data() -> [String: Any]` — a sanitized return-type suffix is appended to the mock variable names (`dataStringAnyOptionalHandler` vs `dataStringAnyHandler`). The naming convention is deterministic: optional types contribute an `Optional` suffix; bracket/colon/space characters in the type are stripped and the remainder is camel-cased. See `ReturnTypeOverloadMocksSpec.swift` for the canonical reproducer (mirrors Firebase iOS SDK's `QueryDocumentSnapshot : DocumentSnapshot` shape).
 - **Generated mock access level**: Mock classes and all their members are currently `internal` (no access modifier). Consumers shipping mocks in a separate SPM product need `@testable import` to access them. See AGENTS.md "Open Items" for the planned fix — `public` should be added to class, init, all vars, and all funcs across MockGenerator.swift, MockMethod.swift, and MockVar.swift.
+- **Non-Sendable mocks and `async`**: a mock of a non-isolated protocol is a non-Sendable class. Constructing it on the main actor and then calling a nonisolated `async` member sends it across an isolation boundary, which the Swift 6 language mode rejects — the test body has to be non-isolated too. This is Swift's rule, not a template defect; `Checks/Behaviour/Main.swift`'s `checkAsync` documents it in place.
+- **Smart-default ordering**: `smartDefaultValueImplementation` matches `AnyPublisher` before `AnyCancellable` before `Disposable` before the RxSwift generics. Adding a case in the wrong order silently changes which branch a type takes — the snapshot gate is what catches it.

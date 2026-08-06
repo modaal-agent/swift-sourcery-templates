@@ -44,6 +44,24 @@ class SourceCode {
     }
 }
 
+extension SourceCode {
+    /// A copy of this construct with `prefix` prepended to its first line, used
+    /// to attach declaration modifiers (e.g. `nonisolated(unsafe) `) to code the
+    /// generator has already assembled.
+    func prefixed(_ prefix: String) -> SourceCode {
+        guard !prefix.isEmpty, !line.isEmpty else { return self }
+        let copy = SourceCode("\(prefix)\(line)", nested: nested)
+        copy.isBlockMandatory = isBlockMandatory
+        return copy
+    }
+}
+
+extension Array where Element == SourceCode {
+    func isolated(_ prefix: String) -> [SourceCode] {
+        return map { $0.prefixed(prefix) }
+    }
+}
+
 class TopScope {
     var nested: [SourceCode] = []
 

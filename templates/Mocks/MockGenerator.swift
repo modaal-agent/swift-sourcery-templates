@@ -26,7 +26,19 @@ class MockGenerator {
 
             let genericTypes: [GenericTypeInfo] = (type.genericTypes + mockMethods.flatMap { $0.genericTypes }).merged()
 
-            var mock = SourceCode("class \(type.name)Mock\(genericTypes.genericTypesModifier): \(type.isObjcProtocol ? "NSObject, " : "")\(type.name)\(genericTypes.genericTypesConstraints)")
+            // Global actor isolation (e.g. `@MainActor`) is declared on the mock
+            // class explicitly. Without it the conformance is inferred, which the
+            // compiler rejects as soon as one requirement is `nonisolated`.
+            if let globalActor = type.globalActorAttributeName {
+                topScope += "@\(globalActor)"
+            }
+
+            // `@unchecked Sendable` is required — not merely nice — when the
+            // protocol refines `Sendable`: a mock's call counters are mutable
+            // stored properties, which a checked conformance rejects.
+            let sendableConformance = type.requiresUncheckedSendable ? ", @unchecked Sendable" : ""
+
+            var mock = SourceCode("final class \(type.name)Mock\(genericTypes.genericTypesModifier): \(type.isObjcProtocol ? "NSObject, " : "")\(type.name)\(sendableConformance)\(genericTypes.genericTypesConstraints)")
             mock.isBlockMandatory = true
 
             // generic typealiases

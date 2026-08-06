@@ -73,6 +73,26 @@ extension MockMethod {
         return method.returnTypeName.name.returnTypeDiscriminatorSuffix
     }
 
+    /// `nonisolated` is restated on the mock only when the mock class carries a
+    /// global actor — that is the case where the modifier changes the meaning of
+    /// the member rather than repeating the default.
+    fileprivate var isNonisolated: Bool {
+        return type.emitsNonisolatedMembers && method.isDeclaredNonisolated
+    }
+
+    /// Modifier for the generated `func`.
+    fileprivate var isolationDecl: String {
+        return isNonisolated ? "nonisolated " : ""
+    }
+
+    /// Modifier for the generated bookkeeping storage. A `nonisolated` member
+    /// mutates its own call counter, which the compiler rejects when that
+    /// counter stays actor-isolated; `nonisolated(unsafe)` is what a mutable
+    /// stored property outside the actor requires.
+    fileprivate var storageIsolationDecl: String {
+        return isNonisolated ? "nonisolated(unsafe) " : ""
+    }
+
     func mockImpl() throws -> [SourceCode] {
         var mockMethodHandlers = TopScope()
 
@@ -83,7 +103,7 @@ extension MockMethod {
         mockMethodHandlers += mockHandler.1
 
         // func declaration
-        var methodImpl = SourceCode("func \(method.shortName)(\(method.methodParametersDecl))\(method.throwingDecl)\(method.returnTypeDecl)")
+        var methodImpl = SourceCode("\(isolationDecl)func \(method.shortName)(\(method.methodParametersDecl))\(method.asyncDecl)\(method.throwingDecl)\(method.returnTypeDecl)")
 
         // Increment usage call count.
         methodImpl += "\(mockCallCount.0) += 1"
@@ -103,10 +123,11 @@ extension MockMethod {
                 let smartDefaultValueImplementation = try method.returnTypeName.smartDefaultValueImplementation(
                     isProperty: false,
                     mockVariablePrefix: mockedMethodName,
-                    forceCastingToReturnTypeName: isGeneric)
+                    forceCastingToReturnTypeName: isGeneric,
+                    requestedSubjectKind: method.requestedSubjectKind)
 
                 methodImpl += smartDefaultValueImplementation.0
-                mockMethodHandlers += smartDefaultValueImplementation.1
+                mockMethodHandlers += smartDefaultValueImplementation.1.isolated(storageIsolationDecl)
             } else if method.returnTypeName.hasDefaultValue, let defaultValue = try? method.returnTypeName.defaultValue() {
                 methodImpl += SourceCode("return \(defaultValue)")
             } else {
@@ -126,7 +147,7 @@ extension MockMethod {
     }
 
     private var mockCallCountImpl: (String, SourceCode) {
-        return (mockedVarCallCountName, SourceCode("var \(mockedVarCallCountName): Int = 0"))
+        return (mockedVarCallCountName, SourceCode("\(storageIsolationDecl)var \(mockedVarCallCountName): Int = 0"))
     }
 
     private var mockMethodHandlerName: String {
@@ -139,10 +160,9 @@ extension MockMethod {
 
     private var mockHandlerImpl: (String, SourceCode) {
         let handlerParameters = method.parameters.map {
-            let escaping = $0.typeName.isClosure && $0.typeName.attributes["escaping"] != nil ? "@escaping " : ""
-            return "_ \($0.name): \(escaping)\($0.typeName.name)"
+            return "_ \($0.name): \($0.closureAttributesDecl)\($0.typeName.name)"
         }.joined(separator: ", ")
-        return (mockMethodHandlerName, SourceCode("var \(mockMethodHandlerName): ((\(handlerParameters))\(method.throwingHandlerDecl) -> (\(mockMethodHandlerReturnType)))? = nil"))
+        return (mockMethodHandlerName, SourceCode("\(storageIsolationDecl)var \(mockMethodHandlerName): ((\(handlerParameters))\(method.asyncDecl)\(method.throwingHandlerDecl) -> (\(mockMethodHandlerReturnType)))? = nil"))
     }
 
     private var mockHandlerCallImpl: SourceCode {
@@ -161,9 +181,10 @@ extension MockMethod {
             .joined(separator: ", ")
         let forceCastingToGenericReturnValue = isGeneric && !isVoid ? " as! \(mockMethodHandlerReturnType)" : ""
         let invocationThrowing = method.`throws` ? "try " : method.`rethrows` ? "try! " : ""
+        let invocationAwaiting = method.isAsync ? "await " : ""
         let handlerName = mockHandlerImpl.0
         return SourceCode("if let __\(handlerName) = self.\(handlerName)") {[
-            SourceCode("\(returning)\(invocationThrowing)__\(handlerName)(\(parameters))\(forceCastingToGenericReturnValue)")
+            SourceCode("\(returning)\(invocationThrowing)\(invocationAwaiting)__\(handlerName)(\(parameters))\(forceCastingToGenericReturnValue)")
         ]}
     }
 }
@@ -234,6 +255,10 @@ private extension SourceryRuntime.Method {
             .joined(separator: ", ")
     }
 
+    var asyncDecl: String {
+        return isAsync ? " async" : ""
+    }
+
     var throwingDecl: String {
         return self.`throws` ? " throws" : self.`rethrows` ? " rethrows" : ""
     }
@@ -247,11 +272,34 @@ private extension SourceryRuntime.Method {
     }
 }
 
-private extension SourceryRuntime.MethodParameter {
+extension SourceryRuntime.MethodParameter {
+    /// Closure-type attributes that have to survive into the mock, in
+    /// declaration order.
+    ///
+    /// `typeName.name` strips type attributes, and `typeName.asSource` carries
+    /// all of them — including `@autoclosure`, which is legal on a function
+    /// parameter but not on a closure type parameter, so neither is usable
+    /// directly. Each attribute is checked and emitted explicitly.
+    ///
+    /// - `@escaping` — the handler must be able to store the closure and call
+    ///   it later, which is the point of capturing it.
+    /// - `@Sendable` — without it the captured closure's *type* is not
+    ///   Sendable, so handing it to anything `@Sendable`-constrained fails with
+    ///   "converting non-Sendable function value to '@Sendable …' may introduce
+    ///   data races". Conformance holds either way (a witness taking a
+    ///   non-Sendable closure is the more general one), so this is about what a
+    ///   spec can do with what it captured, not about the mock compiling.
+    var closureAttributesDecl: String {
+        guard typeName.isClosure else { return "" }
+        var attributesDecl = ""
+        if typeName.attributes["escaping"] != nil { attributesDecl += "@escaping " }
+        if typeName.attributes["Sendable"] != nil { attributesDecl += "@Sendable " }
+        return attributesDecl
+    }
+
     var parametersDecl: String {
         let argumentLabel = argumentLabel == nil ? "_ " : argumentLabel != name ? "\(argumentLabel!) " : ""
-        let escaping = typeName.isClosure && typeName.attributes["escaping"] != nil ? "@escaping " : ""
-        return "\(argumentLabel)\(name): \(escaping)\(typeName.name)"
+        return "\(argumentLabel)\(name): \(closureAttributesDecl)\(typeName.name)"
     }
 }
 

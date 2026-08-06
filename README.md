@@ -8,7 +8,12 @@ Two templates:
 2. **`TypeErase.swifttemplate`** — generates [type erasure](https://www.bignerdranch.com/blog/breaking-down-type-erasure-in-swift/) wrappers
 
 Both support protocols with associated types, generic functions with constraints, `@escaping` closure parameters,
-and provide smart defaults for RxSwift types. Compatible with [RIBs](https://github.com/uber/RIBs) architecture patterns.
+and provide smart defaults for RxSwift and Combine types. Compatible with [RIBs](https://github.com/uber/RIBs) architecture patterns.
+
+Generated mocks compile with **zero diagnostics** under `-strict-concurrency=complete` and in the
+Swift 6 language mode: `async` and `nonisolated` are carried through to the mock, a protocol's
+global actor is declared on the mock class, and a `Sendable` protocol gets an `@unchecked`
+conformance. See [Concurrency](#concurrency).
 
 ## Generated Mock API
 
@@ -24,7 +29,7 @@ protocol DataService {
 The template generates:
 
 ```swift
-class DataServiceMock: DataService {
+final class DataServiceMock: DataService {
     func fetchData(id: String, completion: @escaping (String?, Error?) -> Void) {
         fetchDataCallCount += 1
         if let __fetchDataHandler = self.fetchDataHandler {
@@ -39,9 +44,71 @@ class DataServiceMock: DataService {
 **Key features:**
 - **Call counting** — `methodCallCount` tracks invocation count
 - **Handler closures** — `methodHandler` lets tests control behavior
-- **`@escaping` preservation** — closure parameters retain `@escaping` in both the method signature and the handler type, so handlers can capture and async-dispatch closures
-- **Smart defaults** — Optional returns `nil`, Void returns nothing, known types get sensible defaults
+- **`@escaping` / `@Sendable` preservation** — closure parameters retain both attributes in the method signature and the handler type, so handlers can capture, async-dispatch, and hand off closures that cross isolation boundaries
+- **`async` / `throws` preservation** — an `async` requirement generates an `async` method with an `async` handler, so a spec can control *when* the call returns, not only what it returns
+- **Smart defaults** — Optional returns `nil`, Void returns nothing, known types get sensible defaults, and RxSwift / Combine types get a subject the test drives
 - **Overload disambiguation** — overloaded methods get distinct handler names automatically
+
+## Concurrency
+
+The generated file is held to zero diagnostics under `-swift-version 5 -strict-concurrency=complete`
+and under `-swift-version 6` — see [`Checks/`](Checks).
+
+| protocol declares | mock gets |
+| --- | --- |
+| `@MainActor` (or any attribute ending in `Actor`) | the same attribute on the class, so the conformance is isolated rather than inferred |
+| `nonisolated func` / `nonisolated var` on an isolated protocol | `nonisolated` on the member and `nonisolated(unsafe)` on its call counter and handler — without both, the member cannot mutate its own bookkeeping |
+| `func f() async throws -> T` | `func f() async throws -> T` with handler `((…) async throws -> (T))?`, awaited at the call |
+| `: Sendable` | `final class …: P, @unchecked Sendable` — a test double holds mutable counters, so the conformance cannot be checked |
+| `@Sendable` closure parameter | the attribute restated in the signature and the handler type, so the captured closure can be handed to `@Sendable`-constrained code |
+| a global actor Sourcery cannot name from the attribute | declare it: `/// sourcery: globalActor = "MyIsolation"` |
+
+Two deliberate non-goals:
+
+- **Member-level global actors are not propagated.** A protocol that is not isolated but whose method
+  is `@MainActor` produces a non-isolated mock method. That satisfies the requirement, and it keeps
+  the mock callable from a non-isolated test body.
+- **Mock classes are `final`.** Subclassing a generated mock is not supported; set a handler instead.
+
+## Combine
+
+An `AnyPublisher<Output, Failure>` requirement is backed by a subject the test drives:
+
+```swift
+/// sourcery: CreateMock
+@MainActor
+protocol UserRepositoryProtocol {
+    var meStream: AnyPublisher<UserSummary?, Never> { get }
+    func bootstrap(displayName: String?) -> AnyPublisher<Void, Error>
+}
+```
+
+```swift
+mock.meStreamSubject.send(UserSummary(uid: "u1", displayName: "Ada"))   // state, replayed
+mock.bootstrapSubject.send(())                                          // event
+```
+
+The subject kind follows the element type: **`CurrentValueSubject`** when `Output` has a default
+value (so a subscriber attaching after the push still receives it — what a state stream needs), and
+**`PassthroughSubject`** when it does not, or when `Output` is `Void` (a mutation's completion is an
+event, not a state). Override per member with `/// sourcery: subject = "CurrentValue"` or
+`"Passthrough"`.
+
+A method returning `AnyCancellable` gets a token whose `cancel()` is counted —
+`<method>CancelCallCount` and `<method>CancelHandler` — mirroring the RxSwift `Disposable` case, so a
+registration API's deregistration is observable without setting a handler.
+
+## Tests
+
+| lane | command | covers |
+| --- | --- | --- |
+| fast | `Checks/run-checks.sh` | snapshot of generated output, both language modes, runtime behaviour. No simulator, no third-party packages, seconds |
+| full | `Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
+
+Run both before cutting a tag.
+
+Release notes, including what each version changes in the generated output and what breaks:
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Rationale
 
@@ -291,6 +358,9 @@ Sourcery picks up annotations from extensions on the protocol. Pass the annotati
 | `handler` | Variable | Generate handler closure |
 | `import = "Module"` | Protocol | Add `import` to output |
 | `ObjcProtocol` | Protocol | Add `NSObject` superclass |
+| `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
+| `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
+| `subject = "CurrentValue"` / `"Passthrough"` | Variable / method | Choose the subject backing an `AnyPublisher` member |
 
 # License
 

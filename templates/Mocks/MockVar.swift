@@ -3,18 +3,20 @@ import SourceryRuntime
 
 class MockVar {
     let variable: SourceryRuntime.Variable
+    fileprivate let type: SourceryRuntime.`Type`
 
     var mockedVariableName: String {
         return "\(variable.name)"
     }
 
-    init(variable: SourceryRuntime.Variable) {
+    init(variable: SourceryRuntime.Variable, type: SourceryRuntime.`Type`) {
         self.variable = variable
+        self.type = type
     }
 
     static func from(_ type: Type) -> [MockVar] {
         let allVariables = type.allVariables.filter { !$0.isStatic && $0.definedInType != nil && $0.definedInType?.isExtension == false }.uniqueVariables
-        return allVariables.map { MockVar(variable: $0) }.sorted { $0.mockedVariableName < $1.mockedVariableName }
+        return allVariables.map { MockVar(variable: $0, type: type) }.sorted { $0.mockedVariableName < $1.mockedVariableName }
     }
 }
 
@@ -27,24 +29,38 @@ extension MockVar {
             && !variable.isAnnotatedHandler
     }
 
+    /// See `MockMethod.isNonisolated` — the modifier is emitted only on an
+    /// isolated mock, where it changes the member's meaning.
+    fileprivate var isNonisolated: Bool {
+        return type.emitsNonisolatedMembers && variable.isDeclaredNonisolated
+    }
+
+    fileprivate var isolationDecl: String {
+        return isNonisolated ? "nonisolated " : ""
+    }
+
+    fileprivate var storageIsolationDecl: String {
+        return isNonisolated ? "nonisolated(unsafe) " : ""
+    }
+
     func mockImpl() throws -> [SourceCode] {
         let mockedVariableImplementation: SourceCode
         let mockedVariableHandlers = TopScope()
 
         if !variable.isMutable,
             variable.typeName.hasComplexTypeWithSmartDefaultValue(isProperty: true),
-            let smartDefaultValueImplementation = try? variable.typeName.smartDefaultValueImplementation(isProperty: true, mockVariablePrefix: mockedVariableName) {
+            let smartDefaultValueImplementation = try? variable.typeName.smartDefaultValueImplementation(isProperty: true, mockVariablePrefix: mockedVariableName, requestedSubjectKind: variable.requestedSubjectKind) {
 
-            mockedVariableImplementation = SourceCode("var \(variable.name): \(variable.typeName)") {[
+            mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName)") {[
                 SourceCode("\(mockedVariableName)GetCount += 1"),
                 SourceCode("if let handler = \(mockedVariableName)GetHandler") {[
                     SourceCode("return handler()")
                 ]},
                 smartDefaultValueImplementation.getterImplementation
             ]}
-            mockedVariableHandlers += "var \(mockedVariableName)GetCount: Int = 0"
-            mockedVariableHandlers += "var \(mockedVariableName)GetHandler: (() -> \(variable.typeName))? = nil"
-            mockedVariableHandlers += smartDefaultValueImplementation.mockedVariableHandlers
+            mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetCount: Int = 0"
+            mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetHandler: (() -> \(variable.typeName))? = nil"
+            mockedVariableHandlers += smartDefaultValueImplementation.mockedVariableHandlers.isolated(storageIsolationDecl)
         } else {
             let variableDecl = !variable.isMutable && variable.isAnnotatedConst ? "let" : "var"
             if variable.isAnnotatedHandler {
@@ -57,26 +73,26 @@ extension MockVar {
                     SourceCode("fatalError(\"`\(mockedVariableName)GetHandler` must be set!\")")
                 ]
                 if variable.isMutable {
-                    mockedVariableImplementation = SourceCode("var \(variable.name): \(variable.typeName)") {[
+                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName)") {[
                         SourceCode("get", nested: getterImplementation)
                     ]}
                 } else {
-                    mockedVariableImplementation = SourceCode("var \(variable.name): \(variable.typeName)", nested: getterImplementation)
+                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName)", nested: getterImplementation)
                 }
-                mockedVariableHandlers += "var \(mockedVariableName)GetCount: Int = 0"
-                mockedVariableHandlers += "var \(mockedVariableName)GetHandler: (() -> \(variable.typeName))? = nil"
+                mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetCount: Int = 0"
+                mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetHandler: (() -> \(variable.typeName))? = nil"
             } else if !variable.isAnnotatedInit, variable.typeName.hasDefaultValue, let defaultValue = try? variable.typeName.defaultValue() {
                 // Default value can be guessed.
-                mockedVariableImplementation = SourceCode("\(variableDecl) \(variable.name): \(variable.typeName) = \(defaultValue)")
+                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName) = \(defaultValue)")
             } else {
                 // No default value, the value must be provided to the mock class's initializer.
-                mockedVariableImplementation = SourceCode("\(variableDecl) \(variable.name): \(variable.typeName)")
+                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName)")
             }
             if variable.isMutable {
                 mockedVariableImplementation += SourceCode(variable.isAnnotatedHandler ? "set" : "didSet") {[
                     SourceCode("\(mockedVariableName)SetCount += 1")
                 ]}
-                mockedVariableHandlers += "var \(mockedVariableName)SetCount: Int = 0"
+                mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)SetCount: Int = 0"
             }
         }
         var topScope = TopScope()

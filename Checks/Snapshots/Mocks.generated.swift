@@ -1,0 +1,444 @@
+// Generated using Sourcery 2.3.0 — https://github.com/krzysztofzablocki/Sourcery
+// DO NOT EDIT
+
+
+import Combine
+import Foundation
+
+// MARK: - AnalyticsTracking
+final class AnalyticsTrackingMock: AnalyticsTracking, @unchecked Sendable {
+
+    // MARK: - Methods
+    func identify(uid: String) {
+        identifyCallCount += 1
+        if let __identifyHandler = self.identifyHandler {
+            __identifyHandler(uid)
+        }
+    }
+    var identifyCallCount: Int = 0
+    var identifyHandler: ((_ uid: String) -> ())? = nil
+    func reset() {
+        resetCallCount += 1
+        if let __resetHandler = self.resetHandler {
+            __resetHandler()
+        }
+    }
+    var resetCallCount: Int = 0
+    var resetHandler: (() -> ())? = nil
+    func track(_ name: String) {
+        trackCallCount += 1
+        if let __trackHandler = self.trackHandler {
+            __trackHandler(name)
+        }
+    }
+    var trackCallCount: Int = 0
+    var trackHandler: ((_ name: String) -> ())? = nil
+}
+
+// MARK: - AppServicesAPNSHandlerRegistering
+@MainActor
+final class AppServicesAPNSHandlerRegisteringMock: AppServicesAPNSHandlerRegistering {
+
+    // MARK: - Methods
+    func registerAPNSNotificationsHandler(_ tag: String, priority: Int) -> AnyCancellable {
+        registerAPNSNotificationsHandlerCallCount += 1
+        if let __registerAPNSNotificationsHandlerHandler = self.registerAPNSNotificationsHandlerHandler {
+            return __registerAPNSNotificationsHandlerHandler(tag, priority)
+        }
+        return AnyCancellable { [weak self] in
+            self?.registerAPNSNotificationsHandlerCancelCallCount += 1
+            self?.registerAPNSNotificationsHandlerCancelHandler?()
+        }
+    }
+    var registerAPNSNotificationsHandlerCallCount: Int = 0
+    var registerAPNSNotificationsHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
+    var registerAPNSNotificationsHandlerCancelCallCount: Int = 0
+    var registerAPNSNotificationsHandlerCancelHandler: (() -> ())? = nil
+}
+
+// MARK: - AppServicesRegistering
+@MainActor
+final class AppServicesRegisteringMock: AppServicesRegistering {
+
+    // MARK: - Methods
+    func handlersDidRegister() {
+        handlersDidRegisterCallCount += 1
+        if let __handlersDidRegisterHandler = self.handlersDidRegisterHandler {
+            __handlersDidRegisterHandler()
+        }
+    }
+    var handlersDidRegisterCallCount: Int = 0
+    var handlersDidRegisterHandler: (() -> ())? = nil
+    func registerAPNSNotificationsHandler(_ tag: String, priority: Int) -> AnyCancellable {
+        registerAPNSNotificationsHandlerCallCount += 1
+        if let __registerAPNSNotificationsHandlerHandler = self.registerAPNSNotificationsHandlerHandler {
+            return __registerAPNSNotificationsHandlerHandler(tag, priority)
+        }
+        return AnyCancellable { [weak self] in
+            self?.registerAPNSNotificationsHandlerCancelCallCount += 1
+            self?.registerAPNSNotificationsHandlerCancelHandler?()
+        }
+    }
+    var registerAPNSNotificationsHandlerCallCount: Int = 0
+    var registerAPNSNotificationsHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
+    var registerAPNSNotificationsHandlerCancelCallCount: Int = 0
+    var registerAPNSNotificationsHandlerCancelHandler: (() -> ())? = nil
+    func registerURLHandler(_ tag: String, priority: Int) -> AnyCancellable {
+        registerURLHandlerCallCount += 1
+        if let __registerURLHandlerHandler = self.registerURLHandlerHandler {
+            return __registerURLHandlerHandler(tag, priority)
+        }
+        return AnyCancellable { [weak self] in
+            self?.registerURLHandlerCancelCallCount += 1
+            self?.registerURLHandlerCancelHandler?()
+        }
+    }
+    var registerURLHandlerCallCount: Int = 0
+    var registerURLHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
+    var registerURLHandlerCancelCallCount: Int = 0
+    var registerURLHandlerCancelHandler: (() -> ())? = nil
+}
+
+// MARK: - AppServicesURLHandlerRegistering
+@MainActor
+final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegistering {
+
+    // MARK: - Methods
+    func registerURLHandler(_ tag: String, priority: Int) -> AnyCancellable {
+        registerURLHandlerCallCount += 1
+        if let __registerURLHandlerHandler = self.registerURLHandlerHandler {
+            return __registerURLHandlerHandler(tag, priority)
+        }
+        return AnyCancellable { [weak self] in
+            self?.registerURLHandlerCancelCallCount += 1
+            self?.registerURLHandlerCancelHandler?()
+        }
+    }
+    var registerURLHandlerCallCount: Int = 0
+    var registerURLHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
+    var registerURLHandlerCancelCallCount: Int = 0
+    var registerURLHandlerCancelHandler: (() -> ())? = nil
+}
+
+// MARK: - AudioSessionConfiguring
+final class AudioSessionConfiguringMock: AudioSessionConfiguring {
+
+    // MARK: - Variables
+    var recordPermission: RecordPermission
+
+    // MARK: - Initializer
+    init(recordPermission: RecordPermission) {
+        self.recordPermission = recordPermission
+    }
+
+    // MARK: - Methods
+    func activatePlayback() {
+        activatePlaybackCallCount += 1
+        if let __activatePlaybackHandler = self.activatePlaybackHandler {
+            __activatePlaybackHandler()
+        }
+    }
+    var activatePlaybackCallCount: Int = 0
+    var activatePlaybackHandler: (() -> ())? = nil
+    func activateRecording() throws {
+        activateRecordingCallCount += 1
+        if let __activateRecordingHandler = self.activateRecordingHandler {
+            try __activateRecordingHandler()
+        }
+    }
+    var activateRecordingCallCount: Int = 0
+    var activateRecordingHandler: (() throws -> ())? = nil
+    func requestRecordPermission(_ handler: @escaping (Bool) -> Void) {
+        requestRecordPermissionCallCount += 1
+        if let __requestRecordPermissionHandler = self.requestRecordPermissionHandler {
+            __requestRecordPermissionHandler(handler)
+        }
+    }
+    var requestRecordPermissionCallCount: Int = 0
+    var requestRecordPermissionHandler: ((_ handler: @escaping (Bool) -> Void) -> ())? = nil
+}
+
+// MARK: - MainDependency
+final class MainDependencyMock: MainDependency {
+
+    // MARK: - Variables
+    var analytics: AnalyticsTracking
+    var memoryRepository: MemoryRepositoryProtocol
+    var pushNotificationRepository: PushNotificationRepositoryProtocol
+    var themeProvider: ThemeProviding
+    var userRepository: UserRepositoryProtocol
+
+    // MARK: - Initializer
+    init(analytics: AnalyticsTracking, memoryRepository: MemoryRepositoryProtocol, pushNotificationRepository: PushNotificationRepositoryProtocol, themeProvider: ThemeProviding, userRepository: UserRepositoryProtocol) {
+        self.analytics = analytics
+        self.memoryRepository = memoryRepository
+        self.pushNotificationRepository = pushNotificationRepository
+        self.themeProvider = themeProvider
+        self.userRepository = userRepository
+    }
+}
+
+// MARK: - MediaStaging
+final class MediaStagingMock: MediaStaging {
+
+    // MARK: - Methods
+    func discardAll() async {
+        discardAllCallCount += 1
+        if let __discardAllHandler = self.discardAllHandler {
+            await __discardAllHandler()
+        }
+    }
+    var discardAllCallCount: Int = 0
+    var discardAllHandler: (() async -> ())? = nil
+    func stage(fileName: String) async -> String {
+        stageCallCount += 1
+        if let __stageHandler = self.stageHandler {
+            return await __stageHandler(fileName)
+        }
+        return ""
+    }
+    var stageCallCount: Int = 0
+    var stageHandler: ((_ fileName: String) async -> (String))? = nil
+    func upload(fileName: String) async throws -> URL {
+        uploadCallCount += 1
+        if let __uploadHandler = self.uploadHandler {
+            return try await __uploadHandler(fileName)
+        }
+        fatalError("uploadHandler expected to be set.")
+    }
+    var uploadCallCount: Int = 0
+    var uploadHandler: ((_ fileName: String) async throws -> (URL))? = nil
+    func validate(fileName: String) throws {
+        validateCallCount += 1
+        if let __validateHandler = self.validateHandler {
+            try __validateHandler(fileName)
+        }
+    }
+    var validateCallCount: Int = 0
+    var validateHandler: ((_ fileName: String) throws -> ())? = nil
+}
+
+// MARK: - MemoryEventStreaming
+final class MemoryEventStreamingMock: MemoryEventStreaming {
+
+    // MARK: - Variables
+    var latestDrop: AnyPublisher<MemoryDrop, Never> {
+        latestDropGetCount += 1
+        if let handler = latestDropGetHandler {
+            return handler()
+        }
+        return latestDropSubject.eraseToAnyPublisher()
+    }
+    var latestDropGetCount: Int = 0
+    var latestDropGetHandler: (() -> AnyPublisher<MemoryDrop, Never>)? = nil
+    lazy var latestDropSubject = PassthroughSubject<MemoryDrop, Never>()
+}
+
+// MARK: - MemoryRepositoryProtocol
+final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
+
+    // MARK: - Variables
+    var isRefreshing: AnyPublisher<Bool, Never> {
+        isRefreshingGetCount += 1
+        if let handler = isRefreshingGetHandler {
+            return handler()
+        }
+        return isRefreshingSubject.eraseToAnyPublisher()
+    }
+    var isRefreshingGetCount: Int = 0
+    var isRefreshingGetHandler: (() -> AnyPublisher<Bool, Never>)? = nil
+    lazy var isRefreshingSubject = CurrentValueSubject<Bool, Never>(false)
+    var ownMemories: AnyPublisher<[MemoryDrop], Never> {
+        ownMemoriesGetCount += 1
+        if let handler = ownMemoriesGetHandler {
+            return handler()
+        }
+        return ownMemoriesSubject.eraseToAnyPublisher()
+    }
+    var ownMemoriesGetCount: Int = 0
+    var ownMemoriesGetHandler: (() -> AnyPublisher<[MemoryDrop], Never>)? = nil
+    lazy var ownMemoriesSubject = CurrentValueSubject<[MemoryDrop], Never>([])
+
+    // MARK: - Methods
+    func delete(id: String) -> AnyPublisher<Void, Error> {
+        deleteCallCount += 1
+        if let __deleteHandler = self.deleteHandler {
+            return __deleteHandler(id)
+        }
+        return deleteSubject.eraseToAnyPublisher()
+    }
+    var deleteCallCount: Int = 0
+    var deleteHandler: ((_ id: String) -> (AnyPublisher<Void, Error>))? = nil
+    lazy var deleteSubject = PassthroughSubject<(), Error>()
+    func fetch(id: String) -> AnyPublisher<MemoryDrop?, Error> {
+        fetchCallCount += 1
+        if let __fetchHandler = self.fetchHandler {
+            return __fetchHandler(id)
+        }
+        return fetchSubject.eraseToAnyPublisher()
+    }
+    var fetchCallCount: Int = 0
+    var fetchHandler: ((_ id: String) -> (AnyPublisher<MemoryDrop?, Error>))? = nil
+    lazy var fetchSubject = CurrentValueSubject<MemoryDrop?, Error>(nil)
+}
+
+// MARK: - NotificationSignalling
+final class NotificationSignallingMock: NotificationSignalling {
+
+    // MARK: - Variables
+    var badgeCount: AnyPublisher<Int, Never> {
+        badgeCountGetCount += 1
+        if let handler = badgeCountGetHandler {
+            return handler()
+        }
+        return badgeCountSubject.eraseToAnyPublisher()
+    }
+    var badgeCountGetCount: Int = 0
+    var badgeCountGetHandler: (() -> AnyPublisher<Int, Never>)? = nil
+    lazy var badgeCountSubject = CurrentValueSubject<Int, Never>(0)
+    var friendGraphChanged: AnyPublisher<Void, Never> {
+        friendGraphChangedGetCount += 1
+        if let handler = friendGraphChangedGetHandler {
+            return handler()
+        }
+        return friendGraphChangedSubject.eraseToAnyPublisher()
+    }
+    var friendGraphChangedGetCount: Int = 0
+    var friendGraphChangedGetHandler: (() -> AnyPublisher<Void, Never>)? = nil
+    lazy var friendGraphChangedSubject = PassthroughSubject<(), Never>()
+}
+
+// MARK: - PushNotificationRepositoryProtocol
+@MainActor
+final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryProtocol {
+
+    // MARK: - Variables
+    var authorizationStatus: RecordPermission
+    nonisolated(unsafe) var installationId: String = ""
+    var isNotificationsEnabled: Bool = false
+
+    // MARK: - Initializer
+    init(authorizationStatus: RecordPermission) {
+        self.authorizationStatus = authorizationStatus
+    }
+
+    // MARK: - Methods
+    func deregisterCurrentDevice() -> AnyPublisher<Void, Error> {
+        deregisterCurrentDeviceCallCount += 1
+        if let __deregisterCurrentDeviceHandler = self.deregisterCurrentDeviceHandler {
+            return __deregisterCurrentDeviceHandler()
+        }
+        return deregisterCurrentDeviceSubject.eraseToAnyPublisher()
+    }
+    var deregisterCurrentDeviceCallCount: Int = 0
+    var deregisterCurrentDeviceHandler: (() -> (AnyPublisher<Void, Error>))? = nil
+    lazy var deregisterCurrentDeviceSubject = PassthroughSubject<(), Error>()
+    nonisolated func requestPermission() {
+        requestPermissionCallCount += 1
+        if let __requestPermissionHandler = self.requestPermissionHandler {
+            __requestPermissionHandler()
+        }
+    }
+    nonisolated(unsafe) var requestPermissionCallCount: Int = 0
+    nonisolated(unsafe) var requestPermissionHandler: (() -> ())? = nil
+    func setNotificationsEnabled(_ enabled: Bool) {
+        setNotificationsEnabledCallCount += 1
+        if let __setNotificationsEnabledHandler = self.setNotificationsEnabledHandler {
+            __setNotificationsEnabledHandler(enabled)
+        }
+    }
+    var setNotificationsEnabledCallCount: Int = 0
+    var setNotificationsEnabledHandler: ((_ enabled: Bool) -> ())? = nil
+}
+
+// MARK: - RootDependency
+final class RootDependencyMock: RootDependency {
+}
+
+// MARK: - TimelineBuildable
+final class TimelineBuildableMock: TimelineBuildable {
+
+    // MARK: - Methods
+    func build(withTag tag: String) -> ViewShellChild {
+        buildCallCount += 1
+        if let __buildHandler = self.buildHandler {
+            return __buildHandler(tag)
+        }
+        fatalError("buildHandler expected to be set.")
+    }
+    var buildCallCount: Int = 0
+    var buildHandler: ((_ tag: String) -> (ViewShellChild))? = nil
+}
+
+// MARK: - TimelineDependency
+final class TimelineDependencyMock: TimelineDependency {
+
+    // MARK: - Variables
+    var analytics: AnalyticsTracking
+    var audioSessionConfigurer: AudioSessionConfiguring
+    var memoryRepository: MemoryRepositoryProtocol
+    var themeProvider: ThemeProviding
+    var userRepository: UserRepositoryProtocol
+
+    // MARK: - Initializer
+    init(analytics: AnalyticsTracking, audioSessionConfigurer: AudioSessionConfiguring, memoryRepository: MemoryRepositoryProtocol, themeProvider: ThemeProviding, userRepository: UserRepositoryProtocol) {
+        self.analytics = analytics
+        self.audioSessionConfigurer = audioSessionConfigurer
+        self.memoryRepository = memoryRepository
+        self.themeProvider = themeProvider
+        self.userRepository = userRepository
+    }
+}
+
+// MARK: - UploadScheduling
+final class UploadSchedulingMock: UploadScheduling {
+
+    // MARK: - Methods
+    func schedule(fileName: String, completion: @escaping @Sendable (Bool) -> Void) {
+        scheduleCallCount += 1
+        if let __scheduleHandler = self.scheduleHandler {
+            __scheduleHandler(fileName, completion)
+        }
+    }
+    var scheduleCallCount: Int = 0
+    var scheduleHandler: ((_ fileName: String, _ completion: @escaping @Sendable (Bool) -> Void) -> ())? = nil
+}
+
+// MARK: - UserRepositoryProtocol
+@MainActor
+final class UserRepositoryProtocolMock: UserRepositoryProtocol {
+
+    // MARK: - Variables
+    var meStream: AnyPublisher<UserSummary?, Never> {
+        meStreamGetCount += 1
+        if let handler = meStreamGetHandler {
+            return handler()
+        }
+        return meStreamSubject.eraseToAnyPublisher()
+    }
+    var meStreamGetCount: Int = 0
+    var meStreamGetHandler: (() -> AnyPublisher<UserSummary?, Never>)? = nil
+    lazy var meStreamSubject = CurrentValueSubject<UserSummary?, Never>(nil)
+
+    // MARK: - Methods
+    func bootstrap(displayName: String?) -> AnyPublisher<Void, Error> {
+        bootstrapCallCount += 1
+        if let __bootstrapHandler = self.bootstrapHandler {
+            return __bootstrapHandler(displayName)
+        }
+        return bootstrapSubject.eraseToAnyPublisher()
+    }
+    var bootstrapCallCount: Int = 0
+    var bootstrapHandler: ((_ displayName: String?) -> (AnyPublisher<Void, Error>))? = nil
+    lazy var bootstrapSubject = PassthroughSubject<(), Error>()
+    func registerDevice(token: String, platform: String) -> AnyPublisher<Void, Error> {
+        registerDeviceCallCount += 1
+        if let __registerDeviceHandler = self.registerDeviceHandler {
+            return __registerDeviceHandler(token, platform)
+        }
+        return registerDeviceSubject.eraseToAnyPublisher()
+    }
+    var registerDeviceCallCount: Int = 0
+    var registerDeviceHandler: ((_ token: String, _ platform: String) -> (AnyPublisher<Void, Error>))? = nil
+    lazy var registerDeviceSubject = PassthroughSubject<(), Error>()
+}
