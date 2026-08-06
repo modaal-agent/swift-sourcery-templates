@@ -165,6 +165,21 @@ that does not tell the author what to do.
   place.
 - **`SourceryRuntime.Protocol` needs backticks** inside a template: the unquoted form collides with
   Foundation's Objective-C protocol metatype and fails to resolve.
+- **Never emit `typeName.name` or `typeName.asSource` directly** — emit `typeName.declaredName`, or
+  `mockTypeName` where a smart default is also in play. The parser returns `(any Sheet)?` as
+  `any Sheet?` in both properties, and that does not compile: *"optional 'any' type must be written
+  '(any Sheet)?'"*. The loss is the same for `some`, for compositions (`(any A & B)?`), and for the
+  type nested inside a closure parameter — which is why
+  `TypeName.parenthesizingOptionalExistentials` works on the rendered string rather than branching on
+  `isOptional`. `DetailPresenting` in `Checks/Fixtures/Composition.swift` pins all four positions.
+- **Sourcery only knows the declarations it parses.** `allVariables` / `allMethods` include an
+  inherited requirement only when the inherited protocol is among the `--sources`. A protocol
+  refining one from *another module* generates a mock missing those requirements, and the failure
+  surfaces in the consumer's build as "type 'XMock' does not conform to protocol 'Y'" — never here.
+  The fix belongs to whatever drives generation: pass the other module's sources too. WikiMemory's
+  `scripts/generate-mocks.sh` derives them from `swift package dump-package` (every path dependency,
+  plus the framework at its exact pin) rather than listing paths, so a new refinement across a
+  first-party module boundary needs no change to the script.
 
 ### SourceryRuntime API notes
 
@@ -172,7 +187,8 @@ that does not tell the author what to do.
 `typeName.asSource`, `typeName.attributes` (`[String: [Attribute]]`), `typeName.isClosure`, `inout`.
 
 `TypeName`: `name`, `asSource`, `isOptional` / `isVoid` / `isArray` / `isDictionary` / `isTuple` /
-`isClosure`, `unwrappedTypeName`, `attributes`, `generic`.
+`isClosure`, `unwrappedTypeName`, `attributes`, `generic`. This repo adds `declaredName` (what to
+emit) and `mockTypeName` (what to emit for a mocked member, smart defaults included).
 
 `Type`: `allVariables` / `allMethods` include inherited requirements — that is what makes a refining
 protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property requirements.

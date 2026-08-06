@@ -185,7 +185,7 @@ private extension ComponentGenerator {
     static func forwarder(for method: SourceryRuntime.Method, access: String, isolated: Bool) -> SourceCode {
         let nonisolated = (isolated && method.isDeclaredNonisolated) ? "nonisolated " : ""
         let effects = "\(method.isAsync ? " async" : "")\(method.`throws` ? " throws" : method.`rethrows` ? " rethrows" : "")"
-        let returns = method.returnTypeName.isVoid ? "" : " -> \(method.returnTypeName.name)"
+        let returns = method.returnTypeName.isVoid ? "" : " -> \(method.returnTypeName.declaredName)"
         let parameters = method.parameters.map { $0.parametersDecl }.joined(separator: ", ")
         let arguments = method.parameters.map { parameter -> String in
             let reference = parameter.`inout` ? "&" : ""

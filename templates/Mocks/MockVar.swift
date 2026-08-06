@@ -51,7 +51,7 @@ extension MockVar {
             variable.typeName.hasComplexTypeWithSmartDefaultValue(isProperty: true),
             let smartDefaultValueImplementation = try? variable.typeName.smartDefaultValueImplementation(isProperty: true, mockVariablePrefix: mockedVariableName, requestedSubjectKind: variable.requestedSubjectKind) {
 
-            mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName)") {[
+            mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)") {[
                 SourceCode("\(mockedVariableName)GetCount += 1"),
                 SourceCode("if let handler = \(mockedVariableName)GetHandler") {[
                     SourceCode("return handler()")
@@ -59,7 +59,7 @@ extension MockVar {
                 smartDefaultValueImplementation.getterImplementation
             ]}
             mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetCount: Int = 0"
-            mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetHandler: (() -> \(variable.typeName))? = nil"
+            mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetHandler: (() -> \(variable.typeName.declaredName))? = nil"
             mockedVariableHandlers += smartDefaultValueImplementation.mockedVariableHandlers.isolated(storageIsolationDecl)
         } else {
             let variableDecl = !variable.isMutable && variable.isAnnotatedConst ? "let" : "var"
@@ -73,20 +73,20 @@ extension MockVar {
                     SourceCode("fatalError(\"`\(mockedVariableName)GetHandler` must be set!\")")
                 ]
                 if variable.isMutable {
-                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName)") {[
+                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)") {[
                         SourceCode("get", nested: getterImplementation)
                     ]}
                 } else {
-                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName)", nested: getterImplementation)
+                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)", nested: getterImplementation)
                 }
                 mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetCount: Int = 0"
-                mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetHandler: (() -> \(variable.typeName))? = nil"
+                mockedVariableHandlers += "\(storageIsolationDecl)var \(mockedVariableName)GetHandler: (() -> \(variable.typeName.declaredName))? = nil"
             } else if !variable.isAnnotatedInit, variable.typeName.hasDefaultValue, let defaultValue = try? variable.typeName.defaultValue() {
                 // Default value can be guessed.
-                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName) = \(defaultValue)")
+                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName.declaredName) = \(defaultValue)")
             } else {
                 // No default value, the value must be provided to the mock class's initializer.
-                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName)")
+                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName.declaredName)")
             }
             if variable.isMutable {
                 mockedVariableImplementation += SourceCode(variable.isAnnotatedHandler ? "set" : "didSet") {[

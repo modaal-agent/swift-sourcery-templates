@@ -155,12 +155,12 @@ extension MockMethod {
     }
 
     private var mockMethodHandlerReturnType: String {
-        return !isVoid ? method.returnTypeName.name.trimmingWhereClause() : ""
+        return !isVoid ? method.returnTypeName.declaredName.trimmingWhereClause() : ""
     }
 
     private var mockHandlerImpl: (String, SourceCode) {
         let handlerParameters = method.parameters.map {
-            return "_ \($0.name): \($0.closureAttributesDecl)\($0.typeName.name)"
+            return "_ \($0.name): \($0.closureAttributesDecl)\($0.typeName.declaredName)"
         }.joined(separator: ", ")
         return (mockMethodHandlerName, SourceCode("\(storageIsolationDecl)var \(mockMethodHandlerName): ((\(handlerParameters))\(method.asyncDecl)\(method.throwingHandlerDecl) -> (\(mockMethodHandlerReturnType)))? = nil"))
     }
@@ -268,7 +268,7 @@ private extension SourceryRuntime.Method {
     }
 
     var returnTypeDecl: String {
-        return !returnTypeName.isVoid ? " -> \(returnTypeName.name)" : ""
+        return !returnTypeName.isVoid ? " -> \(returnTypeName.declaredName)" : ""
     }
 }
 
@@ -299,7 +299,7 @@ extension SourceryRuntime.MethodParameter {
 
     var parametersDecl: String {
         let argumentLabel = argumentLabel == nil ? "_ " : argumentLabel != name ? "\(argumentLabel!) " : ""
-        return "\(argumentLabel)\(name): \(closureAttributesDecl)\(typeName.name)"
+        return "\(argumentLabel)\(name): \(closureAttributesDecl)\(typeName.declaredName)"
     }
 }
 

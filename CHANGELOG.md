@@ -19,6 +19,53 @@ pod.
 
 ---
 
+## 0.3.1 — 2026-08-06
+
+An optional existential now generates as valid Swift. Found by the first adopter of 0.3.0
+(WikiMemory: `func buildStore(… restoredSheet: (any DetailSheet)?, …)`), whose generated mock did not
+compile.
+
+### Generated output
+
+The parser reports `(any DetailSheet)?` as `any DetailSheet?` — in `TypeName.name` *and* in
+`TypeName.asSource` — and the compiler rejects `any DetailSheet?`: *"optional 'any' type must be
+written '(any DetailSheet)?'"*. Every position now emits the parentheses:
+
+```swift
+// before
+func present(sheet: any DetailSheet?, onDismiss: @escaping (any DetailSheet?) -> Void) -> any DetailSheet?
+var restoredSheet: any DetailSheet?
+
+// after
+func present(sheet: (any DetailSheet)?, onDismiss: @escaping ((any DetailSheet)?) -> Void) -> (any DetailSheet)?
+var restoredSheet: (any DetailSheet)?
+```
+
+Covered: a property, a method parameter, a return type, a handler closure's parameter and return
+type, the initializer's argument list, an optional composition (`(any A & B)?`), `some` in the same
+positions, and the type nested inside a closure parameter — the case a fix that only inspects the
+top-level `isOptional` leaves broken. A non-optional existential is untouched, so `[any DetailSheet]`
+stays as it is.
+
+0.2.15 already carried this rule for a *stored* mock variable, inside `mockTypeName`, and nowhere
+else. It now lives once, in `TypeName.parenthesizingOptionalExistentials`, and every site that emits
+a type reads `declaredName` or `mockTypeName`.
+
+### Breaking
+
+None.
+
+### Adopting
+
+Bump the tag and regenerate. Measured: `modaal-firebase-wrappers` (7 modules, 33 mocks) regenerates
+with **an empty diff** — no mocked signature there contains an optional existential. A consumer whose
+does gets one hunk per occurrence, and a build that failed on it starts passing.
+
+`TypeErase.swifttemplate` still emits `returnTypeName` directly and has the same gap. It is
+unchanged: no consumer has hit it, and the fast lane does not generate it.
+
+---
+
 ## 0.3.0 — 2026-08-06
 
 A third template. `Component.swifttemplate` generates the forwarding class that satisfies a

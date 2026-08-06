@@ -103,3 +103,34 @@ public protocol AppServicesRegistering: AppServicesAPNSHandlerRegistering,
                                         AppServicesURLHandlerRegistering {
   func handlersDidRegister()
 }
+
+// MARK: - Optional existentials
+
+/// The shape a `MemoryDetail` Builder takes in WikiMemory: a restored sheet
+/// arrives as `(any DetailSheet)?`, and one of the closures takes it too.
+///
+/// The parser reports every one of these without its parentheses — `any
+/// DetailSheet?` — which does not compile ("optional 'any' type must be written
+/// '(any DetailSheet)?'"). Both templates emit types, so both are pinned here.
+public protocol DetailSheet {}
+public protocol DetailPolicy {}
+
+/// sourcery: CreateMock, DuetComponent
+public protocol DetailPresenting: AnyObject {
+  /// Optional existential as a stored requirement.
+  var restoredSheet: (any DetailSheet)? { get }
+
+  /// Optional protocol composition.
+  var policy: (any DetailSheet & DetailPolicy)? { get }
+
+  /// Optional existential as a parameter, as the return type, and nested inside
+  /// a closure parameter — the nested one survives a fix that only looks at the
+  /// top-level type.
+  func present(
+    sheet: (any DetailSheet)?,
+    onDismiss: @escaping ((any DetailSheet)?) -> Void
+  ) -> (any DetailSheet)?
+
+  /// A non-optional existential in an array, which must NOT gain parentheses.
+  func presentAll(_ sheets: [any DetailSheet]) -> [any DetailSheet]
+}

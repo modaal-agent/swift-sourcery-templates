@@ -127,7 +127,21 @@ extension SourceryRuntime.TypeName {
         throw MockError.noDefaultValue(typeName: self)
     }
 
+    /// The type as this template must WRITE it — `name` with the parentheses
+    /// the parser drops around an optional existential put back.
+    ///
+    /// Every site that emits a type reads this or `mockTypeName`; neither
+    /// `name` nor `asSource` is safe to emit directly. See
+    /// `parenthesizingOptionalExistentials`.
+    var declaredName: String {
+        Self.parenthesizingOptionalExistentials(name)
+    }
+
     var mockTypeName: String {
+        Self.parenthesizingOptionalExistentials(unparenthesizedMockTypeName)
+    }
+
+    private var unparenthesizedMockTypeName: String {
         if isVoid {
             return "()"
         }
@@ -144,12 +158,95 @@ extension SourceryRuntime.TypeName {
             return "[\(dictionary.keyTypeName.mockTypeName) : \(dictionary.valueTypeName.mockTypeName)]" + (isOptional ? "?" : "")
         }
 
-        if isOptional, unwrappedTypeName.hasPrefix("any ") {
-            // Fix `any ProtocolName?` --> `(any ProtocolName)?`
-            return "(\(unwrappedTypeName))?"
-        }
-
         return actualTypeName?.mockTypeName ?? name
+    }
+
+    /// Restores the parentheses the parser drops around an optional existential.
+    ///
+    /// `(any Sheet)?` in source comes back as `any Sheet?` from `name` AND from
+    /// `asSource`, and `any Sheet?` is not valid Swift — the compiler answers
+    /// "optional 'any' type must be written '(any Sheet)?'". The loss is the
+    /// same for `some`, for a protocol composition (`(any A & B)?`), and
+    /// wherever the type appears: `((any Sheet)?) -> Void` comes back as
+    /// `(any Sheet?) -> Void`, so a fix that only inspects `isOptional` at the
+    /// top level leaves the closure case broken. This works on the rendered
+    /// string instead, which is the one form every case shares.
+    ///
+    /// Each pass wraps the FIRST occurrence that needs it and returns; the loop
+    /// repeats until a pass finds none, which handles nesting without index
+    /// bookkeeping and makes the function idempotent — an already-parenthesised
+    /// `(any Sheet)?` ends its scan on `)`, not on `?`, so it is not re-wrapped.
+    static func parenthesizingOptionalExistentials(_ source: String) -> String {
+        var result = source
+        while let wrapped = wrappingFirstOptionalExistential(in: result) {
+            result = wrapped
+        }
+        return result
+    }
+
+    private static func wrappingFirstOptionalExistential(in source: String) -> String? {
+        let characters = Array(source)
+        var index = 0
+        while index < characters.count {
+            guard isTokenStart(characters, at: index),
+                  let keywordEnd = existentialKeywordEnd(characters, at: index) else {
+                index += 1
+                continue
+            }
+            let end = existentialEnd(characters, from: keywordEnd)
+            var last = end - 1
+            while last >= keywordEnd, characters[last] == " " { last -= 1 }
+            if last >= keywordEnd, characters[last] == "?" || characters[last] == "!" {
+                var wrapped = characters
+                wrapped.insert(")", at: last)
+                wrapped.insert("(", at: index)
+                return String(wrapped)
+            }
+            index = keywordEnd
+        }
+        return nil
+    }
+
+    /// `any`/`some` only introduce an existential at the start of a token —
+    /// `Company<T>` must not match on the `any` inside it.
+    private static func isTokenStart(_ characters: [Character], at index: Int) -> Bool {
+        guard index > 0 else { return true }
+        let previous = characters[index - 1]
+        return !(previous.isLetter || previous.isNumber || previous == "_")
+    }
+
+    private static func existentialKeywordEnd(_ characters: [Character], at index: Int) -> Int? {
+        for keyword in ["any ", "some "] {
+            let end = index + keyword.count
+            guard end <= characters.count, String(characters[index..<end]) == keyword else { continue }
+            return end
+        }
+        return nil
+    }
+
+    /// One past the last character of the existential that starts at `start`:
+    /// the first delimiter at nesting depth zero, or the end of the string.
+    /// `&` is not a delimiter — a composition is part of the existential.
+    private static func existentialEnd(_ characters: [Character], from start: Int) -> Int {
+        var depth = 0
+        var index = start
+        while index < characters.count {
+            switch characters[index] {
+            case "(", "[", "<":
+                depth += 1
+            case ")", "]", ">":
+                if depth == 0 { return index }
+                depth -= 1
+            case ",":
+                if depth == 0 { return index }
+            case "-":
+                if depth == 0, index + 1 < characters.count, characters[index + 1] == ">" { return index }
+            default:
+                break
+            }
+            index += 1
+        }
+        return characters.count
     }
 
     var needsSubjectMapToReturnType: Bool {

@@ -50,6 +50,9 @@ and registration methods returning `AnyCancellable`.
 | protocol inheritance / composite | `AppServicesRegistering` |
 | empty protocol | `RootDependency` |
 | requirement with no synthesizable default | `TimelineDependency` (five of them) |
+| optional existential — property, parameter, return type, nested in a closure | `DetailPresenting` |
+| optional protocol composition | `DetailPresenting.policy` |
+| non-optional existential in an array (must NOT gain parentheses) | `DetailPresenting.presentAll` |
 
 [`Forwarding.swift`](Fixtures/Forwarding.swift) adds the shapes the Component
 template has to forward. Two of its protocols carry `DuetComponent` alone, each
@@ -67,6 +70,7 @@ saying why the mock template does not see it.
 | effectful property (`{ get async throws }`) | `ProfileDependency` |
 | `componentName` / `componentAccess` overrides | `OnboardingFlowDependency` |
 | a Component name not derived from a `Dependency` suffix | `AppServicesRegistering` |
+| optional existentials in a forwarded signature | `DetailPresenting` |
 
 Four constructs are refused rather than emitted — `static`, `init` and
 `subscript` requirements, and associated types. They are checked as negative

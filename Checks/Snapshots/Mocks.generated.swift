@@ -207,6 +207,34 @@ final class CaptureDependencyMock: CaptureDependency {
     var stageHandler: ((_ fileName: String, _ retries: Int) async throws -> (URL))? = nil
 }
 
+// MARK: - DetailPresenting
+final class DetailPresentingMock: DetailPresenting {
+
+    // MARK: - Variables
+    var policy: (any DetailSheet & DetailPolicy)? = nil
+    var restoredSheet: (any DetailSheet)? = nil
+
+    // MARK: - Methods
+    func present(sheet: (any DetailSheet)?, onDismiss: @escaping ((any DetailSheet)?) -> Void) -> (any DetailSheet)? {
+        presentCallCount += 1
+        if let __presentHandler = self.presentHandler {
+            return __presentHandler(sheet, onDismiss)
+        }
+        return nil
+    }
+    var presentCallCount: Int = 0
+    var presentHandler: ((_ sheet: (any DetailSheet)?, _ onDismiss: @escaping ((any DetailSheet)?) -> Void) -> ((any DetailSheet)?))? = nil
+    func presentAll(_ sheets: [any DetailSheet]) -> [any DetailSheet] {
+        presentAllCallCount += 1
+        if let __presentAllHandler = self.presentAllHandler {
+            return __presentAllHandler(sheets)
+        }
+        return []
+    }
+    var presentAllCallCount: Int = 0
+    var presentAllHandler: ((_ sheets: [any DetailSheet]) -> ([any DetailSheet]))? = nil
+}
+
 // MARK: - MainDependency
 final class MainDependencyMock: MainDependency {
 

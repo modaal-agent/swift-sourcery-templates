@@ -56,7 +56,7 @@ class MockGenerator {
             if !variablesToInit.isEmpty {
                 let argumentList = variablesToInit.map {
                     let defaultValue = $0.defaultValue != nil ? " = \($0.defaultValue!)" : ""
-                    return "\($0.mockedVariableName): \($0.variable.typeName)\(defaultValue)"
+                    return "\($0.mockedVariableName): \($0.variable.typeName.declaredName)\(defaultValue)"
                 }.joined(separator: ", ")
                 let initImpl = SourceCode("init(\(argumentList))")
                 initImpl += variablesToInit.map { "self.\($0.mockedVariableName) = \($0.mockedVariableName)" }

@@ -50,6 +50,23 @@ final class CaptureComponent: CaptureDependency {
     }
 }
 
+// MARK: - DetailPresentingComponent
+final class DetailPresentingComponent: DetailPresenting {
+    private let dependency: DetailPresenting
+
+    init(dependency: DetailPresenting) {
+        self.dependency = dependency
+    }
+    var policy: (any DetailSheet & DetailPolicy)? { dependency.policy }
+    var restoredSheet: (any DetailSheet)? { dependency.restoredSheet }
+    func present(sheet: (any DetailSheet)?, onDismiss: @escaping ((any DetailSheet)?) -> Void) -> (any DetailSheet)? {
+        dependency.present(sheet: sheet, onDismiss: onDismiss)
+    }
+    func presentAll(_ sheets: [any DetailSheet]) -> [any DetailSheet] {
+        dependency.presentAll(sheets)
+    }
+}
+
 // MARK: - MainComponentBase
 class MainComponentBase: MainDependency {
     let dependency: MainDependency
