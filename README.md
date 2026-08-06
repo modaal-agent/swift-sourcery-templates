@@ -35,22 +35,61 @@ The template generates:
 final class DataServiceMock: DataService {
     func fetchData(id: String, completion: @escaping (String?, Error?) -> Void) {
         fetchDataCallCount += 1
+        fetchDataArgs.append(id)
         if let __fetchDataHandler = self.fetchDataHandler {
             __fetchDataHandler(id, completion)
         }
     }
     var fetchDataCallCount: Int = 0
+    var fetchDataArgs: [String] = []
     var fetchDataHandler: ((_ id: String, _ completion: @escaping (String?, Error?) -> Void) -> ())? = nil
 }
 ```
 
 **Key features:**
 - **Call counting** — `methodCallCount` tracks invocation count
+- **Argument recording** — `methodArgs` holds what each call was passed, in order. See [Recorded arguments](#recorded-arguments)
 - **Handler closures** — `methodHandler` lets tests control behavior
 - **`@escaping` / `@Sendable` preservation** — closure parameters retain both attributes in the method signature and the handler type, so handlers can capture, async-dispatch, and hand off closures that cross isolation boundaries
 - **`async` / `throws` preservation** — an `async` requirement generates an `async` method with an `async` handler, so a spec can control *when* the call returns, not only what it returns
 - **Smart defaults** — Optional returns `nil`, Void returns nothing, known types get sensible defaults, and RxSwift / Combine types get a subject the test drives
 - **Overload disambiguation** — overloaded methods get distinct handler names automatically
+
+## Recorded arguments
+
+Every call appends what it was passed to `<method>Args`, so asserting on an argument needs no handler
+and no side object:
+
+```swift
+let service = DataServiceMock()          // func fetchData(id: String, completion: …)
+let registry = AppServicesRegisteringMock()   // func registerURLHandler(_ tag: String, priority: Int)
+
+sut.load(id: "m1")
+
+XCTAssertEqual(service.fetchDataArgs, ["m1"])                        // one parameter: its own type
+XCTAssertEqual(registry.registerURLHandlerArgs.last?.priority, 3)    // two: a labelled tuple
+service.fetchDataArgs = []                                           // clearing it is the reset
+```
+
+| the method's parameters | `<method>Args` |
+| --- | --- |
+| none | not generated |
+| one recordable | `[T]` — Swift has no single-element labelled tuple to put it in |
+| two or more recordable | `[(first: A, second: B)]`, labelled with the parameter names, one element per call |
+| a mix of recordable and closure | the recordable ones only |
+| `inout T` | `[T]` — the value the caller passed in; the handler still gets the reference |
+
+Three things are deliberately not recorded:
+
+- **Closure parameters.** A non-escaping closure cannot be stored at all, and storing an escaping one
+  would keep the caller's captures alive for as long as the mock — which a leak or churn spec reads
+  as a retain by the code under test. What a spec does with a closure is call it, and the handler
+  hands it over.
+- **Generic methods.** Their parameter types name the *method's* generic parameters; a stored
+  property can only name the class's.
+- **Anything annotated `skipArgumentRecording`** — on the method, or on the protocol for all of them.
+  A recorded argument lives as long as the mock, so this is the opt-out for an argument whose
+  deallocation a spec asserts. Call counting and the handler are unaffected.
 
 ## Concurrency
 
@@ -443,6 +482,7 @@ Sourcery picks up annotations from extensions on the protocol. Pass the annotati
 | `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
 | `subject = "CurrentValue"` / `"Passthrough"` | Variable / method | Choose the subject backing an `AnyPublisher` member |
+| `skipArgumentRecording` | Protocol / method | Do not generate `<method>Args`; call counting and the handler are unaffected |
 | `DuetComponent` | Protocol | Generate the forwarding Component class |
 | `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |

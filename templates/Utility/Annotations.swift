@@ -34,6 +34,17 @@ extension SourceryRuntime.Annotated {
         return annotations[caseInsensitive: "init"] != nil
     }
 
+    // Suppresses the `<method>Args` array on a mocked method, or on every method
+    // of a protocol when it is declared on the type.
+    //
+    // A recorded argument lives as long as the mock does. When the argument is
+    // the object a churn or leak spec asserts the deallocation of, that retain
+    // reads as a leak in the code under test, and this is the opt-out. Call
+    // counts and the handler are unaffected.
+    var isAnnotatedSkipArgumentRecording: Bool {
+        return annotations[caseInsensitive: "skipArgumentRecording"] != nil
+    }
+
     // For a `get`-only variable requirement in the protocol,
     var isAnnotatedHandler: Bool {
         precondition(!isAnnotatedHandlerInternal || !isAnnotatedInitInternal, "`isAnnotatedHandler` is mutually exclusive with `isAnnotatedInit`")

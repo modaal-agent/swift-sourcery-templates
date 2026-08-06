@@ -227,6 +227,113 @@ func checkSendableClosureParameters() {
   expectEqual(box.value, true, "a @Sendable completion survives capture and hand-off")
 }
 
+// MARK: - Recorded arguments
+
+@MainActor
+func checkArgumentRecording() {
+  // One recordable parameter is stored under its own type: Swift has no
+  // single-element labelled tuple to put it in.
+  let analytics = AnalyticsTrackingMock()
+  analytics.track("Memory Deleted")
+  analytics.track("Memory Restored")
+  expectEqual(analytics.trackArgs, ["Memory Deleted", "Memory Restored"], "recorded arguments keep call order")
+  expectEqual(analytics.trackCallCount, analytics.trackArgs.count, "the array and the call counter agree")
+
+  // Clearing the array is the whole reset story — there is no second
+  // bookkeeping object for a spec to construct, wire up and reset.
+  analytics.trackArgs = []
+  expectEqual(analytics.trackArgs.count, 0, "a recorded-argument array is clearable")
+
+  // Two or more are stored as one labelled tuple per call, so a spec reads a
+  // single call's arguments together instead of correlating arrays by index.
+  let services = AppServicesRegisteringMock()
+  _ = services.registerURLHandler("push", priority: 3)
+  expectEqual(services.registerURLHandlerArgs.last?.tag, "push", "a labelled tuple records the first parameter")
+  expectEqual(services.registerURLHandlerArgs.last?.priority, 3, "a labelled tuple records the second")
+
+  // A closure parameter is not recorded, so a method mixing one with a value
+  // parameter records the value alone. The handler is what a spec uses to reach
+  // the closure, and it still receives both.
+  let uploads = UploadSchedulingMock()
+  uploads.schedule(fileName: "clip.m4a") { _ in }
+  expectEqual(uploads.scheduleArgs, ["clip.m4a"], "a closure parameter is skipped and its siblings are recorded")
+
+  // Recording happens before the handler runs: a handler that throws does not
+  // un-make the call.
+  struct Boom: Error {}
+  let staging = MediaStagingMock()
+  staging.validateHandler = { _ in throw Boom() }
+  try? staging.validate(fileName: "clip.m4a")
+  expectEqual(staging.validateArgs, ["clip.m4a"], "a call whose handler throws is still recorded")
+}
+
+@MainActor
+func checkNonisolatedArgumentRecording() async {
+  let diagnostics = DiagnosticsReportingMock()
+
+  // The arrays of a nonisolated member are `nonisolated(unsafe)`, which is what
+  // lets the member record from off the main actor — the same assertion its
+  // call counter makes.
+  await Task.detached {
+    diagnostics.report("E_NET", detail: nil)
+  }.value
+  expectEqual(diagnostics.reportArgs.last?.code, "E_NET", "a nonisolated member records off the main actor")
+  expect(diagnostics.reportArgs.last?.detail == nil, "an optional parameter records its absence")
+
+  // `inout` is dropped from the element type: what is recorded is the value the
+  // caller passed in, and the handler still gets the reference.
+  var total = 7
+  diagnostics.accumulateHandler = { $0 += 1 }
+  diagnostics.accumulate(into: &total)
+  expectEqual(diagnostics.accumulateArgs, [7], "an inout parameter records its entry value")
+  expectEqual(total, 8, "the inout parameter still reaches the handler by reference")
+}
+
+/// A fresh object whose lifetime the opt-out checks measure.
+@MainActor
+func makePlayer() -> FeedAudioPlayer {
+  return FeedAudioPlayer(memoryRepository: MemoryRepositoryProtocolMock(), analytics: AnalyticsTrackingMock())
+}
+
+@MainActor
+func checkArgumentRecordingOptOut() {
+  let observer = PlaybackObservingMock()
+
+  // A recorded argument lives as long as the mock holds it. That is a fact
+  // about the recorder, not about the code under test — and it is the reason
+  // the annotation exists.
+  weak var attached: FeedAudioPlayer?
+  do {
+    let player = makePlayer()
+    attached = player
+    observer.attach(player)
+  }
+  expect(attached != nil, "a recorded argument is held by the mock")
+  observer.attachArgs = []
+  expect(attached == nil, "clearing the array releases it")
+
+  // The annotated sibling never held it.
+  weak var adopted: FeedAudioPlayer?
+  do {
+    let player = makePlayer()
+    adopted = player
+    observer.adopt(player)
+  }
+  expect(adopted == nil, "`skipArgumentRecording` on a method does not retain its argument")
+  expectEqual(observer.adoptCallCount, 1, "an opted-out method still counts its calls")
+
+  // On the protocol, the annotation opts every method out.
+  let retainer = PlaybackRetainingMock()
+  weak var retained: FeedAudioPlayer?
+  do {
+    let player = makePlayer()
+    retained = player
+    retainer.retain(player)
+  }
+  expect(retained == nil, "`skipArgumentRecording` on the protocol opts every method out")
+  expectEqual(retainer.retainCallCount, 1, "an opted-out protocol still counts calls")
+}
+
 // MARK: - Components
 
 @MainActor
@@ -369,6 +476,9 @@ enum BehaviourChecks {
     checkComposition()
     checkSendableClosureParameters()
     checkSendableMock()
+    checkArgumentRecording()
+    await checkNonisolatedArgumentRecording()
+    checkArgumentRecordingOptOut()
     checkComponentForwarding()
     checkComponentOwnership()
     await checkComponentMutationAndEffects()

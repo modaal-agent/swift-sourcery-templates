@@ -19,6 +19,104 @@ pod.
 
 ---
 
+## 0.4.0 — 2026-08-06
+
+Generated mocks record their arguments. A spec that needs to know *what* a call was passed reads an
+array on the mock instead of attaching a closure to the handler and accumulating into a captured
+`var`.
+
+### Generated output
+
+One new member per mocked method with at least one recordable parameter, and one line in the method
+body:
+
+```swift
+// before
+func track(_ name: String) {
+    trackCallCount += 1
+    if let __trackHandler = self.trackHandler {
+        __trackHandler(name)
+    }
+}
+var trackCallCount: Int = 0
+var trackHandler: ((_ name: String) -> ())? = nil
+
+// after
+func track(_ name: String) {
+    trackCallCount += 1
+    trackArgs.append(name)
+    if let __trackHandler = self.trackHandler {
+        __trackHandler(name)
+    }
+}
+var trackCallCount: Int = 0
+var trackArgs: [String] = []
+var trackHandler: ((_ name: String) -> ())? = nil
+```
+
+What a spec wrote before, and what it writes now:
+
+```swift
+// before — a side object, wired into the handler
+let tracked = ArgumentLog<AnalyticsEvent>()
+analytics.trackHandler = tracked.record
+XCTAssertEqual(tracked.values.first?.name, "Memory Deleted")
+
+// after
+XCTAssertEqual(analytics.trackArgs.first?.name, "Memory Deleted")
+```
+
+The element type follows the parameter list:
+
+| the method's parameters | `<method>Args` |
+| --- | --- |
+| none | not generated |
+| one recordable | `[T]` — Swift rejects a single-element labelled tuple, so there is nothing to label it with |
+| two or more recordable | `[(first: A, second: B)]`, labelled with the parameter names, one element per call |
+| a mix of recordable and closure | the recordable ones only |
+| `inout T` | `[T]` — the value the caller passed in; the handler still receives the reference |
+
+The array is a `var`, so clearing it (`mock.trackArgs = []`) is the reset. On a `nonisolated` member
+of an isolated protocol it is `nonisolated(unsafe)`, for the reason the call counter is. Recording
+happens before the handler runs: a handler that throws does not un-make the call.
+
+Three things are not recorded:
+
+- **Closure parameters.** A non-escaping closure cannot be stored at all, and storing an escaping one
+  would keep the caller's captures alive for as long as the mock — which a leak or churn spec reads
+  as a retain by the code under test. A spec reaches a closure through the handler, which still
+  receives every parameter.
+- **Generic methods.** A parameter type there names the *method's* generic parameter and a stored
+  property can only name the class's, so the array would be typed against a different `S` than the
+  call has. The annotated-generic mocks in `Examples/` are unchanged by this release.
+- **Anything annotated `skipArgumentRecording`** (new) — on the method, or on the protocol for all of
+  its methods. Call counting and the handler are unaffected. Use it for an argument whose
+  deallocation a spec asserts: a recorded value lives as long as the mock.
+
+### Breaking
+
+None for a compiling consumer, but two name collisions are possible after a regenerate:
+
+- A hand-written extension on a generated mock that already declares `<method>Args` collides with the
+  generated one. Rename the hand-written member.
+- A protocol with both a method `foo(…)` and a variable `fooArgs` produces two members of that name.
+  Annotate the method `skipArgumentRecording`, or rename.
+
+### Adopting
+
+Bump the tag and regenerate. Nothing else is required: every existing member keeps its name, its type
+and its behaviour.
+
+Then consider what the arrays replace. In WikiMemory that was a hand-written `ArgumentLog<Value>`
+wired into a handler in each spec; the file is deleted and its call sites read the arrays directly.
+
+Measured on `modaal-firebase-wrappers` (7 modules, 33 mocks): **+218 lines, 0 deletions** — 109
+arrays and 109 appends, and no existing line changed. `ModaalFirebaseMocks` builds for iOS from that
+diff with zero warnings, over element types the fixtures do not have: `[Any]`, `[String: Any]`,
+`[String: NSObject]?` and Firestore's `Filter`.
+
+---
+
 ## 0.3.1 — 2026-08-06
 
 An optional existential now generates as valid Swift. Found by the first adopter of 0.3.0

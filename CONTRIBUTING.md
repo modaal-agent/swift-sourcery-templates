@@ -46,8 +46,10 @@ Component.swifttemplate → ComponentGenerator.generate()
 SourceCode / TopScope → indented Swift source
 ```
 
-`MockMethod.mockImpl()` emits, per protocol method: the signature, `<name>CallCount += 1`, the
+`MockMethod.mockImpl()` emits, per protocol method: the signature, `<name>CallCount += 1`,
+`<name>Args.append(…)` where the method records anything, the
 `if let __handler = self.<name>Handler` call, then a fallback (smart default, `nil`, or `fatalError`).
+Recording precedes the handler so that a handler which throws still leaves the call recorded.
 `ComponentGenerator.forwarder(for:access:isolated:)` emits, per requirement, a single forwarding
 member — one overload for variables, one for methods.
 
@@ -137,6 +139,17 @@ own something. A wrong annotation is a compile error, not a silent defect.
 the protocol would widen a module's API surface as a side effect of generating boilerplate;
 `componentAccess = "public"` is the opt-in.
 
+**Arguments are recorded by default, and closures never are.** `<method>Args` is generated for every
+mocked method with at least one non-closure parameter: an annotation per method would make the common
+case the opt-in one. Closures are excluded on two counts — a non-escaping one cannot be stored at
+all, and storing an escaping one keeps the caller's captures alive for as long as the mock, which a
+consumer's leak or churn spec reads as a retain by the code under test. The same hazard exists for a
+value parameter of reference type, and `skipArgumentRecording` — on the method or on the protocol —
+is its escape hatch; `Checks/Behaviour/Main.swift`'s `checkArgumentRecordingOptOut` asserts both
+halves with a `weak var`. A generic method records nothing: its parameter types name the *method's*
+generic parameters and a stored property can only name the class's, so the array would be typed
+against a different `S` than the call has.
+
 **A Component refuses what it cannot forward** — `static`, `init` and `subscript` requirements, and
 associated types — with a diagnostic naming the member. Check `isInitializer` **before** `isStatic`:
 Sourcery reports an initializer requirement as static too, and the wrong branch produces a sentence
@@ -185,6 +198,8 @@ that does not tell the author what to do.
 
 `MethodParameter`: `name` (internal name), `argumentLabel` (nil means `_`), `typeName.name`,
 `typeName.asSource`, `typeName.attributes` (`[String: [Attribute]]`), `typeName.isClosure`, `inout`.
+This repo adds `isRecordable` (whether `<method>Args` carries it) and `recordedTypeName` (the element
+type it contributes — `declaredName` with `inout` dropped).
 
 `TypeName`: `name`, `asSource`, `isOptional` / `isVoid` / `isArray` / `isDictionary` / `isTuple` /
 `isClosure`, `unwrappedTypeName`, `attributes`, `generic`. This repo adds `declaredName` (what to

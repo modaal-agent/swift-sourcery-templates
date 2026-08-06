@@ -99,6 +99,11 @@ extension MockMethod {
         let mockCallCount = mockCallCountImpl
         mockMethodHandlers += mockCallCount.1
 
+        let mockArgs = mockArgsImpl
+        if let mockArgs = mockArgs {
+            mockMethodHandlers += mockArgs.storage
+        }
+
         var mockHandler = mockHandlerImpl
         mockMethodHandlers += mockHandler.1
 
@@ -107,6 +112,12 @@ extension MockMethod {
 
         // Increment usage call count.
         methodImpl += "\(mockCallCount.0) += 1"
+
+        // Record the arguments, before the handler runs: a handler that throws
+        // does not un-make the call.
+        if let mockArgs = mockArgs {
+            methodImpl += mockArgs.append
+        }
 
         // Call the handler.
         methodImpl += mockHandlerCallImpl
@@ -148,6 +159,51 @@ extension MockMethod {
 
     private var mockCallCountImpl: (String, SourceCode) {
         return (mockedVarCallCountName, SourceCode("\(storageIsolationDecl)var \(mockedVarCallCountName): Int = 0"))
+    }
+
+    private var mockedVarArgsName: String {
+        return "\(mockedMethodName)Args"
+    }
+
+    /// The parameters whose values every call appends to `<method>Args`, in
+    /// declaration order. Empty when the method records nothing, which is the
+    /// case for a method with no recordable parameter and for the two opt-outs:
+    ///
+    /// - `/// sourcery: skipArgumentRecording` on the method or on the protocol.
+    /// - A generic method. Its parameter types name the *method's* generic
+    ///   parameters, and a stored property can only name the class's — the
+    ///   annotated-generic mocks in `Examples/` are where recording them would
+    ///   produce `[(objects: S, …)]` on a class whose `S` is a different type.
+    private var recordedParameters: [SourceryRuntime.MethodParameter] {
+        guard !isGeneric,
+              !method.isAnnotatedSkipArgumentRecording,
+              !type.isAnnotatedSkipArgumentRecording else { return [] }
+        return method.parameters.filter { $0.isRecordable }
+    }
+
+    /// The recorded-arguments array and the line that appends to it, or `nil`
+    /// when the method records nothing.
+    private var mockArgsImpl: (append: SourceCode, storage: SourceCode)? {
+        let recorded = recordedParameters
+        guard !recorded.isEmpty else { return nil }
+
+        let elementDecl: String
+        let recordedValue: String
+        if recorded.count == 1, let only = recorded.first {
+            // Swift has no single-element labelled tuple ("cannot create a
+            // single-element tuple with an element label"), so one recorded
+            // parameter is stored under its own type.
+            elementDecl = only.recordedTypeName
+            recordedValue = only.name
+        } else {
+            elementDecl = "(\(recorded.map { "\($0.name): \($0.recordedTypeName)" }.joined(separator: ", ")))"
+            recordedValue = "(\(recorded.map { "\($0.name): \($0.name)" }.joined(separator: ", ")))"
+        }
+
+        return (
+            append: SourceCode("\(mockedVarArgsName).append(\(recordedValue))"),
+            storage: SourceCode("\(storageIsolationDecl)var \(mockedVarArgsName): [\(elementDecl)] = []")
+        )
     }
 
     private var mockMethodHandlerName: String {
@@ -300,6 +356,28 @@ extension SourceryRuntime.MethodParameter {
     var parametersDecl: String {
         let argumentLabel = argumentLabel == nil ? "_ " : argumentLabel != name ? "\(argumentLabel!) " : ""
         return "\(argumentLabel)\(name): \(closureAttributesDecl)\(typeName.declaredName)"
+    }
+
+    /// Whether every call appends this parameter's value to `<method>Args`.
+    ///
+    /// A closure parameter is excluded. A non-escaping one cannot be stored at
+    /// all, and storing an escaping one would keep the caller's captures alive
+    /// for as long as the mock — which a leak or churn spec reads as a retain
+    /// by the code under test. What a spec does with a closure is call it, and
+    /// the handler already hands it over.
+    var isRecordable: Bool {
+        return !typeName.isClosure
+    }
+
+    /// The element type an array of this parameter's recorded values declares.
+    ///
+    /// `inout` is a calling convention rather than part of the value, and
+    /// `[inout Int]` is not a type: the mock records what the caller passed in.
+    var recordedTypeName: String {
+        let inoutPrefix = "inout "
+        let declared = typeName.declaredName
+        guard declared.hasPrefix(inoutPrefix) else { return declared }
+        return String(declared.dropFirst(inoutPrefix.count)).trimmingWhitespace()
     }
 }
 

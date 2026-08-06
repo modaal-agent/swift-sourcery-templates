@@ -11,11 +11,13 @@ final class AnalyticsTrackingMock: AnalyticsTracking, @unchecked Sendable {
     // MARK: - Methods
     func identify(uid: String) {
         identifyCallCount += 1
+        identifyArgs.append(uid)
         if let __identifyHandler = self.identifyHandler {
             __identifyHandler(uid)
         }
     }
     var identifyCallCount: Int = 0
+    var identifyArgs: [String] = []
     var identifyHandler: ((_ uid: String) -> ())? = nil
     func reset() {
         resetCallCount += 1
@@ -27,11 +29,13 @@ final class AnalyticsTrackingMock: AnalyticsTracking, @unchecked Sendable {
     var resetHandler: (() -> ())? = nil
     func track(_ name: String) {
         trackCallCount += 1
+        trackArgs.append(name)
         if let __trackHandler = self.trackHandler {
             __trackHandler(name)
         }
     }
     var trackCallCount: Int = 0
+    var trackArgs: [String] = []
     var trackHandler: ((_ name: String) -> ())? = nil
 }
 
@@ -42,6 +46,7 @@ final class AppServicesAPNSHandlerRegisteringMock: AppServicesAPNSHandlerRegiste
     // MARK: - Methods
     func registerAPNSNotificationsHandler(_ tag: String, priority: Int) -> AnyCancellable {
         registerAPNSNotificationsHandlerCallCount += 1
+        registerAPNSNotificationsHandlerArgs.append((tag: tag, priority: priority))
         if let __registerAPNSNotificationsHandlerHandler = self.registerAPNSNotificationsHandlerHandler {
             return __registerAPNSNotificationsHandlerHandler(tag, priority)
         }
@@ -51,6 +56,7 @@ final class AppServicesAPNSHandlerRegisteringMock: AppServicesAPNSHandlerRegiste
         }
     }
     var registerAPNSNotificationsHandlerCallCount: Int = 0
+    var registerAPNSNotificationsHandlerArgs: [(tag: String, priority: Int)] = []
     var registerAPNSNotificationsHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
     var registerAPNSNotificationsHandlerCancelCallCount: Int = 0
     var registerAPNSNotificationsHandlerCancelHandler: (() -> ())? = nil
@@ -71,6 +77,7 @@ final class AppServicesRegisteringMock: AppServicesRegistering {
     var handlersDidRegisterHandler: (() -> ())? = nil
     func registerAPNSNotificationsHandler(_ tag: String, priority: Int) -> AnyCancellable {
         registerAPNSNotificationsHandlerCallCount += 1
+        registerAPNSNotificationsHandlerArgs.append((tag: tag, priority: priority))
         if let __registerAPNSNotificationsHandlerHandler = self.registerAPNSNotificationsHandlerHandler {
             return __registerAPNSNotificationsHandlerHandler(tag, priority)
         }
@@ -80,11 +87,13 @@ final class AppServicesRegisteringMock: AppServicesRegistering {
         }
     }
     var registerAPNSNotificationsHandlerCallCount: Int = 0
+    var registerAPNSNotificationsHandlerArgs: [(tag: String, priority: Int)] = []
     var registerAPNSNotificationsHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
     var registerAPNSNotificationsHandlerCancelCallCount: Int = 0
     var registerAPNSNotificationsHandlerCancelHandler: (() -> ())? = nil
     func registerURLHandler(_ tag: String, priority: Int) -> AnyCancellable {
         registerURLHandlerCallCount += 1
+        registerURLHandlerArgs.append((tag: tag, priority: priority))
         if let __registerURLHandlerHandler = self.registerURLHandlerHandler {
             return __registerURLHandlerHandler(tag, priority)
         }
@@ -94,6 +103,7 @@ final class AppServicesRegisteringMock: AppServicesRegistering {
         }
     }
     var registerURLHandlerCallCount: Int = 0
+    var registerURLHandlerArgs: [(tag: String, priority: Int)] = []
     var registerURLHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
     var registerURLHandlerCancelCallCount: Int = 0
     var registerURLHandlerCancelHandler: (() -> ())? = nil
@@ -106,6 +116,7 @@ final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegisteri
     // MARK: - Methods
     func registerURLHandler(_ tag: String, priority: Int) -> AnyCancellable {
         registerURLHandlerCallCount += 1
+        registerURLHandlerArgs.append((tag: tag, priority: priority))
         if let __registerURLHandlerHandler = self.registerURLHandlerHandler {
             return __registerURLHandlerHandler(tag, priority)
         }
@@ -115,6 +126,7 @@ final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegisteri
         }
     }
     var registerURLHandlerCallCount: Int = 0
+    var registerURLHandlerArgs: [(tag: String, priority: Int)] = []
     var registerURLHandlerHandler: ((_ tag: String, _ priority: Int) -> (AnyCancellable))? = nil
     var registerURLHandlerCancelCallCount: Int = 0
     var registerURLHandlerCancelHandler: (() -> ())? = nil
@@ -182,11 +194,13 @@ final class CaptureDependencyMock: CaptureDependency {
     // MARK: - Methods
     func discard(reason: String) {
         discardCallCount += 1
+        discardArgs.append(reason)
         if let __discardHandler = self.discardHandler {
             __discardHandler(reason)
         }
     }
     var discardCallCount: Int = 0
+    var discardArgs: [String] = []
     var discardHandler: ((_ reason: String) -> ())? = nil
     nonisolated func ping() {
         pingCallCount += 1
@@ -198,12 +212,14 @@ final class CaptureDependencyMock: CaptureDependency {
     nonisolated(unsafe) var pingHandler: (() -> ())? = nil
     func stage(_ fileName: String, retries: Int) async throws -> URL {
         stageCallCount += 1
+        stageArgs.append((fileName: fileName, retries: retries))
         if let __stageHandler = self.stageHandler {
             return try await __stageHandler(fileName, retries)
         }
         fatalError("stageHandler expected to be set.")
     }
     var stageCallCount: Int = 0
+    var stageArgs: [(fileName: String, retries: Int)] = []
     var stageHandler: ((_ fileName: String, _ retries: Int) async throws -> (URL))? = nil
 }
 
@@ -217,22 +233,61 @@ final class DetailPresentingMock: DetailPresenting {
     // MARK: - Methods
     func present(sheet: (any DetailSheet)?, onDismiss: @escaping ((any DetailSheet)?) -> Void) -> (any DetailSheet)? {
         presentCallCount += 1
+        presentArgs.append(sheet)
         if let __presentHandler = self.presentHandler {
             return __presentHandler(sheet, onDismiss)
         }
         return nil
     }
     var presentCallCount: Int = 0
+    var presentArgs: [(any DetailSheet)?] = []
     var presentHandler: ((_ sheet: (any DetailSheet)?, _ onDismiss: @escaping ((any DetailSheet)?) -> Void) -> ((any DetailSheet)?))? = nil
     func presentAll(_ sheets: [any DetailSheet]) -> [any DetailSheet] {
         presentAllCallCount += 1
+        presentAllArgs.append(sheets)
         if let __presentAllHandler = self.presentAllHandler {
             return __presentAllHandler(sheets)
         }
         return []
     }
     var presentAllCallCount: Int = 0
+    var presentAllArgs: [[any DetailSheet]] = []
     var presentAllHandler: ((_ sheets: [any DetailSheet]) -> ([any DetailSheet]))? = nil
+}
+
+// MARK: - DiagnosticsReporting
+@MainActor
+final class DiagnosticsReportingMock: DiagnosticsReporting {
+
+    // MARK: - Methods
+    nonisolated func accumulate(into total: inout Int) {
+        accumulateCallCount += 1
+        accumulateArgs.append(total)
+        if let __accumulateHandler = self.accumulateHandler {
+            __accumulateHandler(&total)
+        }
+    }
+    nonisolated(unsafe) var accumulateCallCount: Int = 0
+    nonisolated(unsafe) var accumulateArgs: [Int] = []
+    nonisolated(unsafe) var accumulateHandler: ((_ total: inout Int) -> ())? = nil
+    func flush() {
+        flushCallCount += 1
+        if let __flushHandler = self.flushHandler {
+            __flushHandler()
+        }
+    }
+    var flushCallCount: Int = 0
+    var flushHandler: (() -> ())? = nil
+    nonisolated func report(_ code: String, detail: String?) {
+        reportCallCount += 1
+        reportArgs.append((code: code, detail: detail))
+        if let __reportHandler = self.reportHandler {
+            __reportHandler(code, detail)
+        }
+    }
+    nonisolated(unsafe) var reportCallCount: Int = 0
+    nonisolated(unsafe) var reportArgs: [(code: String, detail: String?)] = []
+    nonisolated(unsafe) var reportHandler: ((_ code: String, _ detail: String?) -> ())? = nil
 }
 
 // MARK: - MainDependency
@@ -269,29 +324,35 @@ final class MediaStagingMock: MediaStaging {
     var discardAllHandler: (() async -> ())? = nil
     func stage(fileName: String) async -> String {
         stageCallCount += 1
+        stageArgs.append(fileName)
         if let __stageHandler = self.stageHandler {
             return await __stageHandler(fileName)
         }
         return ""
     }
     var stageCallCount: Int = 0
+    var stageArgs: [String] = []
     var stageHandler: ((_ fileName: String) async -> (String))? = nil
     func upload(fileName: String) async throws -> URL {
         uploadCallCount += 1
+        uploadArgs.append(fileName)
         if let __uploadHandler = self.uploadHandler {
             return try await __uploadHandler(fileName)
         }
         fatalError("uploadHandler expected to be set.")
     }
     var uploadCallCount: Int = 0
+    var uploadArgs: [String] = []
     var uploadHandler: ((_ fileName: String) async throws -> (URL))? = nil
     func validate(fileName: String) throws {
         validateCallCount += 1
+        validateArgs.append(fileName)
         if let __validateHandler = self.validateHandler {
             try __validateHandler(fileName)
         }
     }
     var validateCallCount: Int = 0
+    var validateArgs: [String] = []
     var validateHandler: ((_ fileName: String) throws -> ())? = nil
 }
 
@@ -339,22 +400,26 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
     // MARK: - Methods
     func delete(id: String) -> AnyPublisher<Void, Error> {
         deleteCallCount += 1
+        deleteArgs.append(id)
         if let __deleteHandler = self.deleteHandler {
             return __deleteHandler(id)
         }
         return deleteSubject.eraseToAnyPublisher()
     }
     var deleteCallCount: Int = 0
+    var deleteArgs: [String] = []
     var deleteHandler: ((_ id: String) -> (AnyPublisher<Void, Error>))? = nil
     lazy var deleteSubject = PassthroughSubject<(), Error>()
     func fetch(id: String) -> AnyPublisher<MemoryDrop?, Error> {
         fetchCallCount += 1
+        fetchArgs.append(id)
         if let __fetchHandler = self.fetchHandler {
             return __fetchHandler(id)
         }
         return fetchSubject.eraseToAnyPublisher()
     }
     var fetchCallCount: Int = 0
+    var fetchArgs: [String] = []
     var fetchHandler: ((_ id: String) -> (AnyPublisher<MemoryDrop?, Error>))? = nil
     lazy var fetchSubject = CurrentValueSubject<MemoryDrop?, Error>(nil)
 }
@@ -383,6 +448,52 @@ final class NotificationSignallingMock: NotificationSignalling {
     var friendGraphChangedGetCount: Int = 0
     var friendGraphChangedGetHandler: (() -> AnyPublisher<Void, Never>)? = nil
     lazy var friendGraphChangedSubject = PassthroughSubject<(), Never>()
+}
+
+// MARK: - PlaybackObserving
+final class PlaybackObservingMock: PlaybackObserving {
+
+    // MARK: - Methods
+    func adopt(_ player: FeedAudioPlayer) {
+        adoptCallCount += 1
+        if let __adoptHandler = self.adoptHandler {
+            __adoptHandler(player)
+        }
+    }
+    var adoptCallCount: Int = 0
+    var adoptHandler: ((_ player: FeedAudioPlayer) -> ())? = nil
+    func attach(_ player: FeedAudioPlayer) {
+        attachCallCount += 1
+        attachArgs.append(player)
+        if let __attachHandler = self.attachHandler {
+            __attachHandler(player)
+        }
+    }
+    var attachCallCount: Int = 0
+    var attachArgs: [FeedAudioPlayer] = []
+    var attachHandler: ((_ player: FeedAudioPlayer) -> ())? = nil
+}
+
+// MARK: - PlaybackRetaining
+final class PlaybackRetainingMock: PlaybackRetaining {
+
+    // MARK: - Methods
+    func release(tag: String) {
+        releaseCallCount += 1
+        if let __releaseHandler = self.releaseHandler {
+            __releaseHandler(tag)
+        }
+    }
+    var releaseCallCount: Int = 0
+    var releaseHandler: ((_ tag: String) -> ())? = nil
+    func retain(_ player: FeedAudioPlayer) {
+        retainCallCount += 1
+        if let __retainHandler = self.retainHandler {
+            __retainHandler(player)
+        }
+    }
+    var retainCallCount: Int = 0
+    var retainHandler: ((_ player: FeedAudioPlayer) -> ())? = nil
 }
 
 // MARK: - PushNotificationRepositoryProtocol
@@ -420,11 +531,13 @@ final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryPr
     nonisolated(unsafe) var requestPermissionHandler: (() -> ())? = nil
     func setNotificationsEnabled(_ enabled: Bool) {
         setNotificationsEnabledCallCount += 1
+        setNotificationsEnabledArgs.append(enabled)
         if let __setNotificationsEnabledHandler = self.setNotificationsEnabledHandler {
             __setNotificationsEnabledHandler(enabled)
         }
     }
     var setNotificationsEnabledCallCount: Int = 0
+    var setNotificationsEnabledArgs: [Bool] = []
     var setNotificationsEnabledHandler: ((_ enabled: Bool) -> ())? = nil
 }
 
@@ -438,12 +551,14 @@ final class TimelineBuildableMock: TimelineBuildable {
     // MARK: - Methods
     func build(withTag tag: String) -> ViewShellChild {
         buildCallCount += 1
+        buildArgs.append(tag)
         if let __buildHandler = self.buildHandler {
             return __buildHandler(tag)
         }
         fatalError("buildHandler expected to be set.")
     }
     var buildCallCount: Int = 0
+    var buildArgs: [String] = []
     var buildHandler: ((_ tag: String) -> (ViewShellChild))? = nil
 }
 
@@ -473,11 +588,13 @@ final class UploadSchedulingMock: UploadScheduling {
     // MARK: - Methods
     func schedule(fileName: String, completion: @escaping @Sendable (Bool) -> Void) {
         scheduleCallCount += 1
+        scheduleArgs.append(fileName)
         if let __scheduleHandler = self.scheduleHandler {
             __scheduleHandler(fileName, completion)
         }
     }
     var scheduleCallCount: Int = 0
+    var scheduleArgs: [String] = []
     var scheduleHandler: ((_ fileName: String, _ completion: @escaping @Sendable (Bool) -> Void) -> ())? = nil
 }
 
@@ -500,22 +617,26 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
     // MARK: - Methods
     func bootstrap(displayName: String?) -> AnyPublisher<Void, Error> {
         bootstrapCallCount += 1
+        bootstrapArgs.append(displayName)
         if let __bootstrapHandler = self.bootstrapHandler {
             return __bootstrapHandler(displayName)
         }
         return bootstrapSubject.eraseToAnyPublisher()
     }
     var bootstrapCallCount: Int = 0
+    var bootstrapArgs: [String?] = []
     var bootstrapHandler: ((_ displayName: String?) -> (AnyPublisher<Void, Error>))? = nil
     lazy var bootstrapSubject = PassthroughSubject<(), Error>()
     func registerDevice(token: String, platform: String) -> AnyPublisher<Void, Error> {
         registerDeviceCallCount += 1
+        registerDeviceArgs.append((token: token, platform: platform))
         if let __registerDeviceHandler = self.registerDeviceHandler {
             return __registerDeviceHandler(token, platform)
         }
         return registerDeviceSubject.eraseToAnyPublisher()
     }
     var registerDeviceCallCount: Int = 0
+    var registerDeviceArgs: [(token: String, platform: String)] = []
     var registerDeviceHandler: ((_ token: String, _ platform: String) -> (AnyPublisher<Void, Error>))? = nil
     lazy var registerDeviceSubject = PassthroughSubject<(), Error>()
 }
