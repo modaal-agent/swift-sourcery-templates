@@ -1,20 +1,25 @@
 # Checks — the fast lane
 
-`./run-checks.sh` generates mocks from [`Fixtures/`](Fixtures) and holds the
-result to three gates. It needs no simulator and no third-party package, so it
-runs in a few seconds and is the loop to use while editing `templates/`.
+`./run-checks.sh` runs every template in its `TEMPLATES` list over
+[`Fixtures/`](Fixtures) and holds the results to three gates. It needs no
+simulator and no third-party package, so it runs in a few seconds and is the loop
+to use while editing `templates/`.
 
 ```bash
 Checks/run-checks.sh              # run the gates
-Checks/run-checks.sh --record     # rewrite the snapshot, then run the gates
+Checks/run-checks.sh --record     # rewrite the snapshots, then run the gates
 SOURCERY=/path/to/sourcery Checks/run-checks.sh
 ```
 
 | gate | what it proves |
 | --- | --- |
-| **snapshot** | the generated file matches [`Snapshots/Mocks.generated.swift`](Snapshots/Mocks.generated.swift), so every template change shows up as a reviewable diff of real output |
-| **typecheck** | it compiles with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6` |
-| **behaviour** | the mock counts calls, runs handlers, suspends where the protocol suspends, and delivers values pushed into its subjects — [`Behaviour/Main.swift`](Behaviour/Main.swift), plain assertions in one executable |
+| **snapshot** | each generated file matches its recording in [`Snapshots/`](Snapshots), so every template change shows up as a reviewable diff of real output |
+| **typecheck** | all of them compile **together** with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6` |
+| **behaviour** | the mocks count calls, run handlers, suspend where the protocol suspends and deliver values pushed into their subjects; the Components forward to the parent and hold what the level owns — [`Behaviour/Main.swift`](Behaviour/Main.swift), plain assertions in one executable |
+
+Compiling every template's output in one invocation is deliberate: a mock and a
+Component of the same protocol have to agree about which member is `nonisolated`
+and which class carries a global actor. One typecheck is what checks that.
 
 The snapshot is the reason to run `--record` deliberately: a template edit that
 changes output for a shape you were not thinking about shows up in the diff
@@ -45,6 +50,28 @@ and registration methods returning `AnyCancellable`.
 | protocol inheritance / composite | `AppServicesRegistering` |
 | empty protocol | `RootDependency` |
 | requirement with no synthesizable default | `TimelineDependency` (five of them) |
+
+[`Forwarding.swift`](Fixtures/Forwarding.swift) adds the shapes the Component
+template has to forward. Two of its protocols carry `DuetComponent` alone, each
+saying why the mock template does not see it.
+
+| construct | fixture |
+| --- | --- |
+| a level that owns nothing — the whole class is generated | `TimelineDependency` |
+| a level that owns something — `owns`, base class, hand-written subclass | `MainDependency` / `MainComponent` |
+| settable requirement (`{ get set }`) | `CaptureDependency` |
+| `nonisolated` port on an isolated level | `CaptureDependency` |
+| `async throws` method | `CaptureDependency` |
+| unlabelled, differently-labelled, `inout`, generic, `rethrows` | `RegistrationDependency` |
+| `@escaping @Sendable` closure parameter | `RegistrationDependency` |
+| effectful property (`{ get async throws }`) | `ProfileDependency` |
+| `componentName` / `componentAccess` overrides | `OnboardingFlowDependency` |
+| a Component name not derived from a `Dependency` suffix | `AppServicesRegistering` |
+
+Four constructs are refused rather than emitted — `static`, `init` and
+`subscript` requirements, and associated types. They are checked as negative
+controls rather than fixtures: generation fails, so a fixture carrying one would
+fail the whole lane.
 
 ## What this lane does not cover
 

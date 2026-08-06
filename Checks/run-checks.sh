@@ -1,20 +1,26 @@
 #!/bin/bash
 #
-# Template checks — generate mocks from Checks/Fixtures, then hold the result to
-# three gates:
+# Template checks — run every template over Checks/Fixtures, then hold the
+# results to three gates:
 #
-#   1. snapshot   the generated file matches Checks/Snapshots (record with --record)
-#   2. typecheck  it compiles clean under Swift 5 + complete concurrency checking,
-#                 and under the Swift 6 language mode — zero warnings, zero errors
-#   3. behaviour  it does what a test needs: counts calls, runs handlers, and
-#                 delivers values pushed into its subjects
+#   1. snapshot   each generated file matches Checks/Snapshots (record with --record)
+#   2. typecheck  they compile clean together under Swift 5 + complete
+#                 concurrency checking, and under the Swift 6 language mode —
+#                 zero warnings, zero errors
+#   3. behaviour  they do what a consumer needs: mocks count calls, run handlers
+#                 and deliver values pushed into their subjects; Components
+#                 forward to the parent and hold what the level owns
+#
+# Two templates, one fixture set, one typecheck: a mock and a Component of the
+# same protocol have to agree about which member is `nonisolated` and which class
+# carries a global actor, and compiling them together is what checks that.
 #
 # No simulator, no third-party packages: seconds, not minutes. The Quick specs
 # in Examples/ExampleProjectSpm cover the RxSwift and RIBs surfaces this cannot.
 #
 # Usage:
 #   Checks/run-checks.sh              # run the gates
-#   Checks/run-checks.sh --record     # rewrite the snapshot, then run the gates
+#   Checks/run-checks.sh --record     # rewrite the snapshots, then run the gates
 #
 # Sourcery: set SOURCERY=/path/to/sourcery to use your own build. Otherwise the
 # pinned artifact bundle is downloaded once into .build/.
@@ -26,9 +32,15 @@ GIT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 FIXTURES_DIR="$SCRIPT_DIR/Fixtures"
 BEHAVIOUR_DIR="$SCRIPT_DIR/Behaviour"
-SNAPSHOT_FILE="$SCRIPT_DIR/Snapshots/Mocks.generated.swift"
+SNAPSHOTS_DIR="$SCRIPT_DIR/Snapshots"
 WORK_DIR="$GIT_ROOT/.build/checks"
-GENERATED_FILE="$WORK_DIR/Mocks.generated.swift"
+
+# One entry per template: <output file name>:<template>. Each is generated over
+# the same fixtures and snapshotted separately.
+TEMPLATES=(
+  "Mocks.generated.swift:Mocks.swifttemplate"
+  "Components.generated.swift:Component.swifttemplate"
+)
 
 # Keep in step with Package.swift's binary target.
 SOURCERY_VERSION="2.3.0"
@@ -37,7 +49,7 @@ SOURCERY_URL="https://github.com/krzysztofzablocki/Sourcery/releases/download/${
 RECORD=0
 [ "$1" = "--record" ] && RECORD=1
 
-mkdir -p "$WORK_DIR" "$(dirname "$SNAPSHOT_FILE")"
+mkdir -p "$WORK_DIR" "$SNAPSHOTS_DIR"
 
 # ── Sourcery ──────────────────────────────────────────────────────
 if [ -z "$SOURCERY" ]; then
@@ -58,15 +70,22 @@ echo "Sourcery: $("$SOURCERY" --version)"
 # ── 0. Generate ───────────────────────────────────────────────────
 echo ""
 echo "── generating ──"
-"$SOURCERY" \
-  --sources "$FIXTURES_DIR" \
-  --templates "$GIT_ROOT/templates/Mocks.swifttemplate" \
-  --output "$GENERATED_FILE" \
-  --args "import=Combine,import=Foundation" \
-  --disableCache \
-  --quiet
-[ -s "$GENERATED_FILE" ] || { echo "FAIL: sourcery produced no output"; exit 1; }
-echo "  $(grep -c '^final class .*Mock' "$GENERATED_FILE") mocks generated"
+GENERATED_FILES=()
+for entry in "${TEMPLATES[@]}"; do
+  output_name="${entry%%:*}"
+  template="${entry##*:}"
+  generated="$WORK_DIR/$output_name"
+  "$SOURCERY" \
+    --sources "$FIXTURES_DIR" \
+    --templates "$GIT_ROOT/templates/$template" \
+    --output "$generated" \
+    --args "import=Combine,import=Foundation" \
+    --disableCache \
+    --quiet
+  [ -s "$generated" ] || { echo "FAIL: $template produced no output"; exit 1; }
+  GENERATED_FILES+=("$generated")
+  echo "  $template → $(grep -cE '^(final )?class ' "$generated") types"
+done
 
 FAILURES=0
 fail() { echo "  FAIL: $1"; FAILURES=$((FAILURES + 1)); }
@@ -74,24 +93,29 @@ fail() { echo "  FAIL: $1"; FAILURES=$((FAILURES + 1)); }
 # ── 1. Snapshot ───────────────────────────────────────────────────
 echo ""
 echo "── snapshot ──"
-if [ "$RECORD" = "1" ]; then
-  cp "$GENERATED_FILE" "$SNAPSHOT_FILE"
-  echo "  recorded $SNAPSHOT_FILE"
-elif [ ! -f "$SNAPSHOT_FILE" ]; then
-  fail "no snapshot at $SNAPSHOT_FILE — run with --record"
-elif diff -u "$SNAPSHOT_FILE" "$GENERATED_FILE" > "$WORK_DIR/snapshot.diff"; then
-  echo "  matches"
-else
-  head -60 "$WORK_DIR/snapshot.diff"
-  fail "generated output differs from the snapshot (review, then --record)"
-fi
+for entry in "${TEMPLATES[@]}"; do
+  output_name="${entry%%:*}"
+  generated="$WORK_DIR/$output_name"
+  snapshot="$SNAPSHOTS_DIR/$output_name"
+  if [ "$RECORD" = "1" ]; then
+    cp "$generated" "$snapshot"
+    echo "  recorded $output_name"
+  elif [ ! -f "$snapshot" ]; then
+    fail "no snapshot at $snapshot — run with --record"
+  elif diff -u "$snapshot" "$generated" > "$WORK_DIR/$output_name.diff"; then
+    echo "  $output_name: matches"
+  else
+    head -60 "$WORK_DIR/$output_name.diff"
+    fail "$output_name differs from the snapshot (review, then --record)"
+  fi
+done
 
 # ── 2. Typecheck, both language modes ─────────────────────────────
 typecheck() {
   local label="$1"; shift
   local log="$WORK_DIR/typecheck-$label.log"
   set +e
-  xcrun swiftc -typecheck "$@" "$FIXTURES_DIR"/*.swift "$GENERATED_FILE" > "$log" 2>&1
+  xcrun swiftc -typecheck "$@" "$FIXTURES_DIR"/*.swift "${GENERATED_FILES[@]}" > "$log" 2>&1
   local status=$?
   set -e
   local diagnostics
@@ -114,7 +138,7 @@ echo ""
 echo "── behaviour ──"
 BEHAVIOUR_BIN="$WORK_DIR/behaviour"
 if xcrun swiftc -swift-version 6 -o "$BEHAVIOUR_BIN" \
-    "$FIXTURES_DIR"/*.swift "$GENERATED_FILE" "$BEHAVIOUR_DIR"/*.swift \
+    "$FIXTURES_DIR"/*.swift "${GENERATED_FILES[@]}" "$BEHAVIOUR_DIR"/*.swift \
     > "$WORK_DIR/behaviour-build.log" 2>&1; then
   if "$BEHAVIOUR_BIN"; then
     echo "  passed"

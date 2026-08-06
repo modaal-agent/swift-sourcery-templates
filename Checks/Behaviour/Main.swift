@@ -227,6 +227,126 @@ func checkSendableClosureParameters() {
   expectEqual(box.value, true, "a @Sendable completion survives capture and hand-off")
 }
 
+// MARK: - Components
+
+@MainActor
+func checkComponentForwarding() {
+  let theme = StubThemeProvider(accentName: "forwarded")
+  let parent = TimelineDependencyMock(
+    analytics: AnalyticsTrackingMock(),
+    audioSessionConfigurer: AudioSessionConfiguringMock(recordPermission: .granted),
+    memoryRepository: MemoryRepositoryProtocolMock(),
+    themeProvider: theme,
+    userRepository: UserRepositoryProtocolMock())
+
+  let component = TimelineComponent(dependency: parent)
+  expect(component.themeProvider === theme, "a forwarder returns the parent's instance, not a copy")
+
+  // The Component satisfies the protocol it forwards, which is what lets a
+  // level hand itself to its own children.
+  let asDependency: TimelineDependency = component
+  expect(asDependency.themeProvider === theme, "the Component conforms to the Dependency it forwards")
+}
+
+@MainActor
+func checkComponentOwnership() {
+  let parent = MainDependencyMock(
+    analytics: AnalyticsTrackingMock(),
+    memoryRepository: MemoryRepositoryProtocolMock(),
+    pushNotificationRepository: PushNotificationRepositoryProtocolMock(authorizationStatus: .granted),
+    themeProvider: StubThemeProvider(accentName: "main"),
+    userRepository: UserRepositoryProtocolMock())
+
+  // The scope contract: an owned object's lifetime is the Component's. One
+  // Component yields one instance; a second Component over the same parent
+  // yields its own. A level that reallocated its Component per build would have
+  // no scope at all, and this is the check that says so.
+  let component = MainComponent(dependency: parent)
+  expect(component.feedAudioPlayer === component.feedAudioPlayer, "an owned member is allocated once per Component")
+
+  let sibling = MainComponent(dependency: parent)
+  expect(component.feedAudioPlayer !== sibling.feedAudioPlayer, "a second Component owns its own instance")
+
+  // The owned member is built from forwarders inherited from the generated
+  // base — that is the whole reason the base exists.
+  expect(component.feedAudioPlayer.memoryRepository === component.memoryRepository,
+         "an owned member reads the generated forwarders")
+
+  // A parent satisfies a child's Dependency, so the child's Component forwards
+  // through two levels to the same object.
+  let child = TimelineComponent(dependency: component)
+  expect(child.memoryRepository === parent.memoryRepository, "a child Component forwards through its parent")
+}
+
+@MainActor
+func checkComponentMutationAndEffects() async {
+  let parent = CaptureDependencyMock(
+    analytics: AnalyticsTrackingMock(),
+    memoryRepository: MemoryRepositoryProtocolMock())
+  parent.installationId = "install-7"
+
+  let component = CaptureComponent(dependency: parent)
+
+  component.draft = "half a memory"
+  expectEqual(parent.draft, "half a memory", "a settable requirement forwards its setter")
+  expectEqual(component.draft, "half a memory", "a settable requirement forwards its getter")
+
+  // `nonisolated` survives forwarding, so the port stays callable from a
+  // context that is not the main actor. That is the construct a subtree node
+  // declares and the app adapts.
+  await Task.detached {
+    component.ping()
+    expectEqual(component.installationId, "install-7", "a nonisolated forwarder works off the main actor")
+  }.value
+  expectEqual(parent.pingCallCount, 1, "a nonisolated forwarder reaches the parent")
+
+  parent.stageHandler = { fileName, _ in URL(string: "https://example.invalid/\(fileName)")! }
+  let staged = try? await component.stage("clip.m4a", retries: 2)
+  expectEqual(staged?.lastPathComponent, "clip.m4a", "an async throws requirement forwards its effects")
+
+  struct Boom: Error {}
+  parent.stageHandler = { _, _ in throw Boom() }
+  var threw = false
+  do { _ = try await component.stage("x", retries: 0) } catch { threw = true }
+  expect(threw, "a forwarded error reaches the caller")
+}
+
+func checkComponentParameterShapes() {
+  let parent = StubRegistrationDependency()
+  let component = RegistrationComponent(dependency: parent)
+
+  component.submit("ABC123")
+  expectEqual(parent.submitted, ["ABC123"], "an unlabelled parameter forwards without inventing a label")
+
+  component.retry(after: 1.5, attempts: 3)
+  expectEqual(parent.retries.first?.1, 3, "a parameter whose label differs from its name forwards by label")
+
+  var total = 0
+  component.accumulate(into: &total)
+  expectEqual(total, 1, "an inout parameter forwards by reference")
+
+  let encoded = try? component.encode(["k": "v"])
+  expect(encoded != nil, "a generic method forwards with its clause stripped from the call")
+
+  // `@Sendable` survives, so the closure may be handed to Sendable-constrained
+  // code after the Component passed it along.
+  let box = ResultBox()
+  component.schedule(fileName: "clip.m4a") { box.value = $0 }
+  expectEqual(parent.scheduled, ["clip.m4a"], "a @Sendable completion forwards")
+  expectEqual(box.value, true, "the forwarded completion is the caller's")
+
+  var ran = false
+  component.withRetries { ran = true }
+  expect(ran, "a rethrows method forwards as rethrows")
+}
+
+func checkComponentEffectfulProperty() async {
+  let component = ProfileComponent(dependency: StubProfileDependency())
+  let user = try? await component.currentUser
+  expectEqual(user?.uid, "u1", "a `{ get async throws }` requirement forwards through an effectful getter")
+  expect(component.cachedUser == nil, "a plain sibling requirement is unaffected")
+}
+
 func checkSendableMock() {
   // A protocol refining Sendable produces a mock that can cross an isolation
   // boundary — the conformance is `@unchecked`, which is the accurate statement
@@ -249,6 +369,11 @@ enum BehaviourChecks {
     checkComposition()
     checkSendableClosureParameters()
     checkSendableMock()
+    checkComponentForwarding()
+    checkComponentOwnership()
+    await checkComponentMutationAndEffects()
+    checkComponentParameterShapes()
+    await checkComponentEffectfulProperty()
 
     if failures.isEmpty {
       print("  all behaviour checks passed")

@@ -158,6 +158,55 @@ final class AudioSessionConfiguringMock: AudioSessionConfiguring {
     var requestRecordPermissionHandler: ((_ handler: @escaping (Bool) -> Void) -> ())? = nil
 }
 
+// MARK: - CaptureDependency
+@MainActor
+final class CaptureDependencyMock: CaptureDependency {
+
+    // MARK: - Variables
+    var analytics: AnalyticsTracking
+    var draft: String = "" {
+        didSet {
+            draftSetCount += 1
+        }
+    }
+    var draftSetCount: Int = 0
+    nonisolated(unsafe) var installationId: String = ""
+    var memoryRepository: MemoryRepositoryProtocol
+
+    // MARK: - Initializer
+    init(analytics: AnalyticsTracking, memoryRepository: MemoryRepositoryProtocol) {
+        self.analytics = analytics
+        self.memoryRepository = memoryRepository
+    }
+
+    // MARK: - Methods
+    func discard(reason: String) {
+        discardCallCount += 1
+        if let __discardHandler = self.discardHandler {
+            __discardHandler(reason)
+        }
+    }
+    var discardCallCount: Int = 0
+    var discardHandler: ((_ reason: String) -> ())? = nil
+    nonisolated func ping() {
+        pingCallCount += 1
+        if let __pingHandler = self.pingHandler {
+            __pingHandler()
+        }
+    }
+    nonisolated(unsafe) var pingCallCount: Int = 0
+    nonisolated(unsafe) var pingHandler: (() -> ())? = nil
+    func stage(_ fileName: String, retries: Int) async throws -> URL {
+        stageCallCount += 1
+        if let __stageHandler = self.stageHandler {
+            return try await __stageHandler(fileName, retries)
+        }
+        fatalError("stageHandler expected to be set.")
+    }
+    var stageCallCount: Int = 0
+    var stageHandler: ((_ fileName: String, _ retries: Int) async throws -> (URL))? = nil
+}
+
 // MARK: - MainDependency
 final class MainDependencyMock: MainDependency {
 

@@ -1,10 +1,15 @@
-// The composition shapes these templates have to mock: a `<X>Dependency`
-// protocol per level, and the `<X>Buildable` that mounts it.
+// The composition shapes these templates have to serve: a `<X>Dependency`
+// protocol per level, the `<X>Component` that satisfies it, and the
+// `<X>Buildable` that mounts it.
 //
 // Source: the WikiMemory reference app, where every composition level declares
 // a Dependency protocol naming exactly what it consumes and a Component that
 // forwards or owns each member. Generated mocks are what makes one protocol per
 // level cheap enough to be the rule, so the shape is checked here.
+//
+// `CreateMock` and `DuetComponent` are independent and compose: the first
+// generates the test double a spec drives, the second generates the production
+// Component that forwards to the parent. A protocol carrying both gets both.
 
 import Combine
 import Foundation
@@ -15,7 +20,10 @@ import Foundation
 /// the generated mock takes all five as initializer parameters. That is the
 /// ergonomics a test sees for every leaf.
 ///
-/// sourcery: CreateMock
+/// The level owns nothing, so its Component is generated whole: a `final class
+/// TimelineComponent` with five forwarders and nothing hand-written.
+///
+/// sourcery: CreateMock, DuetComponent
 public protocol TimelineDependency: AnyObject {
   var themeProvider: ThemeProviding { get }
   var memoryRepository: MemoryRepositoryProtocol { get }
@@ -30,13 +38,34 @@ public protocol TimelineDependency: AnyObject {
 /// mock of it is the same shape either way: ownership is a fact about the
 /// Component, not about the Dependency protocol.
 ///
-/// sourcery: CreateMock
+/// `owns` is what makes that fact reach the generator: the emission becomes a
+/// non-final `MainComponentBase`, because a generated type cannot carry a
+/// hand-written `lazy var`.
+///
+/// sourcery: CreateMock, DuetComponent, owns
 public protocol MainDependency: AnyObject {
   var themeProvider: ThemeProviding { get }
   var memoryRepository: MemoryRepositoryProtocol { get }
   var userRepository: UserRepositoryProtocol { get }
   var pushNotificationRepository: PushNotificationRepositoryProtocol { get }
   var analytics: AnalyticsTracking { get }
+}
+
+/// The hand-written half of an owning level — the only lines the level writes.
+/// It holds what is scoped here; every forwarder is inherited from the
+/// generated base, and the owned member reads them as if they were its own.
+///
+/// The child conformances hang here too: `TimelineDependency`'s five members are
+/// a subset of `MainDependency`'s, so the parent satisfies the child's
+/// Dependency with an empty extension, and the child's Component forwards to it.
+final class MainComponent: MainComponentBase {
+  lazy var feedAudioPlayer: FeedAudioPlayer = FeedAudioPlayer(
+    memoryRepository: memoryRepository,
+    analytics: analytics)
+}
+
+extension MainComponent: TimelineDependency {
+  var audioSessionConfigurer: AudioSessionConfiguring { StubAudioSession() }
 }
 
 // MARK: - The degenerate root
@@ -64,7 +93,11 @@ public protocol AppServicesURLHandlerRegistering {
   func registerURLHandler(_ tag: String, priority: Int) -> AnyCancellable
 }
 
-/// sourcery: CreateMock
+/// The Component of a composite must forward the inherited requirements too, and
+/// its emitted name is derived from the whole protocol name when that name does
+/// not end in `Dependency` — `AppServicesRegisteringComponent`.
+///
+/// sourcery: CreateMock, DuetComponent
 @MainActor
 public protocol AppServicesRegistering: AppServicesAPNSHandlerRegistering,
                                         AppServicesURLHandlerRegistering {

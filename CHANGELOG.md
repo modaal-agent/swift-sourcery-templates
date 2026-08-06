@@ -19,8 +19,96 @@ pod.
 
 ---
 
-## Unreleased
+## 0.3.0 — 2026-08-06
 
+A third template. `Component.swifttemplate` generates the forwarding class that satisfies a
+dependency-injection protocol, for trees where each level declares an `<X>Dependency` naming exactly
+what it consumes. Nothing about mock or type-erasure generation changed.
+
+### Generated output
+
+A protocol annotated `/// sourcery: DuetComponent` produces the class that conforms to it by
+forwarding to a stored parent:
+
+```swift
+/// sourcery: DuetComponent
+protocol TimelineDependency: AnyObject {
+    var themeProvider: ThemeProviding { get }
+    var memoryRepository: MemoryRepositoryProtocol { get }
+}
+```
+
+```swift
+final class TimelineComponent: TimelineDependency {
+    private let dependency: TimelineDependency
+
+    init(dependency: TimelineDependency) {
+        self.dependency = dependency
+    }
+    var memoryRepository: MemoryRepositoryProtocol { dependency.memoryRepository }
+    var themeProvider: ThemeProviding { dependency.themeProvider }
+}
+```
+
+**A level that owns something** annotates `DuetComponent, owns`. A generated type cannot carry a
+hand-written `lazy var`, and Swift has no stored properties in extensions, so the emission becomes a
+non-`final` `<X>ComponentBase` and the level writes the subclass holding what it owns. Getting the
+annotation wrong is a compile error, not a silent defect.
+
+**What forwards:** read-only and settable requirements; `async` / `throws` / `rethrows` methods;
+effectful property requirements (`{ get async throws }`); `inout`, unlabelled and differently-labelled
+parameters; generic methods; `@escaping` and `@Sendable` closure parameters; requirements inherited
+from a refined protocol. Isolation follows the rules 0.2.15 introduced for mocks, from the same
+helpers: the protocol's global actor lands on the class, `nonisolated` is restated on the member, and
+the storage becomes `nonisolated(unsafe)` where a nonisolated forwarder must read it.
+
+**What fails generation, each with a diagnostic naming the member:** `static` requirements, `init`
+requirements, `subscript` requirements, associated types. None can be discharged by forwarding to a
+stored instance, so the template refuses rather than emitting a class that will not conform.
+
+| annotation | effect |
+| --- | --- |
+| `DuetComponent` | generate the Component |
+| `owns` | emit `<X>ComponentBase` (non-final) instead of `<X>Component` |
+| `componentName = "Foo"` | name the emitted type `Foo` / `FooBase` rather than deriving it |
+| `componentAccess = "public"` | emit `public`; internal is the default, whatever the protocol's access |
+
+The emitted type is internal by default **even when the protocol is public**: a Component is consumed
+by its own module's builders, and widening a module's API surface as a side effect of generating
+boilerplate is not a decision a template should make.
+
+### Breaking
+
+Nothing. The template is additive and reads a new annotation. A repository with no `DuetComponent`
+annotation generates exactly what it generated at 0.2.15 — measured on the reference consumer
+(`modaal-firebase-wrappers`, 34 mocks across 7 modules): regenerated against this release, its diff is
+**empty**.
+
+### Adopting
+
+Add a second `--templates` invocation over the same sources, writing into the module the protocols
+live in (a Component is production code, not test code):
+
+```bash
+sourcery --sources Sources/MyModule \
+  --templates /path/to/swift-sourcery-templates/templates/Component.swifttemplate \
+  --output Sources/MyModule/Generated/Components.generated.swift \
+  --args "import=Foundation"
+```
+
+Then annotate a Dependency protocol and delete its hand-written forwarders. Expect the first diff to
+reorder members: generated members come out alphabetically, so introduce the regenerate-and-diff CI
+step *with* the conversion rather than after it.
+
+### Also
+
+- **`Checks/`** now runs every template in one `TEMPLATES` list, snapshots each separately, and
+  typechecks all generated files **together**. That last part is the point: a mock and a Component of
+  the same protocol have to agree about which member is `nonisolated` and which class carries a global
+  actor, and one compile is what checks it. 46 behaviour assertions, up from 25.
+- Fixtures gained the requirement shapes forwarding has to handle
+  (`Checks/Fixtures/Forwarding.swift`) and the owning-level pair
+  (`Checks/Fixtures/Composition.swift`).
 - CI on every push (`.github/workflows/ci.yml`): the fast `Checks/` lane, then the example project's
   simulator suite gated on it. Xcode is pinned, because the fast lane's gate is zero *diagnostics* —
   a compiler that adds one warning would fail it for a reason unrelated to the templates.

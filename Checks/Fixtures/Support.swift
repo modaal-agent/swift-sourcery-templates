@@ -58,3 +58,30 @@ public final class StubThemeProvider: ThemeProviding, @unchecked Sendable {
     self.accentName = accentName
   }
 }
+
+// MARK: - Component support
+
+/// The kind of object a composition level owns: built from collaborators the
+/// level forwards, with a lifetime tied to the Component that holds it. Stands
+/// in for WikiMemory's `FeedAudioPlayer`.
+public final class FeedAudioPlayer {
+  public let memoryRepository: MemoryRepositoryProtocol
+  public let analytics: AnalyticsTracking
+
+  public init(memoryRepository: MemoryRepositoryProtocol, analytics: AnalyticsTracking) {
+    self.memoryRepository = memoryRepository
+    self.analytics = analytics
+  }
+}
+
+/// Supplies a member a parent does not itself declare, so a child conformance
+/// can be satisfied by adaptation rather than forwarding.
+public final class StubAudioSession: AudioSessionConfiguring {
+  public var recordPermission: RecordPermission = .granted
+
+  public init() {}
+
+  public func activatePlayback() {}
+  public func activateRecording() throws {}
+  public func requestRecordPermission(_ handler: @escaping (Bool) -> Void) { handler(true) }
+}

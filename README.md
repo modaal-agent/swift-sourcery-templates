@@ -2,14 +2,15 @@
 
 [![CI](https://github.com/ivanmisuno/swift-sourcery-templates/actions/workflows/ci.yml/badge.svg)](https://github.com/ivanmisuno/swift-sourcery-templates/actions/workflows/ci.yml)
 
-Advanced Protocol Mock and Type Erasure Code-generation templates for Swift (using [Sourcery](https://github.com/krzysztofzablocki/Sourcery)).
+Advanced Protocol Mock, Type Erasure and dependency-forwarding Code-generation templates for Swift (using [Sourcery](https://github.com/krzysztofzablocki/Sourcery)).
 
-Two templates:
+Three templates:
 
 1. **`Mocks.swifttemplate`** — generates protocol mock classes for [test doubles](https://martinfowler.com/bliki/TestDouble.html) with call counting, handler closures, and smart defaults
 2. **`TypeErase.swifttemplate`** — generates [type erasure](https://www.bignerdranch.com/blog/breaking-down-type-erasure-in-swift/) wrappers
+3. **`Component.swifttemplate`** — generates the forwarding class that satisfies a dependency-injection protocol, for trees where each level declares what it consumes. See [Components](#components)
 
-Both support protocols with associated types, generic functions with constraints, `@escaping` closure parameters,
+The first two support protocols with associated types, generic functions with constraints, `@escaping` closure parameters,
 and provide smart defaults for RxSwift and Combine types. Compatible with [RIBs](https://github.com/uber/RIBs) architecture patterns.
 
 Generated mocks compile with **zero diagnostics** under `-strict-concurrency=complete` and in the
@@ -100,18 +101,84 @@ A method returning `AnyCancellable` gets a token whose `cancel()` is counted —
 `<method>CancelCallCount` and `<method>CancelHandler` — mirroring the RxSwift `Disposable` case, so a
 registration API's deregistration is observable without setting a handler.
 
+## Components
+
+In a dependency-injection tree where every level declares an `<X>Dependency` protocol naming exactly
+what it consumes, the class that satisfies that protocol by forwarding to the parent is mechanical:
+one `var m: T { dependency.m }` per requirement. `Component.swifttemplate` writes it.
+
+```swift
+/// sourcery: DuetComponent
+protocol TimelineDependency: AnyObject {
+    var themeProvider: ThemeProviding { get }
+    var memoryRepository: MemoryRepositoryProtocol { get }
+}
+```
+
+```swift
+final class TimelineComponent: TimelineDependency {
+    private let dependency: TimelineDependency
+
+    init(dependency: TimelineDependency) {
+        self.dependency = dependency
+    }
+    var memoryRepository: MemoryRepositoryProtocol { dependency.memoryRepository }
+    var themeProvider: ThemeProviding { dependency.themeProvider }
+}
+```
+
+The parent satisfies a child's Dependency with an empty extension when its own surface covers it
+(`extension MainComponent: TimelineDependency {}`), so the tree is written once, in the protocols.
+
+**A level that owns something** annotates `DuetComponent, owns`. A generated type cannot carry a
+hand-written `lazy var`, so the emission becomes a non-`final` `<X>ComponentBase` and the level
+writes the subclass that holds what it owns:
+
+```swift
+/// sourcery: DuetComponent, owns
+protocol MainDependency: AnyObject { /* … */ }
+
+final class MainComponent: MainComponentBase {
+    lazy var feedAudioPlayer: FeedAudioPlaying = FeedAudioPlayer(
+        memoryRepository: memoryRepository)   // reads the generated forwarders
+}
+```
+
+Getting `owns` wrong is a compile error, not a silent defect: a `final class` cannot be subclassed,
+and a stored property cannot be added in an extension.
+
+**What it forwards.** Read-only and settable requirements, `async` / `throws` / `rethrows` methods,
+effectful property requirements (`{ get async throws }`), `inout` and unlabelled parameters, generic
+methods, `@escaping` / `@Sendable` closure parameters, and requirements inherited from a refined
+protocol. Isolation follows the same rules as the mocks: the protocol's global actor lands on the
+class, a `nonisolated` requirement is restated, and the storage becomes `nonisolated(unsafe)` where a
+nonisolated forwarder has to read it.
+
+**What it refuses**, each with a diagnostic naming the member: `static` requirements, `init`
+requirements, `subscript` requirements, and associated types. None can be discharged by forwarding to
+a stored instance, so generation fails rather than emitting a class that will not conform.
+
+**The emitted type is internal by default**, even when the protocol is public — a Component is
+consumed by its own module's builders, and widening a module's API surface as a side effect of
+generating boilerplate is not a decision a template should make. `componentAccess = "public"` opts in.
+
+Mocks and Components compose: a protocol annotated `/// sourcery: CreateMock, DuetComponent` gets the
+double a spec drives *and* the production class that forwards. Both read the same isolation rules from
+the same helpers, so they cannot disagree about which member is `nonisolated`.
+
 ## Tests
 
 | lane | command | covers |
 | --- | --- | --- |
-| fast | `Checks/run-checks.sh` | snapshot of generated output, both language modes, runtime behaviour. No simulator, no third-party packages, seconds |
+| fast | `Checks/run-checks.sh` | snapshot of every template's generated output, both language modes, runtime behaviour. Mocks and Components are typechecked together, so the two cannot disagree about isolation. No simulator, no third-party packages, seconds |
 | full | `Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
 
 Both run on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), the fast lane first.
 Run both locally before cutting a tag.
 
 Release notes, including what each version changes in the generated output and what breaks:
-[CHANGELOG.md](CHANGELOG.md).
+[CHANGELOG.md](CHANGELOG.md). Working on the templates themselves — layout, where to change what, the
+release procedure: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Rationale
 
@@ -329,6 +396,18 @@ sourcery \
   --args "import=UIKit"
 ```
 
+### Template arguments
+
+Passed via `--args` on the CLI or `args:` in a YAML config:
+
+| Arg | Effect |
+|-----|--------|
+| `import=Module` | add `import Module` to the generated file |
+| `testable=Module` | add `@testable import Module` to the generated file |
+| `excludedSwiftLintRules=[rule1,rule2]` | emit `//swiftlint:disable` directives for each rule |
+
+A Component is production code, so its output takes `import=`, not `testable=`.
+
 ## Annotating External Protocols
 
 To generate mocks for protocols defined in external packages (without modifying their source), use empty extensions with the `CreateMock` annotation:
@@ -364,6 +443,10 @@ Sourcery picks up annotations from extensions on the protocol. Pass the annotati
 | `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
 | `subject = "CurrentValue"` / `"Passthrough"` | Variable / method | Choose the subject backing an `AnyPublisher` member |
+| `DuetComponent` | Protocol | Generate the forwarding Component class |
+| `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
+| `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
+| `componentAccess = "public"` | Protocol | Emit a `public` Component; the default is internal |
 
 # License
 
