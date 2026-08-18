@@ -32,7 +32,7 @@ jobs:
     name: Checks (snapshot, both language modes, behaviour)
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -41,7 +41,7 @@ jobs:
       - name: Cache Sourcery artifact bundle
         # Keyed on the version alone: the bundle at a given version is
         # immutable, so there is nothing else for the key to depend on.
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build/sourcery-${{ env.SOURCERY_VERSION }}
           key: sourcery-${{ runner.os }}-${{ env.SOURCERY_VERSION }}
@@ -62,14 +62,14 @@ jobs:
     name: CLI (mock-templates build + checks)
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
 
       - name: Cache Sourcery artifact bundle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build/sourcery-${{ env.SOURCERY_VERSION }}
           key: sourcery-${{ runner.os }}-${{ env.SOURCERY_VERSION }}
@@ -90,7 +90,7 @@ jobs:
     needs: checks
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
