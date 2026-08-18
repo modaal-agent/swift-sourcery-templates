@@ -451,6 +451,46 @@ sourcery \
   --args "import=UIKit"
 ```
 
+### The `mock-templates` CLI (fingerprinted output)
+
+`mock-templates` wraps the invocation above and records provenance: the output file starts with a
+fingerprint block naming the template bundle tag, the generator config, the path and SHA-256 of every
+scanned source file, and the SHA-256 of the generated body below the block. A repo that commits its
+generated mocks can then prove them current without running Sourcery — no engine download, no
+first-use template compile — which is what a cold CI job wants. Generation is deterministic, so
+fingerprint-current implies output-current.
+
+Build it from this package: `swift build --product mock-templates`.
+
+```bash
+# Generate: runs sourcery, then writes the output under its fingerprint.
+mock-templates generate \
+  --sourcery /path/to/sourcery \
+  --templates /path/to/swift-sourcery-templates/templates/Mocks.swifttemplate \
+  --sources Sources/MyModule \
+  --args "import=Foundation,testable=MyModule" \
+  --bundle-version 0.6.0 \
+  --root "$(pwd)" \
+  --output Tests/MyModuleTests/Generated/MyModuleMocks.swift
+
+# Validate: re-hashes the recorded inputs and the body. No Sourcery involved.
+mock-templates validate \
+  --file Tests/MyModuleTests/Generated/MyModuleMocks.swift \
+  --root "$(pwd)" \
+  --sources Sources/MyModule \
+  --expect-bundle 0.6.0
+```
+
+`validate` fails on: a listed file whose content changed, a listed file that is gone, a `.swift` file
+present under `--sources` but absent from the block (a file added after generation), a body whose
+hash differs from the recorded one (a hand-edit), and — with `--expect-bundle` — a block imprinted
+by a different bundle tag. `imprint` rewrites the block over the existing body without regenerating.
+`generate --disable-cache` passes `--disableCache` through to Sourcery.
+
+Recorded paths are relative to `--root`, so the block reproduces across checkouts; a source outside
+the root is an error, never an absolute path. The tool is policy-free: which sources a generated
+file scans, and which bundle tag to expect, are the calling script's to decide.
+
 ### Template arguments
 
 Passed via `--args` on the CLI or `args:` in a YAML config:

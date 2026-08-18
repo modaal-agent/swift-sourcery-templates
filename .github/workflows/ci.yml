@@ -52,6 +52,31 @@ jobs:
       - name: Run checks
         run: Checks/run-checks.sh
 
+  # ── CLI lane ─────────────────────────────────────────────────────
+  # The mock-templates executable: `generate` transparency against the fast
+  # lane's snapshot, fingerprint validation and its red controls, imprint
+  # recovery. Runs beside `checks`, not behind it — it compiles the CLI
+  # package target, which the other lanes never touch, and finishes in about
+  # a minute.
+  cli:
+    name: CLI (mock-templates build + checks)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Cache Sourcery artifact bundle
+        uses: actions/cache@v4
+        with:
+          path: .build/sourcery-${{ env.SOURCERY_VERSION }}
+          key: sourcery-${{ runner.os }}-${{ env.SOURCERY_VERSION }}
+
+      - name: Run CLI checks
+        run: Checks/run-cli-checks.sh
+
   # ── Full lane ────────────────────────────────────────────────────
   # Covers what the fast lane structurally cannot: the RxSwift smart defaults
   # (`Single`, `Observable`, `AnyObserver`, `Disposable`), the RIBs

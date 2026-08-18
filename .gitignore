@@ -6,3 +6,4 @@ xcuserdata
 /Packages
 .netrc
 .DS_Store
+/Package.resolved

@@ -7,7 +7,11 @@ let package = Package(
     .macOS(.v13)
   ],
   products: [
-    .plugin(name: "SourcerySwiftCodegenPlugin", targets: ["SourcerySwiftCodegenPlugin"])
+    .plugin(name: "SourcerySwiftCodegenPlugin", targets: ["SourcerySwiftCodegenPlugin"]),
+    .executable(name: "mock-templates", targets: ["mock-templates"]),
+  ],
+  dependencies: [
+    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0")
   ],
   targets: [
     .binaryTarget(
@@ -19,6 +23,12 @@ let package = Package(
       name: "SourcerySwiftCodegenPlugin",
       capability: .buildTool,
       dependencies: ["sourcery"]
+    ),
+    .executableTarget(
+      name: "mock-templates",
+      dependencies: [
+        .product(name: "ArgumentParser", package: "swift-argument-parser")
+      ]
     ),
   ]
 )

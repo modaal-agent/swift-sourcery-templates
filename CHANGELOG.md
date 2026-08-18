@@ -19,6 +19,31 @@ pod.
 
 ---
 
+## Unreleased
+
+The `mock-templates` CLI joins the package as an executable product: `generate` wraps Sourcery and
+writes the output under a fingerprint block (bundle tag, generator config, path + SHA-256 of every
+scanned source file, SHA-256 of the generated body), `validate` re-hashes that list with no Sourcery
+run — a cold CI job proves a committed file current in seconds — and `imprint` refreshes the block
+without regenerating. See README.md's "The `mock-templates` CLI" section.
+
+### Generated output
+
+Unchanged: `templates/` is untouched by this release, so regenerating a consumer against it is a
+diff-free no-op. A file written by `mock-templates generate` differs from a raw `sourcery` run only
+by the fingerprint block above the `// Generated using Sourcery` banner; the body below the block
+is byte-identical (`Checks/run-cli-checks.sh` gates this against the fast lane's snapshot).
+
+### Breaking
+
+Nothing. The plugin, the templates and the existing products keep their shapes. The package gains
+one dependency, swift-argument-parser, resolved by consumers on their next `swift package update`.
+
+### Adopting
+
+Optional. A repo that commits generated mocks can switch its script's generation call to
+`mock-templates generate` and its CI staleness gate to `mock-templates validate`.
+
 ## 0.5.0 — 2026-08-06
 
 Every `AnyPublisher` member is backed by a `PassthroughSubject` — variable and method alike — and a

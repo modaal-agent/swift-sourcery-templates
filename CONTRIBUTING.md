@@ -23,8 +23,14 @@ templates/                          # the product
     ComponentGenerator.swift        # forwarding emission; consumes the Mocks/ rules
   Utility/                          # annotation parsing, generics, string helpers
 
+Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprint, validate
+  MockTemplates.swift               # command tree
+  Commands.swift                    # the three verbs + their shared options
+  Fingerprint.swift                 # the provenance block — format, render, parse
+  SourceSet.swift                   # input enumeration and root-relative paths
+
 Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin
-Checks/                             # fast lane — see Testing below
+Checks/                             # fast lane + CLI lane — see Testing below
 Examples/ExampleProjectSpm/         # full lane — RxSwift, RIBs, type erasure, the plugin
 Examples/ExampleProjectCocoapods/   # stale; see Open items
 ```
@@ -120,6 +126,19 @@ its consumers need no Sourcery installation.
 1. `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift`
 2. Conditional compilation for the Swift 5.x vs 6.0+ plugin API differences
 3. Test by building the example project — the fast lane does not exercise the plugin
+
+### The `mock-templates` CLI
+
+1. `Sources/mock-templates/` — the fingerprint block format lives in `Fingerprint.swift`, the
+   input-enumeration rule in `SourceSet.swift` (every regular `.swift` file under a root, hidden
+   entries skipped, recorded root-relative, sorted), the verbs in `Commands.swift`
+2. The CLI is policy-free: it hashes what it is pointed at and knows nothing about who calls it.
+   Anything that decides *which* sources, templates or tag — keep in the calling script
+3. Run `Checks/run-cli-checks.sh`. Its transparency gate diffs `generate`'s body against the fast
+   lane's snapshot, so a wrapper change that alters output is caught even when the templates never
+   changed
+4. A block-format change invalidates every committed fingerprint downstream — bump the version in
+   the header line (`mock-templates:fingerprint v1`) and say so in CHANGELOG.md
 
 ## Design rules already decided
 
@@ -227,7 +246,11 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | lane | command | needs |
 |------|---------|-------|
 | fast | `Checks/run-checks.sh` | a Swift toolchain; ~10s |
+| CLI | `Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
 | full | `cd Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
+
+Both check lanes provision the pinned Sourcery through `Checks/ensure-sourcery.sh` — the pin and the
+download path live once; `SOURCERY=/path/to/sourcery` overrides it in either lane.
 
 The fast lane runs every template in its `TEMPLATES` list over `Checks/Fixtures`, diffs each output
 against `Checks/Snapshots/`, typechecks the fixtures **and all generated files together** under
@@ -252,6 +275,7 @@ defaults, the RIBs external-annotation pattern, type erasure, and the plugin its
 | fast | `Checks/Snapshots/Mocks.generated.swift` | the generated mocks, as a reviewable diff |
 | fast | `Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
 | fast | `Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
+| CLI | `Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag; `imprint` recovery |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |
@@ -282,7 +306,8 @@ version first.
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Sourcery | 2.3.0 | code generation engine (binary artifact); pinned in `Package.swift` and `Checks/run-checks.sh` |
+| Sourcery | 2.3.0 | code generation engine (binary artifact); pinned in `Package.swift` and `Checks/ensure-sourcery.sh` |
+| swift-argument-parser | 1.3.0+ | the `mock-templates` CLI's command-line surface |
 | Quick | 7.3.0 | BDD test framework (full lane) |
 | Nimble | 13.0.0 | matchers (full lane) |
 | RxSwift | 6.6.0 | example protocols, smart defaults |
