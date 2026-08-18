@@ -19,6 +19,36 @@ pod.
 
 ---
 
+## 0.6.1 — 2026-08-18
+
+`mock-templates` excludes the file it is generating or validating from its own input set. A
+generation whose `--output` lands inside one of its `--sources` roots — a Component file generated
+into the module that declares it is the common case — previously recorded a self-hash that the
+write immediately invalidated, so the file could never validate. Now `generate` (and `imprint`)
+skip the `--output` path when enumerating inputs, `validate` skips the `--file` path in its
+unlisted-file sweep, and `Checks/run-cli-checks.sh` gates the fixed point: an output written inside
+its scanned root validates, its block lists no self input, and a second run over the block-bearing
+tree reproduces the file byte-identically.
+
+One rule for callers remains: when generated file A is a genuine input of generated file B (B's
+roots contain A's output), generate A before B, so B records A's post-write hash.
+
+### Generated output
+
+Unchanged for any file whose output lies outside its scanned roots — the input list and body are
+byte-identical to 0.6.0's. A self-scanned output loses one `// input:` line (itself) from its
+fingerprint block; the body is unchanged.
+
+### Breaking
+
+Nothing. Files fingerprinted by 0.6.0 whose outputs lie outside their roots validate unchanged
+under 0.6.1.
+
+### Adopting
+
+Bump the tag and regenerate only if a generator writes into a directory it also scans — those files
+gain a valid fingerprint for the first time.
+
 ## 0.6.0 — 2026-08-18
 
 The `mock-templates` CLI joins the package as an executable product: `generate` wraps Sourcery and

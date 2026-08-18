@@ -5,9 +5,17 @@ import Foundation
 /// `.swift` file under each root (a root that is itself a `.swift` file is
 /// included as-is), hidden files and directories skipped, deduplicated,
 /// recorded relative to `root`, sorted by that recorded path.
+///
+/// `excluding` names the file the run is generating or validating: a
+/// generated file is not an input to itself, and a root that contains its
+/// own output would otherwise never validate — the recorded self-hash
+/// predates the write that replaces the file.
 enum SourceSet {
-  static func enumerate(sources: [String], relativeTo root: String) throws -> [String] {
+  static func enumerate(
+    sources: [String], relativeTo root: String, excluding excluded: String? = nil
+  ) throws -> [String] {
     let fileManager = FileManager.default
+    let excludedPath = excluded.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
     var paths: Set<String> = []
     for source in sources {
       let sourceURL = URL(fileURLWithPath: source).standardizedFileURL
@@ -16,7 +24,9 @@ enum SourceSet {
         throw SourceSetError.missingRoot(source)
       }
       if !isDirectory.boolValue {
-        paths.insert(try relativize(sourceURL.path, to: root))
+        if sourceURL.path != excludedPath {
+          paths.insert(try relativize(sourceURL.path, to: root))
+        }
         continue
       }
       guard
@@ -32,7 +42,9 @@ enum SourceSet {
         guard url.pathExtension == "swift",
           try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true
         else { continue }
-        paths.insert(try relativize(url.standardizedFileURL.path, to: root))
+        let standardized = url.standardizedFileURL.path
+        if standardized == excludedPath { continue }
+        paths.insert(try relativize(standardized, to: root))
       }
     }
     return paths.sorted()

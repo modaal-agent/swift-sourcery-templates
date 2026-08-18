@@ -39,7 +39,9 @@ struct FingerprintOptions: ParsableArguments {
   }
 
   func hashedInputs() throws -> [Fingerprint.Input] {
-    try SourceSet.enumerate(sources: sources, relativeTo: root).map { path in
+    // The output is excluded from its own input set (see SourceSet) — a row
+    // whose root contains the file it generates stays validatable.
+    try SourceSet.enumerate(sources: sources, relativeTo: root, excluding: output).map { path in
       Fingerprint.Input(path: path, hash: try sha256Hex(fileAt: rootedPath(path)))
     }
   }
@@ -197,7 +199,8 @@ struct Validate: ParsableCommand {
 
     if !sources.isEmpty {
       let recorded = Set(fingerprint.inputs.map(\.path))
-      for path in try SourceSet.enumerate(sources: sources, relativeTo: rootURL.path)
+      for path in try SourceSet.enumerate(
+        sources: sources, relativeTo: rootURL.path, excluding: file)
       where !recorded.contains(path) {
         failures.append("unlisted: \(path) — present under a sources root, absent from the fingerprint")
       }

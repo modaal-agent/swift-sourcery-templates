@@ -12,6 +12,10 @@
 #                    body, a wrong bundle tag.
 #   3. imprint       re-imprinting after a body edit records the new body,
 #                    and validate is green again.
+#   4. self-scan     an output written INSIDE a scanned root validates: the
+#                    generated file is excluded from its own input set, and
+#                    a second run over the block-bearing file reproduces it
+#                    byte-identically (the fixed point exists).
 #
 # Usage:
 #   Checks/run-cli-checks.sh
@@ -142,6 +146,33 @@ else
 fi
 
 expect_red "wrong bundle tag" "$CLI" validate --file "$OUT" --root "$GIT_ROOT" --expect-bundle 9.9.9
+
+# ── 4. Self-scan ──────────────────────────────────────────────────
+# The output lands inside the scanned root. Without the exclusion the
+# recorded self-hash predates the write and the file can never validate.
+echo ""
+echo "── self-scan ──"
+SELF_OUT="$FIXTURES/Generated.swift"
+"${GENERATE[@]}" --output "$SELF_OUT"
+if "$CLI" validate --file "$SELF_OUT" --root "$GIT_ROOT" --sources "$FIXTURES" \
+    --expect-bundle 0.0.0-check > /dev/null; then
+  echo "  output inside its own root validates"
+else
+  fail "self-scanned output does not validate — the exclusion is broken"
+fi
+if grep -q "input:.*Generated.swift" "$SELF_OUT"; then
+  fail "the fingerprint lists the output as its own input"
+else
+  echo "  the block does not list the output as an input"
+fi
+cp "$SELF_OUT" "$WORK_DIR/self-first.swift"
+"${GENERATE[@]}" --output "$SELF_OUT"
+if cmp -s "$SELF_OUT" "$WORK_DIR/self-first.swift"; then
+  echo "  a second in-place run reproduces the file byte-identically"
+else
+  fail "the self-scan fixed point does not hold across runs"
+fi
+rm -f "$SELF_OUT"
 
 # ── Result ────────────────────────────────────────────────────────
 echo ""
