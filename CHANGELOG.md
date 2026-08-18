@@ -19,13 +19,22 @@ pod.
 
 ---
 
-## Unreleased
+## 0.6.0 — 2026-08-18
 
 The `mock-templates` CLI joins the package as an executable product: `generate` wraps Sourcery and
 writes the output under a fingerprint block (bundle tag, generator config, path + SHA-256 of every
 scanned source file, SHA-256 of the generated body), `validate` re-hashes that list with no Sourcery
 run — a cold CI job proves a committed file current in seconds — and `imprint` refreshes the block
 without regenerating. See README.md's "The `mock-templates` CLI" section.
+
+Starting with this tag, a release publishes downloadable assets:
+`swift-sourcery-templates-<tag>.artifactbundle.zip` carries the Sourcery engine at the pinned
+version (universal macOS binary), the `templates/` tree, and the CLI — one artifact bundle whose
+`info.json` declares both executables, so a SwiftPM `binaryTarget` resolves `sourcery` or
+`mock-templates` by name. Beside it: `mock-templates-<tag>-macos.zip` (the CLI alone, for
+`validate`-only CI lanes) and a `.sha256` for each zip. One download replaces a consumer's separate
+engine download and templates clone, and the tag pins engine and templates together — there is no
+pair of versions to keep matched. See README.md's "The released artifact bundle" section.
 
 ### Generated output
 
@@ -42,7 +51,9 @@ one dependency, swift-argument-parser, resolved by consumers on their next `swif
 ### Adopting
 
 Optional. A repo that commits generated mocks can switch its script's generation call to
-`mock-templates generate` and its CI staleness gate to `mock-templates validate`.
+`mock-templates generate` and its CI staleness gate to `mock-templates validate`, and its
+provisioning to the released bundle — one checksum-verified download instead of an engine download
+plus a templates clone.
 
 ## 0.5.0 — 2026-08-06
 

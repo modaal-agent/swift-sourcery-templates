@@ -491,6 +491,37 @@ Recorded paths are relative to `--root`, so the block reproduces across checkout
 the root is an error, never an absolute path. The tool is policy-free: which sources a generated
 file scans, and which bundle tag to expect, are the calling script's to decide.
 
+### The released artifact bundle
+
+Each release publishes one download that carries everything a generating repo needs — the Sourcery
+engine at the version the templates are checked against (universal macOS binary), the `templates/`
+tree, and the `mock-templates` CLI — so the engine and the templates are pinned together by a single
+tag and there is no pair of versions to keep matched:
+
+```bash
+VERSION=0.6.0
+BASE=https://github.com/modaal-agent/swift-sourcery-templates/releases/download/$VERSION
+curl -fsSLO "$BASE/swift-sourcery-templates-$VERSION.artifactbundle.zip"
+curl -fsSLO "$BASE/swift-sourcery-templates-$VERSION.artifactbundle.zip.sha256"
+shasum -a 256 -c "swift-sourcery-templates-$VERSION.artifactbundle.zip.sha256"
+unzip -q "swift-sourcery-templates-$VERSION.artifactbundle.zip"
+
+BUNDLE="swift-sourcery-templates-$VERSION.artifactbundle"
+"$BUNDLE/mock-templates/bin/mock-templates" generate \
+  --sourcery "$BUNDLE/sourcery/bin/sourcery" \
+  --templates "$BUNDLE/templates/Mocks.swifttemplate" \
+  ...
+```
+
+A CI lane that only runs `validate` doesn't need the ~60 MB engine: `mock-templates-<version>-macos.zip`
+is the CLI alone, published beside the bundle with its own `.sha256`.
+
+The bundle is a SwiftPM artifact bundle whose `info.json` declares both executables, so a
+`binaryTarget` pointed at the zip resolves `sourcery` or `mock-templates` by artifact name; the
+published SHA-256 is the `checksum:` value such a target needs. `Scripts/assemble-release.sh`
+builds the assets; `.github/workflows/release.yml` runs it on every tag push and attaches them to
+the tag's GitHub release.
+
 ### Template arguments
 
 Passed via `--args` on the CLI or `args:` in a YAML config:

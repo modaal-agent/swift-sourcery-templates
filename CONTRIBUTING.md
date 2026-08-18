@@ -31,6 +31,7 @@ Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprin
 
 Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin
 Checks/                             # fast lane + CLI lane — see Testing below
+Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
 Examples/ExampleProjectSpm/         # full lane — RxSwift, RIBs, type erasure, the plugin
 Examples/ExampleProjectCocoapods/   # stale; see Open items
 ```
@@ -285,28 +286,40 @@ defaults, the RIBs external-annotation pattern, type erasure, and the plugin its
 
 ### CI
 
-`.github/workflows/ci.yml` runs both lanes on every push, fast first, full gated on it. Xcode is
+`.github/workflows/ci.yml` runs all three lanes on every push: fast and CLI in parallel, full gated
+on fast. Xcode is
 pinned via `XCODE_VERSION` because the fast lane's gate is *zero diagnostics*: a runner image whose
 compiler emits one new warning would turn it red for a reason unrelated to the templates. The gate has
 been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4), so the pin is for
-reproducibility rather than fragility. Bumping it means re-running both lanes locally on the new
+reproducibility rather than fragility. Bumping it means re-running the lanes locally on the new
 version first.
+
+`.github/workflows/release.yml` runs on tag pushes only (which ci.yml deliberately skips): it runs
+`Scripts/assemble-release.sh` and attaches the assets it produces to the tag's GitHub release.
 
 ## Cutting a release
 
-1. Run both lanes green
+1. Run all three lanes green
 2. Regenerate the reference consumer (`modaal-firebase-wrappers`) against `master` and record the size
    and shape of its diff. A release whose consumer impact was not measured is not ready to tag
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to
    bump: what the generated output looks like now, what can fail after a regenerate and how to fix it,
    what to do beyond bumping the tag
 4. Tag `master`. There is no release branch, and a tag does not publish a pod
+5. The tag push runs `.github/workflows/release.yml`, which publishes the release assets:
+   `Scripts/assemble-release.sh <tag>` builds the `mock-templates` CLI universal
+   (arm64 + x86_64), vendors the Sourcery engine at the `sourcery` binaryTarget pin in
+   `Package.swift` (the manifest is the only pin; the download is checksum-verified against it),
+   smoke-runs `generate` + `validate` from the assembled layout, and emits
+   `swift-sourcery-templates-<tag>.artifactbundle.zip`, `mock-templates-<tag>-macos.zip`, a
+   `.sha256` beside each, and the release-notes body. Rehearse it locally with
+   `Scripts/assemble-release.sh <version>` — everything lands in `.build/release-assets/`
 
 ## Dependencies
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Sourcery | 2.3.0 | code generation engine (binary artifact); pinned in `Package.swift` and `Checks/ensure-sourcery.sh` |
+| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is the `sourcery` binaryTarget in `Package.swift` — `Scripts/assemble-release.sh` parses it when vendoring the engine into the release bundle; `Checks/ensure-sourcery.sh` keeps a copy for the check lanes |
 | swift-argument-parser | 1.3.0+ | the `mock-templates` CLI's command-line surface |
 | Quick | 7.3.0 | BDD test framework (full lane) |
 | Nimble | 13.0.0 | matchers (full lane) |
