@@ -4,10 +4,14 @@
 # results to three gates:
 #
 #   1. snapshot   each generated file matches Checks/Snapshots (record with --record)
-#   2. typecheck  they compile clean together under Swift 5 + complete
+#   2. zero-match each template still WRITES its file over sources with no
+#                 matching annotation (the engine skips whitespace-only
+#                 renders, so the generators emit a marker comment), and the
+#                 result matches its snapshot
+#   3. typecheck  they compile clean together under Swift 5 + complete
 #                 concurrency checking, and under the Swift 6 language mode —
 #                 zero warnings, zero errors
-#   3. behaviour  they do what a consumer needs: mocks count calls, run handlers
+#   4. behaviour  they do what a consumer needs: mocks count calls, run handlers
 #                 and deliver values pushed into their subjects; Components
 #                 forward to the parent and hold what the level owns
 #
@@ -93,7 +97,53 @@ for entry in "${TEMPLATES[@]}"; do
   fi
 done
 
-# ── 2. Typecheck, both language modes ─────────────────────────────
+# ── 2. Zero-match ─────────────────────────────────────────────────
+# A scan that matches nothing must still write the file: consumers commit the
+# generated output and fingerprint it, so a pre-registered output has to exist
+# before its first annotation. The engine skips whitespace-only renders — the
+# marker comment the generators emit on an empty match set is what keeps the
+# write happening. Snapshotted like the real outputs.
+echo ""
+echo "── zero-match ──"
+ZERO_MATCH_DIR="$WORK_DIR/zero-match-fixtures"
+mkdir -p "$ZERO_MATCH_DIR"
+cat > "$ZERO_MATCH_DIR/Unannotated.swift" <<'SWIFT'
+// No annotation on purpose: neither template matches this protocol.
+public protocol ZeroMatchUnannotated: AnyObject {
+    var flag: Bool { get }
+}
+SWIFT
+for entry in "${TEMPLATES[@]}"; do
+  output_name="ZeroMatch-${entry%%:*}"
+  template="${entry##*:}"
+  generated="$WORK_DIR/$output_name"
+  rm -f "$generated"
+  "$SOURCERY" \
+    --sources "$ZERO_MATCH_DIR" \
+    --templates "$GIT_ROOT/templates/$template" \
+    --output "$generated" \
+    --args "import=Combine,import=Foundation" \
+    --disableCache \
+    --quiet
+  if [ ! -s "$generated" ]; then
+    fail "$template wrote no output for a zero-match scan"
+    continue
+  fi
+  snapshot="$SNAPSHOTS_DIR/$output_name"
+  if [ "$RECORD" = "1" ]; then
+    cp "$generated" "$snapshot"
+    echo "  recorded $output_name"
+  elif [ ! -f "$snapshot" ]; then
+    fail "no snapshot at $snapshot — run with --record"
+  elif diff -u "$snapshot" "$generated" > "$WORK_DIR/$output_name.diff"; then
+    echo "  $output_name: written, matches"
+  else
+    head -20 "$WORK_DIR/$output_name.diff"
+    fail "$output_name differs from the snapshot (review, then --record)"
+  fi
+done
+
+# ── 3. Typecheck, both language modes ─────────────────────────────
 typecheck() {
   local label="$1"; shift
   local log="$WORK_DIR/typecheck-$label.log"
@@ -116,7 +166,7 @@ echo "── typecheck ──"
 typecheck "swift5-complete" -swift-version 5 -strict-concurrency=complete
 typecheck "swift6" -swift-version 6
 
-# ── 3. Behaviour ──────────────────────────────────────────────────
+# ── 4. Behaviour ──────────────────────────────────────────────────
 echo ""
 echo "── behaviour ──"
 BEHAVIOUR_BIN="$WORK_DIR/behaviour"

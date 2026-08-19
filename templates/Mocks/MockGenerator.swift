@@ -19,6 +19,14 @@ private struct Constants {
 
 class MockGenerator {
     static func generate(for types: [Type]) throws -> String {
+        // A scan that matches nothing still renders content. The engine skips
+        // writing a whitespace-only file, and a pipeline that fingerprints the
+        // committed output needs the file to exist from its first generation —
+        // so the empty case emits one marker comment where the first type
+        // block would sit, and the first annotation replaces it with a mock.
+        guard !types.isEmpty else {
+            return "\n// No protocols annotated `CreateMock` under the scanned sources."
+        }
         var topScope = TopScope()
 
         for type in types {

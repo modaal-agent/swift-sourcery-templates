@@ -1,7 +1,7 @@
 # Checks — the fast lane
 
 `./run-checks.sh` runs every template in its `TEMPLATES` list over
-[`Fixtures/`](Fixtures) and holds the results to three gates. It needs no
+[`Fixtures/`](Fixtures) and holds the results to four gates. It needs no
 simulator and no third-party package, so it runs in a few seconds and is the loop
 to use while editing `templates/`.
 
@@ -14,6 +14,7 @@ SOURCERY=/path/to/sourcery Checks/run-checks.sh
 | gate | what it proves |
 | --- | --- |
 | **snapshot** | each generated file matches its recording in [`Snapshots/`](Snapshots), so every template change shows up as a reviewable diff of real output |
+| **zero-match** | a scan with no matching annotation still writes the file — the generators emit a marker comment, because the engine skips whitespace-only renders and consumers commit + fingerprint the output — snapshotted as `ZeroMatch-*` |
 | **typecheck** | all of them compile **together** with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6` |
 | **behaviour** | the mocks count calls, record arguments, run handlers, suspend where the protocol suspends and deliver values pushed into their subjects; the Components forward to the parent and hold what the level owns — [`Behaviour/Main.swift`](Behaviour/Main.swift), plain assertions in one executable |
 

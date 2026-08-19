@@ -19,6 +19,45 @@ pod.
 
 ---
 
+## 0.6.2 — 2026-08-19
+
+A template whose scan matches no annotated protocol now renders one marker comment instead of
+nothing. The engine skips writing a whitespace-only render, so a zero-match generation previously
+produced **no output file at all**. That is a problem for any pipeline that commits its generated
+code and validates it in CI: the generator row cannot be registered until the first annotation
+exists, and the generation step fails on the missing file until then. Now the file always exists —
+the header (banner plus the row's `import=` / `testable=` lines) followed by one line:
+
+```swift
+// No protocols annotated `CreateMock` under the scanned sources.
+```
+
+(`DuetComponent` for the Component template), sitting exactly where the first type block will land.
+
+Only the arg-less zero-match row was actually broken: a row passing `import=` or `testable=`
+already rendered those lines, which is enough to make the engine write. The marker makes every
+zero-match render non-whitespace, so the behaviour no longer depends on which args a row carries.
+
+`Checks/run-checks.sh` gains a `zero-match` gate (now four): both templates generate over an
+unannotated source, must write a file, and that file is snapshotted
+(`Checks/Snapshots/ZeroMatch-*.generated.swift`).
+
+### Generated output
+
+Byte-identical for every scan that matches at least one annotated protocol. The fast lane's matched
+snapshots are unchanged, and regenerating the reference consumer under 0.6.1 and under this tag
+produces byte-identical output across all 7 of its generated files (34 mocks). Only the zero-match
+case changes: a file where there was none.
+
+### Breaking
+
+Nothing. A consumer with no zero-match generator rows sees an empty diff after regenerating.
+
+### Adopting
+
+Bump the tag. A generator row may now be registered before its first annotation: the committed
+output starts as the marker file, and the first annotation replaces it on the next generate.
+
 ## 0.6.1 — 2026-08-18
 
 `mock-templates` excludes the file it is generating or validating from its own input set. A

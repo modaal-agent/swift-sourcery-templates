@@ -69,6 +69,12 @@ import SourceryRuntime
 enum ComponentGenerator {
 
     static func generate(for types: [SourceryRuntime.`Type`]) throws -> String {
+        // Same rule as MockGenerator: a zero-match scan renders a marker
+        // comment instead of nothing, so the engine writes the file and a
+        // fingerprinting pipeline can commit it from day one.
+        guard !types.isEmpty else {
+            return "\n// No protocols annotated `DuetComponent` under the scanned sources."
+        }
         let scope = TopScope()
         for type in types.sorted(by: { $0.name < $1.name }) {
             scope += ""
