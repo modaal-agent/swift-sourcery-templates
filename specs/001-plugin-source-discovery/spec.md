@@ -1,15 +1,14 @@
 # 001 — A self-sufficient build-tool plugin: a derived source closure, a synthesized config, and the options the author keeps
 
 **Status:** Implemented, 2026-09-09, on `spec/001-plugin-source-discovery`. Every measurement in §1.4
-and §1.5 was run against this checkout on 2026-09-09 with Sourcery 2.3.0 and the Xcode 26.5 toolchain;
-§1.4/C, /G and /H were re-run on Xcode 26.6 while implementing. **§12 records what building it
-changed** — two of the mechanisms below do not survive contact with the plugin API, and one open
-question is now answered.
-**Scope:** `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift`,
-`Examples/ExampleProjectSpm/`, `Checks/`, README and CONTRIBUTING. No template change. No change to
-`mock-templates` — the CLI stays policy-free (§9, D6).
-**Baseline:** `master` at `4b1d0bb` ("Retire the CocoaPods distribution").
-**Relates to:**
+and §1.5 was run against this checkout on 2026-09-09 with Sourcery 2.3.0 and the Xcode 26.5
+toolchain; §1.4/C, /G and /H were re-run on Xcode 26.6 while implementing. **§12 records what
+building it changed** — two of the mechanisms below do not survive contact with the plugin API, and
+one open question is now answered. **Scope:**
+`Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift`,
+`Tests/Examples/ExampleProjectSpm/`, `Tests/Checks/`, README and CONTRIBUTING. No template change. No
+change to `mock-templates` — the CLI stays policy-free (§9, D6). **Baseline:** `master` at `4b1d0bb`
+("Retire the CocoaPods distribution"). **Relates to:**
 - `2a2857c` on branch `tt` (2024-02-28, message "tt", never merged) — the first attempt at exactly
   this. §1.3 records what it did and §1.4/A the measurement that shows why it could not have worked.
 - [CONTRIBUTING.md §Pitfalls](../../CONTRIBUTING.md) — "Sourcery only knows the declarations it
@@ -77,7 +76,7 @@ Plus `SOURCERY_TARGET_<t.name>` → the target's own directory, `GIT_ROOT` (`:16
 rev-parse` subprocess), `SOURCERY_PACKAGE` and `SOURCERY_OUTPUT_DIR` (`:109-111`).
 
 The config then names each var by hand. In
-`Examples/ExampleProjectSpm/Sources/ExampleProjectSpmTests/.Sourcery.Mocks.yml`:
+`Tests/Examples/ExampleProjectSpm/Sources/ExampleProjectSpmTests/.Sourcery.Mocks.yml`:
 
 ```yml
 sources:
@@ -561,7 +560,7 @@ one package and ambiguous in the next, it fills in only the first case and says 
 ### 6.1 A third target — the transitive first-party case
 
 The pitfall CONTRIBUTING documents ("Sourcery only knows the declarations it parses") has no example
-reproducing it. Add `Examples/ExampleProjectSpm/Sources/ExampleProjectSpmCore/`:
+reproducing it. Add `Tests/Examples/ExampleProjectSpm/Sources/ExampleProjectSpmCore/`:
 
 ```swift
 // ExampleProjectSpmCore — no annotation here; this module is not scanned today.
@@ -663,9 +662,9 @@ is measured rather than argued.
 The plugin cannot be imported by a test target (§1.5), so every check is black-box over a fixture
 package.
 
-New lane, `Checks/run-plugin-checks.sh`, over `Checks/PluginFixture/` — a package with a three-level
-target chain (`Leaf` ← `Middle` ← `App`), an external-looking path dependency, and four configs, one
-per shape §4.1 and §4.6 define:
+New lane, `Tests/Checks/run-plugin-checks.sh`, over `Tests/Checks/PluginFixture/` — a package with a
+three-level target chain (`Leaf` ← `Middle` ← `App`), an external-looking path dependency, and four
+configs, one per shape §4.1 and §4.6 define:
 
 | gate | what it proves |
 | --- | --- |
@@ -681,7 +680,7 @@ per shape §4.1 and §4.6 define:
 | **no-placeholder** | a config with none of the above is copied verbatim and generates what it generates today |
 | **generation** | the generated mock for the `Leaf`-refining protocol carries the inherited requirement — the §6.1 failure, at fast-lane speed |
 
-`Checks/run-checks.sh` and `run-cli-checks.sh` are untouched: no template and no CLI behaviour
+`Tests/Checks/run-checks.sh` and `run-cli-checks.sh` are untouched: no template and no CLI behaviour
 changes here. CI gains the plugin lane beside `checks` and `cli` (it needs no simulator); the
 `example-project` lane keeps covering the real thing.
 
@@ -703,7 +702,7 @@ Each step is a commit that stands on its own and leaves `master` green.
    Independently useful, changes no existing config's meaning, and the fixture only needs one config.
    Examples adopt the bare form in the same commit; `GIT_ROOT` stays exported.
 2. **Derivation, the placeholder and the defaults** (§3, §4.1-4.4, §4.6). The plugin change, the
-   fixture package and `Checks/run-plugin-checks.sh`, plus the CI lane. Carries the `output:`
+   fixture package and `Tests/Checks/run-plugin-checks.sh`, plus the CI lane. Carries the `output:`
    verification (D12) and the `args.testable` default (D11) — both are §4.6 and both need the same
    line machinery. No example config uses any of it yet, so the full lane must be unchanged: that is
    the backward-compatibility gate.

@@ -172,8 +172,9 @@ extension MockMethod {
     /// - `/// sourcery: skipArgumentRecording` on the method or on the protocol.
     /// - A generic method. Its parameter types name the *method's* generic
     ///   parameters, and a stored property can only name the class's — the
-    ///   annotated-generic mocks in `Examples/` are where recording them would
-    ///   produce `[(objects: S, …)]` on a class whose `S` is a different type.
+    ///   annotated-generic mocks in `Tests/Examples/` are where recording them
+    ///   would produce `[(objects: S, …)]` on a class whose `S` is a different
+    ///   type.
     private var recordedParameters: [SourceryRuntime.MethodParameter] {
         guard !isGeneric,
               !method.isAnnotatedSkipArgumentRecording,

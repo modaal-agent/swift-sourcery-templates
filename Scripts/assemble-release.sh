@@ -123,7 +123,7 @@ EOF
 python3 -m json.tool "$BUNDLE/info.json" >/dev/null || { echo "FAIL: info.json is not valid JSON"; exit 1; }
 
 # ── Smoke: the assembled layout generates and validates ──────────
-# Same invocation as Checks/run-cli-checks.sh, but every path is the
+# Same invocation as Tests/Checks/run-cli-checks.sh, but every path is the
 # bundle's own: its engine (with no ejs.js beside it), its templates/, its
 # CLI. Proves the three pieces work from the shipped layout before zipping.
 echo "── smoke ──"
@@ -136,7 +136,7 @@ mkdir -p "$SMOKE"
 "$BUNDLE/mock-templates/bin/mock-templates" generate \
   --sourcery "$BUNDLE/sourcery/bin/sourcery" \
   --templates "$BUNDLE/templates/Mocks.swifttemplate" \
-  --sources "$GIT_ROOT/Checks/Fixtures" \
+  --sources "$GIT_ROOT/Tests/Checks/Fixtures" \
   --args "import=Combine,import=Foundation" \
   --bundle-version "$VERSION" \
   --root "$GIT_ROOT" \
@@ -145,7 +145,7 @@ mkdir -p "$SMOKE"
 "$BUNDLE/mock-templates/bin/mock-templates" validate \
   --file "$SMOKE/Mocks.generated.swift" \
   --root "$GIT_ROOT" \
-  --sources "$GIT_ROOT/Checks/Fixtures" \
+  --sources "$GIT_ROOT/Tests/Checks/Fixtures" \
   --expect-bundle "$VERSION"
 
 # ── Zip + checksums + notes ───────────────────────────────────────

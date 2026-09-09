@@ -10,19 +10,20 @@ Rules for working in this repository. They are the additions to
 | what the templates generate, how to consume them, the annotation list | [README.md](README.md) |
 | how the templates are built, where to change what, the pitfalls already hit | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | what changed in a release and what it breaks | [CHANGELOG.md](CHANGELOG.md) |
-| which fixture covers which construct | [Checks/README.md](Checks/README.md) |
+| which fixture covers which construct | [Tests/Checks/README.md](Tests/Checks/README.md) |
 
 ## The generated output is the product — review it as a diff
 
-- **Run `Checks/run-checks.sh` before and after every template edit.** It is ~10s and it is the only
-  place generated output is visible. A change that looks local to one shape routinely moves another.
+- **Run `Tests/Checks/run-checks.sh` before and after every template edit.** It is ~10s and it is
+  the only place generated output is visible. A change that looks local to one shape routinely moves
+  another.
 - **`--record` is a deliberate act.** Run the gates first, read the snapshot diff, and only then
-  `Checks/run-checks.sh --record`. Recording before reading turns the gate into a rubber stamp.
-- **Never hand-edit anything in `Checks/Snapshots/`.** Those files are build products; the only
-  supported way to change one is to change a template and re-record.
-- **Run the full lane (`Examples/ExampleProjectSpm/test-ios.sh`) before cutting a tag**, and whenever
-  a change touches RxSwift smart defaults, type erasure, or the SPM plugin — the fast lane covers none
-  of those.
+  `Tests/Checks/run-checks.sh --record`. Recording before reading turns the gate into a rubber stamp.
+- **Never hand-edit anything in `Tests/Checks/Snapshots/`.** Those files are build products; the
+  only supported way to change one is to change a template and re-record.
+- **Run the full lane (`Tests/Examples/ExampleProjectSpm/test-ios.sh`) before cutting a tag**, and
+  whenever a change touches RxSwift smart defaults, type erasure, or the SPM plugin — the fast lane
+  covers none of those.
 
 ## State a rule once
 

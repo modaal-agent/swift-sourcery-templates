@@ -16,7 +16,7 @@ let package = Package(
     .macOS(.v13)
   ],
   dependencies: [
-    .package(name: "swift-sourcery-templates", path: "../.."),
+    .package(name: "swift-sourcery-templates", path: "../../.."),
     .package(name: "ExternalFixtureKit", path: "External"),
   ],
   targets: [

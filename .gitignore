@@ -9,5 +9,5 @@ xcuserdata
 # The plugin lane's fixtures resolve this package on every run. Their job is to
 # exercise the plugin, not to pin a dependency graph — and an unpinned resolve is
 # what a consumer does.
-Checks/PluginFixture/Package.resolved
-Checks/PluginFixtureRed/*/Package.resolved
+Tests/Checks/PluginFixture/Package.resolved
+Tests/Checks/PluginFixtureRed/*/Package.resolved
