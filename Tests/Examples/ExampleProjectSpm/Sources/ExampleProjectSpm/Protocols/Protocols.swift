@@ -80,11 +80,11 @@ protocol ProtocolWithCollections {
 
 /// sourcery: CreateMock
 protocol DuplicateGenericTypeNames {
-    // sourcery: generictype = T
+    // sourcery: genericType = T
     func action<T>(
         // sourcery: annotatedGenericTypes = "{T}"
         _ a: T)
-    // sourcery: generictype = T
+    // sourcery: genericType = T
     func action2<T>(
         // sourcery: annotatedGenericTypes = "{T}"
         _ a: T)
@@ -92,9 +92,9 @@ protocol DuplicateGenericTypeNames {
 
 /// sourcery: CreateMock
 protocol ErrorPopoverBuildable {
-    // sourcery: generictype = T1
+    // sourcery: genericType = T1
     func buildDefaultPopoverPresenter<T1>(title: String) -> AnyErrorPopoverPresentable<T1>
-    // sourcery: generictype = T2
+    // sourcery: genericType = T2
     func buildPopoverPresenter<T2>(
         title: String,
         // sourcery: annotatedGenericTypes = "[(title: String, identifier: {T2}, handler: ()->())]"
@@ -103,7 +103,7 @@ protocol ErrorPopoverBuildable {
 
 /// sourcery: CreateMock
 protocol ErrorPopoverBuildableRawRepresentable {
-    // sourcery: generictype = "T: RawRepresentable, T: Hashable"
+    // sourcery: genericType = "T: RawRepresentable, T: Hashable"
     func buildPopoverPresenter<T>(
         title: String,
         // sourcery: annotatedGenericTypes = "[(title: String, identifier: {T}, handler: ()->())]"
@@ -120,7 +120,7 @@ protocol ErrorPresenting {
 
 /// sourcery: CreateMock
 /// sourcery: TypeErase
-/// sourcery: associatedtype = EventType
+/// sourcery: associatedType = EventType
 protocol ErrorPopoverPresentable {
     associatedtype EventType
     //func show(relativeTo positioningRect: CGRect, of positioningView: UIView, preferredEdge: CGRectEdge) -> Observable<EventType>
@@ -129,7 +129,7 @@ protocol ErrorPopoverPresentable {
 
 /// sourcery: CreateMock
 /// sourcery: TypeErase
-/// sourcery: associatedtype = "EventType: RawRepresentable, EventType: Hashable"
+/// sourcery: associatedType = "EventType: RawRepresentable, EventType: Hashable"
 protocol ErrorPopoverPresentableRawRepresentable {
     associatedtype EventType: RawRepresentable, Hashable
     //func show(relativeTo positioningRect: CGRect, of positioningView: UIView, preferredEdge: CGRectEdge) -> Observable<EventType>
@@ -137,7 +137,7 @@ protocol ErrorPopoverPresentableRawRepresentable {
 
 /// sourcery: CreateMock
 /// sourcery: TypeErase
-/// sourcery: associatedtype = "EventType"
+/// sourcery: associatedType = "EventType"
 protocol ThrowingGenericBuildable {
     associatedtype EventType
     func build() throws -> AnyErrorPopoverPresentable<EventType>
@@ -367,7 +367,7 @@ public protocol SomeEntityBindable {
 }
 
 /// sourcery: CreateMock
-/// sourcery: associatedtype = "TaskAuxilliaryView: View"
+/// sourcery: associatedType = "TaskAuxilliaryView: View"
 public protocol MultiplicationByCountingTaskVariationBuildable {
   associatedtype TaskAuxilliaryView: View
   func taskAuxilliaryView(

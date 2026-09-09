@@ -36,7 +36,7 @@ Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin — one file, no depen
 Tests/                              # everything that verifies the product — see Testing below
   Checks/                           # fast lane + CLI lane + plugin lane
     PluginFixture/                  # the plugin lane's green package: one target per config shape
-    PluginFixtureRed/               # four packages that must FAIL, one per red control
+    PluginFixtureRed/               # five packages that must FAIL, one per red control
   Examples/ExampleProjectSpm/       # full lane — RxSwift, RIBs, type erasure, the plugin
 Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
 Scripts/render-annotations.sh       # renders templates/Annotations/ into every document that documents it
@@ -278,7 +278,7 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | lane | command | needs |
 |------|---------|-------|
 | annotations | `Tests/Checks/run-annotation-checks.sh` | nothing but a shell; seconds |
-| fast | `Tests/Checks/run-checks.sh` | a Swift toolchain; ~10s |
+| fast | `Tests/Checks/run-checks.sh` | a Swift toolchain; ~15s |
 | CLI | `Tests/Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | a Swift toolchain and, once, the network; ~1 min cold |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
@@ -287,18 +287,20 @@ Both check lanes provision the pinned Sourcery through `Tests/Checks/ensure-sour
 and the download path live once; `SOURCERY=/path/to/sourcery` overrides it in either lane.
 
 The fast lane runs every template in its `TEMPLATES` list over `Tests/Checks/Fixtures`, diffs each
-output against `Tests/Checks/Snapshots/`, typechecks the fixtures **and all generated files
-together** under `-swift-version 5 -strict-concurrency=complete` and `-swift-version 6` at zero
-diagnostics, then runs `Tests/Checks/Behaviour/Main.swift` — plain assertions in one executable, no
-test framework. Compiling every template's output in one invocation is what keeps a mock and a
-Component of the same protocol from disagreeing about isolation.
+output against `Tests/Checks/Snapshots/`, checks that a misspelled selector fails generation and a
+misspelled option writes one comment line and generates anyway, typechecks the fixtures **and all
+generated files together** under `-swift-version 5 -strict-concurrency=complete` and
+`-swift-version 6` at zero diagnostics, then runs `Tests/Checks/Behaviour/Main.swift` — plain
+assertions in one executable, no test framework. Compiling every template's output in one
+invocation is what keeps a mock and a Component of the same protocol from disagreeing about
+isolation.
 
 Adding a template is one line in `TEMPLATES` plus a recorded snapshot.
 
 The plugin lane builds `Tests/Checks/PluginFixture` — a package whose targets are one per config
 shape, over a three-level dependency chain (`App` → `Middle` → `Leaf`, with `ExternalKit` arriving
 through `Middle` from a second package) — and then reads what the plugin wrote: the synthesized
-configs, the generated code, and the build's own outcome. Its four red controls live in
+configs, the generated code, and the build's own outcome. Its five red controls live in
 `Tests/Checks/PluginFixtureRed/`, one package each, because build planning runs *every* target's
 plugin: a plan-time error in one target fails the build for all of them, so no `--target` can
 isolate a red control that shares a package with a green one. See `Tests/Checks/README.md`.
@@ -318,9 +320,9 @@ external-annotation pattern, type erasure, and the plugin itself.
 | fast | `Tests/Checks/Snapshots/Mocks.generated.swift` | the generated mocks, as a reviewable diff |
 | fast | `Tests/Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
-| annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8). `--self-test` is its red control: one seeded violation per check |
+| annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
-| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and four red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |

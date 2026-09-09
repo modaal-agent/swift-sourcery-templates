@@ -25,6 +25,7 @@
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
 <%_
+  try AnnotationRegistry.rejectNearMisses(in: types.protocols)
   let typesToProcess = types.protocols.filter { $0.isAnnotated(AnnotationRegistry.typeErasure) }
   generateAdditionalImports(typesToProcess)
 

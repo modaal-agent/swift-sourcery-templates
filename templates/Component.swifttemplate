@@ -10,4 +10,5 @@
 <%- includeFile("Mocks/SourceCode") -%>
 <%- includeFile("Mocks/SourceryRuntimeExtensions") -%>
 <%- includeFile("Component/ComponentGenerator") -%>
+<%_ try AnnotationRegistry.rejectNearMisses(in: types.protocols) -%>
 <%= try ComponentGenerator.generate(for: types.protocols.map { $0 }.filter { $0.isAnnotated(AnnotationRegistry.duetComponent) }) %>

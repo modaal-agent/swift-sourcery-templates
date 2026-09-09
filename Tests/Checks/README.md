@@ -168,7 +168,7 @@ exactly the distance no `SOURCERY_TARGET_*` variable reaches.
 
 ## The red controls
 
-[`PluginFixtureRed/`](PluginFixtureRed) holds four packages that must **fail**,
+[`PluginFixtureRed/`](PluginFixtureRed) holds five packages that must **fail**,
 each matched on its diagnostic. One package each: build planning runs every
 target's plugin, so a plan-time error in one target fails the build for all of
 them and no `--target` can isolate it.
@@ -179,6 +179,7 @@ them and no `--target` can isolate it.
 | `Collision` | two configs of one target name the same template, so both would put files declaring the same types on one compile path |
 | `UnknownTemplate` | its `templates:` entry names nothing; the plugin warns and lists the shipped templates, then Sourcery fails |
 | `PackageKey` | it declares `package:` in place of `sources:`; the gate is that **no** `sources:` block was appended over it |
+| `NearMiss` | its protocol is annotated `protocolmock`, which is not `ProtocolMock` — names are matched exactly, including case, and the error names the type and the canonical spelling |
 
 A red control that stops failing is a gate that stopped gating, so each one
 matches on the diagnostic text, not merely on a non-zero exit.

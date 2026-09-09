@@ -9,4 +9,5 @@
 <%- includeFile("Mocks/MockGenerator") -%>
 <%- includeFile("Mocks/SourceCode") -%>
 <%- includeFile("Mocks/SourceryRuntimeExtensions") -%>
+<%_ try AnnotationRegistry.rejectNearMisses(in: types.protocols) -%>
 <%= try MockGenerator.generate(for: types.protocols.map { $0 }.filter { $0.isAnnotated(any: AnnotationRegistry.mockSelectors) }) %>

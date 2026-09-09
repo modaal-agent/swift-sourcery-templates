@@ -90,6 +90,9 @@ RETIRED
   # AC8 — an alias documented inside a rendered block.
   mutate_AC8() { sed -i.bak 's/^| `ProtocolMock` |/| `ProtocolMock` (was `CreateMock`) |/' README.md && rm -f README.md.bak; }
 
+  # AC9 — an entry point that filters without scanning first.
+  mutate_AC9() { sed -i.bak '/rejectNearMisses/d' templates/Component.swifttemplate && rm -f templates/Component.swifttemplate.bak; }
+
   seed() {
     local check="$1" expected="$2"
     local root="$SELF_TEST_DIR/$check"
@@ -126,6 +129,7 @@ RETIRED
   seed AC6 "AC6"
   seed AC7 "AC6 AC7"
   seed AC8 "AC6 AC8"
+  seed AC9 "AC9"
 
   echo ""
   if [ "$seed_failures" = "0" ]; then
@@ -358,6 +362,27 @@ if [ -n "$DOCUMENTED" ]; then
   fail AC8 "an alias appears inside a rendered block, which makes it a second canonical form:$DOCUMENTED"
 else
   pass AC8 "$(printf '%s\n' "$ALIASES" | wc -l | tr -d ' ') aliases, none documented"
+fi
+
+# ── AC9: the near-miss scan runs before every filter ──
+echo ""
+echo "── AC9: every entry point scans before it filters ──"
+UNSCANNED=""
+for entry in $ENTRY_POINTS; do
+  scan="$(grep -n 'AnnotationRegistry\.rejectNearMisses(in: types\.protocols)' "$entry" | head -1 | cut -d: -f1)"
+  filter="$(grep -n 'isAnnotated(' "$entry" | head -1 | cut -d: -f1)"
+  if [ -z "$scan" ]; then
+    UNSCANNED="$UNSCANNED $entry(no scan)"
+  elif [ -z "$filter" ]; then
+    UNSCANNED="$UNSCANNED $entry(no filter)"
+  elif [ "$scan" -ge "$filter" ]; then
+    UNSCANNED="$UNSCANNED $entry(scan at :$scan, filter at :$filter)"
+  fi
+done
+if [ -n "$UNSCANNED" ]; then
+  fail AC9 "a misspelled selector would be silent — the scan has to run over unfiltered \`types.protocols\` first:$UNSCANNED"
+else
+  pass AC9 "every entry point scans unfiltered protocols before filtering them"
 fi
 
 # ── Result ────────────────────────────────────────────────────────

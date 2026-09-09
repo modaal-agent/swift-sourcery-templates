@@ -23,7 +23,7 @@ conformance. See [Concurrency](#concurrency).
 For a protocol method:
 
 ```swift
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 protocol DataService {
     func fetchData(id: String, completion: @escaping (String?, Error?) -> Void)
 }
@@ -117,7 +117,7 @@ Two deliberate non-goals:
 An `AnyPublisher<Output, Failure>` requirement is backed by a subject the test drives:
 
 ```swift
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 @MainActor
 protocol UserRepositoryProtocol {
     var meStream: AnyPublisher<UserSummary?, Never> { get }
@@ -217,7 +217,7 @@ a stored instance, so generation fails rather than emitting a class that will no
 consumed by its own module's builders, and widening a module's API surface as a side effect of
 generating boilerplate is not a decision a template should make. `componentAccess = "public"` opts in.
 
-Mocks and Components compose: a protocol annotated `/// sourcery: CreateMock, DuetComponent` gets the
+Mocks and Components compose: a protocol annotated `/// sourcery: ProtocolMock, DuetComponent` gets the
 double a spec drives *and* the production class that forwards. Both read the same isolation rules from
 the same helpers, so they cannot disagree about which member is `nonisolated`.
 
@@ -591,16 +591,16 @@ A Component is production code, so its output takes `import=`, not `testable=`.
 
 ## Annotating External Protocols
 
-To generate mocks for protocols defined in external packages (without modifying their source), use empty extensions with the `CreateMock` annotation:
+To generate mocks for protocols defined in external packages (without modifying their source), use empty extensions with the `ProtocolMock` annotation:
 
 ```swift
 // In your SourceryAnnotations/ directory:
 import ExternalFramework
 
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 extension ExternalProtocol {}
 
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 extension AnotherProtocol {}
 ```
 
@@ -611,7 +611,7 @@ Sourcery picks up annotations from extensions on the protocol. Pass the annotati
 <!-- annotations:start -->
 <!-- Rendered from templates/Annotations/AnnotationRegistry.swift by Scripts/render-annotations.sh. Do not edit inside this block. -->
 
-Annotation names are matched case-insensitively, except for `ProtocolMock`, `ObjcProtocolMock`, `TypeErasure`, `DuetComponent` and `owns`, which are matched exactly, including case.
+Annotation names are matched exactly, including case.
 
 | Annotation | Target | Effect |
 |------------|--------|--------|
@@ -635,6 +635,10 @@ Annotation names are matched case-insensitively, except for `ProtocolMock`, `Obj
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
 | `componentAccess = "public"` | Protocol | Emit a `public` Component; the default is internal |
 <!-- annotations:end -->
+
+`ProtocolMock`, `ObjcProtocolMock` and `TypeErasure` were previously spelled `CreateMock`,
+`ObjcProtocol` and `TypeErase`. Those spellings still select the same template, and a release after
+this one stops accepting them — see [CHANGELOG.md](CHANGELOG.md).
 
 # License
 

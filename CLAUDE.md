@@ -129,6 +129,12 @@ Habits to avoid (common LLM-isms):
   error under the second.
 - A construct the template cannot handle gets a diagnostic naming the member and what to do about
   it, not a partial emission that fails at the consumer's conformance.
+- An annotation verb is named once, in `templates/Annotations/AnnotationRegistry.swift`. Reading a
+  `/// sourcery:` key by string literal anywhere else fails
+  `Tests/Checks/run-annotation-checks.sh`, and so does a record no template reads. Every documented
+  annotation table is rendered from that file by `Scripts/render-annotations.sh` — run it, read the
+  diff, commit what it wrote, and never edit between `<!-- annotations:start -->` and
+  `<!-- annotations:end -->`.
 
 ## Do not tag without measuring the consumer
 

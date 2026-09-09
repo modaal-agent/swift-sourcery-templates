@@ -192,7 +192,7 @@ jobs:
   # ── Plugin lane ──────────────────────────────────────────────────
   # The SPM build-tool plugin, black-box over Tests/Checks/PluginFixture: the
   # derived source closure, the synthesized config, the defaults it supplies and
-  # the four red controls that must stay red. Runs beside `checks` and `cli`
+  # the five red controls that must stay red. Runs beside `checks` and `cli`
   # rather than behind them — it needs no simulator, and it is the only lane that
   # exercises the plugin's own logic (the example lane exercises the plugin, but
   # through one package shape).

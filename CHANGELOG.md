@@ -18,6 +18,90 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
+## Unreleased — annotation names are matched exactly, and the selectors are renamed
+
+**Generated output:** unchanged for a source that spells its annotations the way `README.md` spells
+them. Both reference consumers and every fixture regenerate byte-identically. What changes is what
+happens to a source that does not.
+
+Every annotation verb is now declared once, in `templates/Annotations/AnnotationRegistry.swift`, and
+every document that documents one carries a table rendered from it by
+`Scripts/render-annotations.sh`. `README.md`'s table was hand-maintained and had drifted: the
+templates accepted 24 spellings and the table listed 19.
+
+**Names are matched exactly, including case.** Five verbs — `CreateMock`, `TypeErase`,
+`DuetComponent`, `ObjcProtocol` and `owns` — already were. The other fourteen accepted any casing, so
+`/// sourcery: SKIPARGUMENTRECORDING` worked while `/// sourcery: createmock` generated nothing, no
+warning and no error. One rule now, and what a spelling that stops matching produces:
+
+- A **selector** whose spelling differs only in case fails generation, naming the type, the spelling
+  found and the canonical form. Its type generates no mock at all, so the build breaks wherever a
+  test names the missing type — far from the annotation that caused it.
+- An **option** whose spelling differs only in case writes one `// sourcery-templates:` comment into
+  the generated file, naming the member and the canonical form, and generation continues. The mock
+  is there, missing one behaviour. An adopter running their own templates in the same Sourcery pass
+  may own `handler`, `init`, `import`, `subject` or `const` for those, so an option near-miss does
+  not fail the build.
+- A key bearing no resemblance to any registry entry draws no response. It belongs to another
+  template in the same pass.
+
+The comment rather than a log line is measured: a Swift template's stdout **is** the generated file,
+and Sourcery 2.3.0 turns any write to the template's stderr into `error: <template>: <text>`,
+aborting the run with exit 3 and writing no output.
+
+**The three selectors are renamed.** A selector is an UpperCamelCase noun naming what gets generated,
+which is the rule `DuetComponent` already followed:
+
+| write this | it used to be |
+| --- | --- |
+| `ProtocolMock` | `CreateMock` |
+| `ObjcProtocolMock` | `ObjcProtocol` |
+| `TypeErasure` | `TypeErase` |
+
+The former spellings still select the same template and generate the same code. A release after this
+one stops accepting them, at which point a source still carrying one fails generation with the
+replacement named rather than dropping the type in silence.
+
+**Breaking:** two shapes, both of which were already producing something other than what their author
+asked for.
+
+- **An annotation whose case does not match now fails or logs.** `/// sourcery: createmock` used to
+  generate nothing at all; it now fails the run naming `ProtocolMock`. `/// sourcery: generictype`
+  and `/// sourcery: associatedtype` used to work and now write a comment line and generate without
+  the generic parameter — spell them `genericType` and `associatedType`. The fix is the spelling in
+  the table, and the message names it.
+- **`ObjcProtocol` on its own now generates a mock.** It used to mean nothing without `CreateMock`
+  beside it: the protocol was not in the mock template's filter, so it generated nothing. As an
+  alias of the `ObjcProtocolMock` selector it selects the template itself, so a protocol carrying
+  only it produces a new type in the consumer's build. Neither reference consumer uses `ObjcProtocol`
+  at all. A protocol carrying `CreateMock` **and** `ObjcProtocol` — the pair a consumer writes today
+  — generates exactly what it generated before.
+
+**Adopting:** run a regenerate and read the build log. A misspelling that used to be silent now says
+so. Renaming the selectors is optional until the release that retires them; it is one `sed` per
+repository:
+
+```bash
+git grep -l 'sourcery:' | xargs perl -pi -e '
+  next unless m{//\s*sourcery:};
+  s/\bCreateMock\b/ProtocolMock/g;
+  s/\bTypeErase\b/TypeErasure/g;
+  s/\bObjcProtocol\b/ObjcProtocolMock/g;
+'
+```
+
+The `next` restricts each substitution to an annotation comment, so a `TypeErase` that names the
+template in a Sourcery config or a path is left alone. Read the diff before committing it.
+
+**For contributors:** `CONTRIBUTING.md` §"A new annotation" step 3 is now
+`Scripts/render-annotations.sh --write` rather than "add the row to README.md's annotations table".
+`Tests/Checks/run-annotation-checks.sh` fails on a string-literal annotation read outside
+`templates/Annotations/`, on a record no template reads, and on a rendered table that is stale; it
+runs on ubuntu in seconds and is ungated, because a push that edits only `README.md` skips every
+macOS lane.
+
+---
+
 ## Unreleased — the plugin derives its own sources
 
 **Generated output:** unchanged for any config that does not opt in. The templates did not move a

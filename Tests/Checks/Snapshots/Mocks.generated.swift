@@ -662,3 +662,48 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
     var registerDeviceHandler: ((_ token: String, _ platform: String) -> (AnyPublisher<Void, Error>))? = nil
     lazy var registerDeviceSubject = PassthroughSubject<(), Error>()
 }
+
+// MARK: - VocabularyCanonical
+final class VocabularyCanonicalMock: VocabularyCanonical {
+
+    // MARK: - Variables
+    var identifier: String = ""
+
+    // MARK: - Methods
+    func refresh() {
+        refreshCallCount += 1
+        if let __refreshHandler = self.refreshHandler {
+            __refreshHandler()
+        }
+    }
+    var refreshCallCount: Int = 0
+    var refreshHandler: (() -> ())? = nil
+}
+
+// MARK: - VocabularyLegacyObjc
+final class VocabularyLegacyObjcMock: NSObject, VocabularyLegacyObjc {
+
+    // MARK: - Methods
+    func flush() {
+        flushCallCount += 1
+        if let __flushHandler = self.flushHandler {
+            __flushHandler()
+        }
+    }
+    var flushCallCount: Int = 0
+    var flushHandler: (() -> ())? = nil
+}
+
+// MARK: - VocabularyObjc
+final class VocabularyObjcMock: NSObject, VocabularyObjc {
+
+    // MARK: - Methods
+    func reload() {
+        reloadCallCount += 1
+        if let __reloadHandler = self.reloadHandler {
+            __reloadHandler()
+        }
+    }
+    var reloadCallCount: Int = 0
+    var reloadHandler: (() -> ())? = nil
+}
