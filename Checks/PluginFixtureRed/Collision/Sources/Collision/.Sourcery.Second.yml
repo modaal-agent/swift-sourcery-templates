@@ -1,0 +1,6 @@
+# Same template, same target: one config's output would declare the same types as
+# the other's, so the plugin refuses both.
+sources:
+  - ${SOURCERY_SOURCES}
+templates:
+  - Mocks

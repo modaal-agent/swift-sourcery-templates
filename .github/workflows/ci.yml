@@ -77,6 +77,35 @@ jobs:
       - name: Run CLI checks
         run: Checks/run-cli-checks.sh
 
+  # ── Plugin lane ──────────────────────────────────────────────────
+  # The SPM build-tool plugin, black-box over Checks/PluginFixture: the derived
+  # source closure, the synthesized config, the defaults it supplies and the four
+  # red controls that must stay red. Runs beside `checks` and `cli` rather than
+  # behind them — it needs no simulator, and it is the only lane that exercises
+  # the plugin's own logic (the example lane exercises the plugin, but through
+  # one package shape).
+  plugin:
+    name: Plugin (source closure, synthesized config, red controls)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Cache the fixtures' resolved dependencies
+        # All five fixture packages share one SwiftPM cache, so the pinned
+        # Sourcery artifact bundle and swift-argument-parser are fetched once.
+        uses: actions/cache@v5
+        with:
+          path: .build/plugin-checks/cache
+          key: plugin-checks-${{ runner.os }}-${{ env.SOURCERY_VERSION }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: plugin-checks-${{ runner.os }}-${{ env.SOURCERY_VERSION }}-
+
+      - name: Run plugin checks
+        run: Checks/run-plugin-checks.sh
+
   # ── Full lane ────────────────────────────────────────────────────
   # Covers what the fast lane structurally cannot: the RxSwift smart defaults
   # (`Single`, `Observable`, `AnyObserver`, `Disposable`), the RIBs

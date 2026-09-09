@@ -1,0 +1,5 @@
+sources:
+  - ${SOURCERY_SOURCES}
+output: /tmp/plugin-fixture-red-wrong-output
+templates:
+  - Mocks

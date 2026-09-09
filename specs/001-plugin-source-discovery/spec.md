@@ -1,7 +1,10 @@
 # 001 — A self-sufficient build-tool plugin: a derived source closure, a synthesized config, and the options the author keeps
 
-**Status:** Draft, 2026-09-09. Nothing implemented. Every measurement in §1.4 and §1.5 was run
-against this checkout on 2026-09-09 with Sourcery 2.3.0 and the Xcode 26.5 toolchain.
+**Status:** Implemented, 2026-09-09, on `spec/001-plugin-source-discovery`. Every measurement in §1.4
+and §1.5 was run against this checkout on 2026-09-09 with Sourcery 2.3.0 and the Xcode 26.5 toolchain;
+§1.4/C, /G and /H were re-run on Xcode 26.6 while implementing. **§12 records what building it
+changed** — two of the mechanisms below do not survive contact with the plugin API, and one open
+question is now answered.
 **Scope:** `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift`,
 `Examples/ExampleProjectSpm/`, `Checks/`, README and CONTRIBUTING. No template change. No change to
 `mock-templates` — the CLI stays policy-free (§9, D6).
@@ -792,9 +795,10 @@ and a consumer with a small graph benefits regardless.
 
 ## 11. Open questions
 
-1. **Does the full closure cost too much?** §6.4. Measured in phase 4, and the answer decides whether
-   `${SOURCERY_SOURCES_LOCAL}` (root-package modules only) ships beside the full variant or not at
-   all. The only question here that can invalidate an approach rather than tune one.
+1. ~~**Does the full closure cost too much?**~~ **Answered: no.** The example lane, cold, three
+   samples each: 32/29/30s before, 36/36/34s after — about +5s, and the "after" also carries a third
+   target, four new specs and a second template. `${SOURCERY_SOURCES_LOCAL}` does not ship; the other
+   mitigations in §6.4 stay unneeded. The numbers are in the CHANGELOG entry.
 2. **The Xcode path.** Deferred, and worth exploring later rather than closing now. `XcodeTarget` has
    no `recursiveTargetDependencies` and `XcodePluginContext` no package graph, so §3.4 degrades to
    the target's own input directories plus the product modules already reachable — better than
@@ -812,3 +816,63 @@ when unambiguous (D11, §4.6); a config that names the wrong `output:` fails the
 the config's filename is never load-bearing and only `templates:` entries are acted on (D9, §4.5);
 the shared per-target cache and build directories are measured by the fixture rather than argued
 (§7).
+
+---
+
+## 12. What building it changed
+
+Written after the fact. Everything above is left as it was drafted; this section is the diff between
+the plan and the code, so a reader who trusts §4 knows where not to.
+
+**A. A plugin target is not in `Package.targets`, so §4.5's graph match could never fire.**
+`PackagePlugin.Package.targets` exposes `SwiftSourceModuleTarget`, `ClangSourceModuleTarget`,
+`BinaryArtifactTarget` and `SystemLibraryTarget` — there is no plugin-target type in the API at all.
+Matching `$0.name == "SourcerySwiftCodegenPlugin"` therefore matches nothing, and the first fixture
+build failed with every bare template name unresolved.
+
+The property §4.5 wanted from the target name is that it lives in *this* repository rather than the
+consumer's, so vendoring under another directory name cannot break it. `Package.displayName` — the
+manifest's own `name:`, `SourcerySwiftCodegen` — has exactly that property; only the identity moves
+when a consumer vendors the package. The plugin matches `displayName` or the canonical identity
+`swift-sourcery-templates`, and requires the `templates/` directory to exist, so a consumer package
+that happens to share the name is not mistaken for this one. Everything §4.5 says about *resolution*
+(the four rules, rule 2 before rule 3, the `_` exclusion) is unchanged.
+
+**B. Two configs of one target cannot share an output directory — and the failure is louder than
+§4.7 expected.** §4.7 predicted that two configs naming the same template would have the second
+silently overwrite the first. What actually happens is worse and does not need the same template:
+SwiftPM collects a prebuild command's outputs by scanning the whole directory it declared, so two
+commands of one target declaring one directory makes it attribute every file to both and refuse the
+build outright —
+
+```
+error: couldn't build …/AppTests.build/Mocks.generated.swift.o because of multiple producers:
+       Compiling Swift Module 'AppTests' (5 sources), Compiling Swift Module 'AppTests' (5 sources)
+```
+
+— which means the "Mocks beside the test target, Component and TypeErase beside the sources" shape
+§4.7 calls the adopter shape did not work for *any* two configs of one target, whatever they named.
+
+Each config now owns `‹pluginWorkDirectory›/.generatedFiles/‹config name›/`, and `SOURCERY_OUTPUT_DIR`
+is exported per config. §4.6's `output:` check is unchanged in kind — it now compares against the
+config's own directory. §4.7's collision diagnostic survives and is still worth having: with separate
+directories the two files no longer overwrite each other, they land on one compile path declaring the
+same types, so the plan-time error names the two configs instead of leaving a redeclaration error in
+generated code.
+
+**C. The shared cache and build directories are fine, measured.** §7 left this open. With B's split in
+place, `AppTests` carries two configs sharing one `--cacheBasePath` and one `--buildPath`; the lane
+drops the caches and rebuilds twice, and both configs produce byte-identical output with no
+cache-recovery line in the log. They stay shared, so two configs over one closure still share the
+parse cache.
+
+**D. `Diagnostics.remark` reaches the build log only under `swift build -v`.** Warnings and errors
+surface in a normal build; remarks do not. §4.2 rests on the log always distinguishing what the plugin
+supplied from what the author wrote, and it still does — but the reader has to ask for it. The plugin
+check lane builds with `-v` for exactly this reason, and the README says so.
+
+**E. Phasing.** The six phases of §8 were implemented as one change rather than six commits. The
+reason is B: phase 1 (template naming) and phase 2 (derivation) are independent on paper, but the
+fixture that proves either of them needs a target with two configs, which does not build until B is
+fixed — and B is a phase 3 concern. Splitting the commit afterwards would have produced two commits
+neither of which had ever been green.

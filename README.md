@@ -226,10 +226,11 @@ the same helpers, so they cannot disagree about which member is `nonisolated`.
 | lane | command | covers |
 | --- | --- | --- |
 | fast | `Checks/run-checks.sh` | snapshot of every template's generated output, both language modes, runtime behaviour. Mocks and Components are typechecked together, so the two cannot disagree about isolation. No simulator, no third-party packages, seconds |
+| plugin | `Checks/run-plugin-checks.sh` | the SPM build-tool plugin, black-box over a fixture package: the derived source closure, the synthesized config, the defaults it supplies, and four red controls that must stay red. No simulator |
 | full | `Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
 
-Both run on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), the fast lane first.
-Run both locally before cutting a tag.
+All of them run on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), the fast lane
+first. Run them locally before cutting a tag.
 
 Release notes, including what each version changes in the generated output and what breaks:
 [CHANGELOG.md](CHANGELOG.md). Working on the templates themselves — layout, where to change what, the
@@ -315,49 +316,164 @@ xattr -dr com.apple.quarantine <...Derived Data Folder>/SourcePackages/checkouts
 
 2. Configuring code generation
 
-The codegeneration is configured per target in an SPM project. Put a `*.sourcery.yml` config file in the target's source folder
-(refer to the [example project](Examples/ExampleProjectSpm/)):
+Code generation is configured per target. Put a `*.sourcery*.yml` config file in the target's
+source folder (refer to the [example project](Examples/ExampleProjectSpm/)):
 
 <img src="/docs/img/sourcery_target_config.png" alt="Sourcery config files per target" style="height: 332px;"/>
 
-Here, `ExampleProjectSpm` and `ExampleProjectSpmTests` are product targets, for which we want to enable code generation.
-We want to generate type erasures and interface mocks. Type erasure classes should be available for use in the main target,
-while mocks should be available in the test target.
+Here, `ExampleProjectSpm` and `ExampleProjectSpmTests` are product targets for which code generation
+is enabled. Type erasures should be available in the main target, mocks in the test target — so each
+target carries its own config, and each target's generated files land on that target's compile path.
 
-Here is caveat: Some mock classes should be generated for interfaces that are declared in external packages (e.g. for the `RIBs` package).
-We need to (a) include the external package sources in the config file:
+**A config says what to generate. The plugin supplies where.** The smallest config that works is
+three lines:
 
+```yml
+# .Sourcery.Mocks.yml — beside the target it generates for
+templates:
+  - Mocks
 ```
-# .Sourcery.Mocks.yml
+
+That is a complete config. The plugin fills in the target's sources, the output directory the build
+actually collects from, and — for a test target that directly depends on exactly one module of your
+package — `args.testable`.
+
+#### Where to read: the source closure
+
+`${SOURCERY_SOURCES}` expands to the target's own sources **plus the recursive closure of its
+dependencies**, first-party and external alike, one directory per module:
+
+```yml
 sources:
-  - ${SOURCERY_TARGET_ExampleProjectSpm}
-  - ${SOURCERY_TARGET_ExampleProjectSpmTests}/SourceryAnnotations
-  - ${SOURCERY_TARGET_ExampleProjectSpm_DEP_RIBs_MODULE_RIBs}
+  - ${SOURCERY_SOURCES}
+  - ${SOURCERY_TARGET_MyModuleTests}/SourceryAnnotations   # a subset — yours to choose
 ```
 
-We're doing a little trickery here to work around an issue with Sourcery — when invoked from a build tool SPM plugin,
-Sourcery cannot analyze the package structure, so the plugin exports the package structure via environment variables.
-In the excample above:
+This is what lets a mock carry requirements a protocol inherits from a module further down the graph.
+A protocol refining one from a package your target reaches only through another package has no
+`SOURCERY_TARGET_*` variable naming it, and no config could reach it before — the mock came out
+missing those requirements, and the failure showed up as *"does not conform to protocol"* in the
+consumer's build. `${SOURCERY_SOURCES}` closes that.
 
-- `SOURCERY_TARGET_ExampleProjectSpm` refers to the `ExampleProjectSpm` target source location;
-- `SOURCERY_TARGET_ExampleProjectSpmTests` refers to the `ExampleProjectSpmTests` target source location;
-- `SOURCERY_TARGET_ExampleProjectSpm_DEP_RIBs_MODULE_RIBs` refers to the `RIBs` module source location (`RIBs` is the dependency of the `ExampleProjectSpm` target).
+There are three ways a config can say what to read, and the plugin treats them differently:
 
-The plugin exports all package dependencies' source locations via environment variable similarly:
+| the config | what is scanned |
+| --- | --- |
+| no `sources:`, `project:` or `package:` key | the closure, appended by the plugin |
+| `sources:` containing `- ${SOURCERY_SOURCES}` | the closure, **plus** every other entry in the list |
+| `sources:` without the placeholder | exactly what is listed — the pre-0.3 behaviour, untouched |
 
-- `SOURCERY_TARGET_<target_name>_DEP_<dependecy_module>_MODULE_RIBs`
-- `SOURCERY_TARGET_<target_name>_DEP_<dependecy_target>_TARGET_RIBs`
+`${SOURCERY_SOURCES}` is deliberately **not** an environment variable: nothing exports it, so if the
+plugin ever failed to substitute it, Sourcery would report an unexpanded path rather than silently
+scanning less than you meant.
+
+#### Naming a template
+
+A `templates:` entry can be the bare name of a template this package ships:
+
+```yml
+templates:
+  - Mocks        # or Component, or TypeErase
+```
+
+The plugin finds its own package in your dependency graph and resolves the name to the file. A name
+is resolved in this order, first match winning:
+
+1. it contains `/` or starts with `$` — a path, left as written;
+2. a file of that exact name sits beside your config — yours wins, so a project with its own
+   `Mocks.swifttemplate` keeps getting its own;
+3. a template shipped by this package;
+4. neither — the plugin warns, lists the shipped templates, and Sourcery then fails on it.
+
+`SOURCERY_TEMPLATES` is exported too, pointing at the shipped `templates/` directory, for a config
+that would rather write the path itself.
+
+#### Where to write
+
+`output:` is the plugin's. A prebuild command's outputs are collected only from the directory it
+declared, so a file generated anywhere else is written and then ignored — the target compiles without
+it, and the failure surfaces as a missing type far from its cause. So:
+
+- omit `output:` and the plugin supplies it;
+- write `output: ${SOURCERY_OUTPUT_DIR}` and it resolves to the same directory;
+- name any other directory and **the build fails**, naming both paths.
+
+#### The options that stay yours
+
+`args.import`, `args.excludedSwiftLintRules` and the choice of template have no single right answer,
+so the plugin carries them through unread. `args.testable` is the one exception, and only where the
+answer is unambiguous: for a test target with exactly one direct dependency on a module of your own
+package, the plugin inserts `testable: [<module>]`. With none, or with two or more, it inserts
+nothing and names the candidates in the build log.
+
+#### One config, several templates
+
+Sourcery writes one `<Template>.generated.swift` per `templates:` entry, so one config can drive
+several:
+
+```yml
+# Sources/MyModule/.Sourcery.Components.yml
+templates:
+  - Component
+  - TypeErase
+```
+
+A target may also carry several configs. Two configs of one target that name the same template are
+rejected at plan time, naming both files — they would otherwise put two files declaring the same
+types on one compile path.
+
+#### Paths must be absolute
+
+The plugin runs a *copy* of your config from its own work directory, and a relative path in a Sourcery
+config resolves against the config file's own directory. So every path a rewritten config contains has
+to be absolute. The exported variables already are, and the two rules above remove the reasons to
+write a relative path at all. The plugin warns when it sees one; it does not rewrite it.
+
+#### The exported variables
+
+Every variable below keeps the name and value it has always had; `${SOURCERY_SOURCES}` and
+`SOURCERY_TEMPLATES` are additions, and nothing was removed. A config written before 0.3 still means
+exactly what it meant.
+
+| variable | value |
+| --- | --- |
+| `SOURCERY_SOURCES` | *not a variable* — the placeholder the plugin expands to the source closure |
+| `SOURCERY_TEMPLATES` | the shipped `templates/` directory (SPM only) |
+| `SOURCERY_OUTPUT_DIR` | the directory this config's output is collected from |
+| `SOURCERY_PACKAGE` | the root package directory (`SOURCERY_PROJECT` in an Xcode project) |
+| `SOURCERY_TARGET_<target>` | that target's source directory |
+| `SOURCERY_TARGET_<target>_DEP_<target>` | a directly-depended target's source directory |
+| `SOURCERY_TARGET_<target>_DEP_<product>_MODULE_<module>` | a module of a directly-depended product |
+| `SOURCERY_TARGET_<target>_DEP_<product>_TARGET_<target>` | a target of a directly-depended product |
+| `GIT_ROOT` | `git rev-parse --show-toplevel` from the package directory |
+
+The `_DEP_` variables are one level deep: they name a target's *direct* dependencies only. Reaching
+further is what `${SOURCERY_SOURCES}` is for.
 
 > [!NOTE]
 > For the complete Sourcery config file reference, please refer to the [official documentation](https://krzysztofzablocki.github.io/Sourcery/).
 
+#### Xcode projects
+
+In an Xcode project (rather than a Swift package) the plugin runs through `XcodeBuildToolPlugin`,
+which is handed no package graph. Two features degrade there, and the build log says so:
+
+- `${SOURCERY_SOURCES}` expands to the target's own input-file directories plus the module directories
+  of its product dependencies — better than nothing, but not a closure;
+- `SOURCERY_TEMPLATES` is not exported and a bare template name does not resolve, so name templates by
+  path.
+
+Everything else — the defaults, the `output:` check, the passthrough — works the same.
+
 3. Finding the generated files
 
-The above might seem tricky at first. The plugin helps debug setup issues by emitting invocation and debug logs to the build log:
+The plugin emits its invocation and what it derived to the build log:
 
 <img src="/docs/img/command_invocation_log.png" alt="Command invocation log" style="height: 260px;"/>
 
-The invocation log also contains all exported environment variables for the dependencies.
+The log names every exported environment variable, every default the plugin supplied and every
+template name it resolved, so a config's effective meaning is always visible from the build alone.
+Run `swift build -v` to see the remarks as well as the warnings.
 
 ### Standalone CLI (pre-generated mocks)
 

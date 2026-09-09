@@ -18,6 +18,96 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
+## Unreleased — the plugin derives its own sources
+
+**Generated output:** unchanged for any config that does not opt in. The templates did not move a
+byte; the only way this changes what a consumer generates is by scanning more sources, which happens
+only when a config asks for it.
+
+The SPM build-tool plugin used to export **one level** of the package graph as `SOURCERY_TARGET_*`
+variables, and the author hand-listed each variable in `sources:`. A module reachable only
+transitively had no variable and could not be listed at all — so a protocol refining one from a
+module two hops away generated a mock missing those requirements, and the failure surfaced in the
+consumer's build as *"type 'XMock' does not conform to protocol 'Y'"*. That is the gap this closes.
+
+The plugin now **synthesizes the config it runs**: it copies the author's `.Sourcery.<Name>.yml` into
+its work directory, expands what the file declares, appends what it omits, and runs Sourcery against
+the copy. Nothing is parsed as YAML — a build-tool plugin cannot depend on a library, so the rewrite
+is line-level and a construct the plugin does not recognise is one it does not touch.
+
+- **`${SOURCERY_SOURCES}`** — a `sources:` list item that expands to the target's own sources plus the
+  recursive closure of its dependencies, one directory per module, deduplicated and sorted. Not an
+  environment variable, deliberately: nothing exports it, so a substitution that failed to run leaves
+  Sourcery reporting an unexpanded path rather than silently scanning less than intended.
+- **Bare template names** — `- Mocks` resolves to the shipped template. The plugin finds its own
+  package in the graph and exports `SOURCERY_TEMPLATES`. A file of the same name beside your config
+  still wins, so a project with its own `Mocks.swifttemplate` keeps getting its own.
+- **`sources:` and `output:` are supplied when absent.** Both are mandatory to Sourcery today, so a
+  config that omitted either never worked — filling them in cannot change what an existing config
+  means. The smallest config that works is now `templates:` and nothing else.
+- **`args.testable` is supplied when unambiguous** — for a test target with exactly one direct
+  dependency on a module of the root package. With none, or two or more, nothing is inserted and the
+  build log names the candidates.
+- **A wrong `output:` now fails the build.** Outputs are collected only from the directory the
+  prebuild command declared, so a file generated elsewhere is written and then ignored: the target
+  compiles without it and the failure surfaces as a missing type, far from its cause. The error names
+  both paths.
+- **Two configs of one target naming the same template are rejected** at plan time, naming both
+  files.
+
+**Breaking:** nothing, for a config that does not use the new features. Every `SOURCERY_TARGET_*`
+variable keeps its name and value, and a config with no placeholder and no bare name is copied byte
+for byte. Two changes can surface on an existing config:
+
+- a config whose `output:` does not resolve to `${SOURCERY_OUTPUT_DIR}` now fails rather than
+  generating into a directory nothing reads. That configuration never worked; it failed silently.
+- generated files now land in a per-config subdirectory of the plugin's work directory rather than
+  all in one. Nothing outside the plugin names those paths, but it is what makes a target with
+  several configs possible at all — see below.
+
+**Adopting:** optional, and per config. To pick up the closure, replace the hand-listed `sources:`
+entries with `- ${SOURCERY_SOURCES}`; to name templates portably, replace
+`${GIT_ROOT}/templates/Mocks.swifttemplate` with `- Mocks`; to drop the rest, delete `output:` and,
+on a test target with one dependency, `args.testable`.
+
+**Cost, measured.** The derived closure is much larger than what the example used to list — RxSwift,
+RxCocoa, RxRelay, RxBlocking, RxTest, Alamofire, Quick, Nimble and RIBs in full. The example lane
+(`Examples/ExampleProjectSpm/test-ios.sh`), cold, three samples each, Xcode 26.6 / Sourcery 2.3.0:
+
+| | wall time |
+| --- | --- |
+| before (hand-listed sources) | 32s, 29s, 30s |
+| after (the full closure, plus a third target, four specs and a second template) | 36s, 36s, 34s |
+
+About +5s, and not all of it is the closure. The mitigations held in reserve — `sources.exclude`, a
+root-package-only `${SOURCERY_SOURCES_LOCAL}`, or keeping explicit variables — are not needed.
+
+**Two things the spec got wrong, both found by building it:**
+
+- It proposed finding this package in a consumer's graph by looking for a target named
+  `SourcerySwiftCodegenPlugin`. `Package.targets` exposes source-module, binary-artifact and
+  system-library targets only — a **plugin target never appears in it**, so the match could never
+  fire. The plugin matches the manifest name (`SourcerySwiftCodegen`) or the package identity
+  instead, and requires a `templates/` directory to be there. Both live in this repository rather
+  than the consumer's, which is the property the target name was chosen for.
+- It expected two configs of one target to share an output directory, with the second silently
+  overwriting the first when they name the same template. In fact SwiftPM collects a prebuild
+  command's outputs by scanning the whole directory it declared, so two commands declaring one
+  directory makes it attribute every file to both and refuse the build — *"couldn't build <file>.o
+  because of multiple producers"*. Each config now owns a directory nothing else writes to, which is
+  what makes the several-configs-per-target shape the docs recommend work at all. With that split,
+  the shared `--cacheBasePath` and `--buildPath` showed no interference across repeated cold and warm
+  rebuilds, so they stay shared.
+
+**Checking it:** a new lane, `Checks/run-plugin-checks.sh`, black-box over `Checks/PluginFixture` and
+four red-control packages under `Checks/PluginFixtureRed/`. It runs in about a minute, needs no
+simulator, and is the only lane that can test the plugin's own logic — a plugin target cannot be
+imported by a test target. It runs in CI beside `checks` and `cli`.
+
+Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md).
+
+---
+
 ## 0.7.0 — 2026-09-09
 
 `validate` gains `--template <name>` and a repeatable `--args <key=value>`. Given them, it rebuilds

@@ -1,0 +1,9 @@
+# One direct root-package dependency, so `args.testable` is the plugin's — and it
+# has to land at the indentation `import:` already uses.
+sources:
+  - ${SOURCERY_TARGET_AppTests}
+templates:
+  - Mocks
+args:
+  import:
+    - Foundation

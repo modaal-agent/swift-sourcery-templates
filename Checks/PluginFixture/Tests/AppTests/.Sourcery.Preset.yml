@@ -1,0 +1,8 @@
+# Already names the module under test, so the plugin leaves `args:` alone.
+sources:
+  - ${SOURCERY_TARGET_AppTests}
+templates:
+  - Component
+args:
+  testable:
+    - App

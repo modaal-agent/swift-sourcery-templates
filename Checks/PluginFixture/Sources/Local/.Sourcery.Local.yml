@@ -1,0 +1,4 @@
+sources:
+  - ${SOURCERY_SOURCES}
+templates:
+  - Mocks.swifttemplate

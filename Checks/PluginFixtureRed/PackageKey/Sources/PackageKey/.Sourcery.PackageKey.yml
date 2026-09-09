@@ -1,0 +1,9 @@
+# Declares its inputs with `package:`, which Sourcery accepts in place of
+# `sources:` (§1.4/G). The plugin must append no `sources:` block over it.
+package:
+  path: .
+  target:
+    - PackageKey
+output: ${SOURCERY_OUTPUT_DIR}
+templates:
+  - Mocks

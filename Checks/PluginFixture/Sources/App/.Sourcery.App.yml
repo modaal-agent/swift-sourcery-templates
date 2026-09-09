@@ -1,0 +1,16 @@
+# The mixed shape of §4.1: the derived closure AND one entry the author picked.
+# Every comment in this file is part of the passthrough gate — the synthesized
+# copy has to carry them through unchanged.
+sources:
+  - ${SOURCERY_SOURCES}
+  - ${SOURCERY_TARGET_App}   # a subset the plugin must not decide, listed by hand
+templates:
+  - Mocks
+  - Component
+args:
+  import:
+    - ExternalKit
+    - Leaf
+    - Middle
+  excludedSwiftLintRules:
+    - line_length
