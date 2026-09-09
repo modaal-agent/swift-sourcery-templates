@@ -112,7 +112,29 @@ templates, the plugin and the CLI are where they were, and no tag's assets chang
 commands move, so a contributor's muscle memory is what breaks — `Checks/run-checks.sh` is now
 `Tests/Checks/run-checks.sh`. Paths quoted in the released entries below predate the move.
 
-Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md).
+**Xcode projects:** a project with a dependency between two of its own targets could not build. The
+linked framework is an input file of the depending target, so the plugin derived `<project>/build`
+as a directory to search for configs; that directory does not exist when the project builds into
+DerivedData, `contentsOfDirectory` threw, and the plugin reported the throw as an error that failed
+the build before Sourcery ran. A config location that is not there is now skipped. One that exists
+and will not open still fails, with the same error.
+
+Two claims this repository made about the Xcode path were measured false, and this release corrects
+the documentation rather than changing the plugin to match it. `${SOURCERY_SOURCES}` in an Xcode
+project expands to the target's own input-file directories and nothing else — it never also reached
+the module directories of the target's product dependencies, because `XcodeTarget.dependencies` is
+empty on Xcode 26.5 for a package product as well as for a sibling target. For the same reason no
+`SOURCERY_TARGET_*` variable is exported there. Name any further directory in `sources:` yourself,
+as an absolute path built from `${SOURCERY_PROJECT}`. Nothing about the SPM path changes, and no
+config that already worked stops working.
+
+A fifth lane checks it: `Tests/Checks/run-xcode-checks.sh`, over an Xcode project XcodeGen generates
+from a committed spec. It is the first coverage `XcodeBuildToolPlugin` has had — about 35s, no
+simulator, `brew install xcodegen`.
+
+Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md)
+and, for the Xcode path,
+[`followup-xcode-lane.md`](specs/001-plugin-source-discovery/followup-xcode-lane.md).
 
 ---
 

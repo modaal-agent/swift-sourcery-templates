@@ -87,7 +87,7 @@ Habits to avoid (common LLM-isms):
 
 ## Changes reach `master` through a pull request
 
-- Code goes on a branch and through a PR, so [`ci.yml`](.github/workflows/ci.yml)'s four lanes run
+- Code goes on a branch and through a PR, so [`ci.yml`](.github/workflows/ci.yml)'s five lanes run
   before it lands. They trigger on push, not on PR open.
 - Any merge strategy — merge, rebase or squash — chosen for the nature of the PR.
 - A change touching no code may go straight to `master`: a spec, a note, README or CHANGELOG

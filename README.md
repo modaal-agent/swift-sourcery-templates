@@ -227,6 +227,7 @@ the same helpers, so they cannot disagree about which member is `nonisolated`.
 | --- | --- | --- |
 | fast | `Tests/Checks/run-checks.sh` | snapshot of every template's generated output, both language modes, runtime behaviour. Mocks and Components are typechecked together, so the two cannot disagree about isolation. No simulator, no third-party packages, seconds |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | the SPM build-tool plugin, black-box over a fixture package: the derived source closure, the synthesized config, the defaults it supplies, and four red controls that must stay red. No simulator |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | the same plugin through `XcodeBuildToolPlugin`, over an Xcode project XcodeGen generates from a committed spec: config discovery, the one-directory expansion, a hand-listed `${SOURCERY_PROJECT}` entry, a target depending on a sibling target, and a bare template name that must fail. Needs `xcodegen`, no simulator |
 | full | `Tests/Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
 
 All of them run on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), the fast lane
@@ -450,6 +451,10 @@ exactly what it meant.
 The `_DEP_` variables are one level deep: they name a target's *direct* dependencies only. Reaching
 further is what `${SOURCERY_SOURCES}` is for.
 
+Every `SOURCERY_TARGET_*` variable is derived from the package graph, and an Xcode project has none —
+so in an Xcode project the exported set is `SOURCERY_PROJECT`, `GIT_ROOT` and `SOURCERY_OUTPUT_DIR`,
+and nothing else. See [Xcode projects](#xcode-projects) below.
+
 > [!NOTE]
 > For the complete Sourcery config file reference, please refer to the [official documentation](https://krzysztofzablocki.github.io/Sourcery/).
 
@@ -458,12 +463,25 @@ further is what `${SOURCERY_SOURCES}` is for.
 In an Xcode project (rather than a Swift package) the plugin runs through `XcodeBuildToolPlugin`,
 which is handed no package graph. Two features degrade there, and the build log says so:
 
-- `${SOURCERY_SOURCES}` expands to the target's own input-file directories plus the module directories
-  of its product dependencies — better than nothing, but not a closure;
-- `SOURCERY_TEMPLATES` is not exported and a bare template name does not resolve, so name templates by
-  path.
+- `${SOURCERY_SOURCES}` expands to the target's own input-file directories, and to nothing else. The
+  API reports no dependency edges to derive a closure from: `XcodeTarget.dependencies` was measured
+  empty on Xcode 26.5 for a package product dependency as well as for a dependency on a sibling
+  target in the same project. Name any other directory beside the placeholder, as an absolute path
+  built from `${SOURCERY_PROJECT}`:
 
-Everything else — the defaults, the `output:` check, the passthrough — works the same.
+  ```yaml
+  sources:
+    - ${SOURCERY_SOURCES}
+    - ${SOURCERY_PROJECT}/Libraries/Kit/Sources
+  ```
+
+- `SOURCERY_TEMPLATES` is not exported and a bare template name does not resolve, so name templates by
+  path. `${GIT_ROOT}` is exported here exactly as it is under SPM, so
+  `${GIT_ROOT}/templates/Mocks.swifttemplate` works when the project is inside the checkout.
+
+Everything else — the defaults, the `output:` check, the passthrough — works the same;
+`Tests/Checks/run-xcode-checks.sh` builds an Xcode project on every push and checks the defaults, the
+passthrough and both degradations above.
 
 3. Finding the generated files
 
