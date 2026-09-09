@@ -29,8 +29,10 @@ Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprin
   Fingerprint.swift                 # the provenance block — format, render, parse
   SourceSet.swift                   # input enumeration and root-relative paths
 
-Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin
-Checks/                             # fast lane + CLI lane — see Testing below
+Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin — one file, no dependencies allowed
+Checks/                             # fast lane + CLI lane + plugin lane — see Testing below
+  PluginFixture/                    # the plugin lane's green package: one target per config shape
+  PluginFixtureRed/                 # four packages that must FAIL, one per red control
 Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
 Examples/ExampleProjectSpm/         # full lane — RxSwift, RIBs, type erasure, the plugin
 specs/                              # design specs, NNN-slug/spec.md — see Keep the documents in their lanes
@@ -124,9 +126,20 @@ its consumers need no Sourcery installation.
 
 ### The SPM plugin
 
-1. `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift`
-2. Conditional compilation for the Swift 5.x vs 6.0+ plugin API differences
-3. Test by building the example project — the fast lane does not exercise the plugin
+1. `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift` — all of it. A build-tool
+   plugin **cannot depend on a library target** (SwiftPM rejects it outright), so there is no Yams, no
+   code shared with `Sources/mock-templates`, and no test target that can import any of these types.
+   Everything is PackagePlugin + Foundation in one file
+2. Three parts, in reading order: `YamlLine` (the line rules), `SourceryConfigSynthesizer` (the
+   rewrite — placeholder, template names, defaults, the `output:` check), and
+   `_createBuildCommands` (discovery, the per-config output directories, the collision check)
+3. The synthesizer never parses YAML. It recognises a mapping key at column 0 and a whole list item,
+   and copies every other byte through. A construct it does not recognise is one it does not touch —
+   which is the whole safety argument, so keep new rules to that shape
+4. Conditional compilation for the Swift 5.x vs 6.0+ plugin API differences
+5. Run `Checks/run-plugin-checks.sh` — black-box over `Checks/PluginFixture`, ~1 minute, no simulator.
+   It is the only lane that can test the plugin at all. `Examples/ExampleProjectSpm/test-ios.sh`
+   covers it too, but through one package shape
 
 ### The `mock-templates` CLI
 
@@ -223,10 +236,15 @@ that does not tell the author what to do.
   inherited requirement only when the inherited protocol is among the `--sources`. A protocol
   refining one from *another module* generates a mock missing those requirements, and the failure
   surfaces in the consumer's build as "type 'XMock' does not conform to protocol 'Y'" — never here.
-  The fix belongs to whatever drives generation: pass the other module's sources too. The Duet
-  reference app's `scripts/generate-mocks.sh` derives them from `swift package dump-package` (every
-  path dependency, plus the framework at its exact pin) rather than listing paths, so a new
-  refinement across a first-party module boundary needs no change to the script.
+  The fix belongs to whatever drives generation: pass the other module's sources too. **On the plugin
+  path, `${SOURCERY_SOURCES}` closes this** — the plugin derives the target's whole dependency
+  closure and splices it into the config it runs, so a refinement across any module boundary needs no
+  config change (spec [001](specs/001-plugin-source-discovery/spec.md);
+  `Checks/PluginFixture/Sources/App` is the reproducer, and
+  `Examples/ExampleProjectSpm`'s `ProfilePersisting` is the same shape on the full lane). On the CLI
+  path it stays the caller's job: the Duet reference app's `scripts/generate-mocks.sh` derives the
+  set from `swift package dump-package` (every path dependency, plus the framework at its exact pin)
+  rather than listing paths, so a new refinement needs no change to the script.
 
 ### SourceryRuntime API notes
 
@@ -248,6 +266,7 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 |------|---------|-------|
 | fast | `Checks/run-checks.sh` | a Swift toolchain; ~10s |
 | CLI | `Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
+| plugin | `Checks/run-plugin-checks.sh` | a Swift toolchain and, once, the network; ~1 min cold |
 | full | `cd Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
 Both check lanes provision the pinned Sourcery through `Checks/ensure-sourcery.sh` — the pin and the
@@ -261,6 +280,14 @@ template's output in one invocation is what keeps a mock and a Component of the 
 disagreeing about isolation.
 
 Adding a template is one line in `TEMPLATES` plus a recorded snapshot.
+
+The plugin lane builds `Checks/PluginFixture` — a package whose targets are one per config shape, over
+a three-level dependency chain (`App` → `Middle` → `Leaf`, with `ExternalKit` arriving through
+`Middle` from a second package) — and then reads what the plugin wrote: the synthesized configs, the
+generated code, and the build's own outcome. Its four red controls live in
+`Checks/PluginFixtureRed/`, one package each, because build planning runs *every* target's plugin: a
+plan-time error in one target fails the build for all of them, so no `--target` can isolate a red
+control that shares a package with a green one. See `Checks/README.md`.
 
 The full lane is Quick + Nimble specs in `Examples/ExampleProjectSpm/Sources/ExampleProjectSpmTests/`,
 driven by the prebuild plugin. It covers what the fast lane structurally cannot: RxSwift smart
@@ -277,6 +304,7 @@ defaults, the RIBs external-annotation pattern, type erasure, and the plugin its
 | fast | `Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
 | fast | `Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
 | CLI | `Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
+| plugin | `Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and four red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |
@@ -286,8 +314,8 @@ defaults, the RIBs external-annotation pattern, type erasure, and the plugin its
 
 ### CI
 
-`.github/workflows/ci.yml` runs all three lanes on every push: fast and CLI in parallel, full gated
-on fast. Xcode is
+`.github/workflows/ci.yml` runs all four lanes on every push: fast, CLI and plugin in parallel, full
+gated on fast. Xcode is
 pinned via `XCODE_VERSION` because the fast lane's gate is *zero diagnostics*: a runner image whose
 compiler emits one new warning would turn it red for a reason unrelated to the templates. The gate has
 been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4), so the pin is for

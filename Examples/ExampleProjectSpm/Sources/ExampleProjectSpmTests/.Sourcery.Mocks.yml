@@ -1,21 +1,25 @@
-# package:
-#   path: ../.. #${SOURCERY_PACKAGE_PATH}
-#   target:
-#     - ExampleProjectSpm
-#     - ExampleProjectSpmTests
+# What to generate, and nothing else.
+#
+# `sources:` is the derived closure plus one directory the author picked: the
+# annotations that teach Sourcery about RIBs' protocols live in a subdirectory of
+# this target, and a subset of a directory is the one thing derivation must not
+# decide. Everything else the closure supplies — including RIBs itself, which
+# used to need a hand-written ${SOURCERY_TARGET_..._DEP_RIBs_MODULE_RIBs} line,
+# and ExampleProjectSpmCore, which no var could name at all.
+#
+# `output:` and `args.testable` are the plugin's (spec 001 §4.6): there is one
+# directory this target's build collects from, and one module it directly
+# depends on.
 sources:
-  - ${SOURCERY_TARGET_ExampleProjectSpm}
-  - ${SOURCERY_TARGET_ExampleProjectSpm_DEP_RIBs_MODULE_RIBs}
+  - ${SOURCERY_SOURCES}
   - ${SOURCERY_TARGET_ExampleProjectSpmTests}/SourceryAnnotations
-output: ${SOURCERY_OUTPUT_DIR}
 templates:
-  - ${GIT_ROOT}/templates/Mocks.swifttemplate
+  - Mocks
 args:
-  testable:
-    - ExampleProjectSpm
   import:
     - Alamofire
     - Combine
+    - ExampleProjectSpmCore
     - RIBs
     - RxBlocking
     - RxSwift

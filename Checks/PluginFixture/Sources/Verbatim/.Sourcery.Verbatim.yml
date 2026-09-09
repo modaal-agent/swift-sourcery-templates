@@ -1,0 +1,10 @@
+# Today's shape, untouched: no placeholder, no bare name, both keys present.
+# The synthesized copy of this file must be byte-identical to it.
+sources:
+  - ${SOURCERY_TARGET_Verbatim}
+output: ${SOURCERY_OUTPUT_DIR}
+templates:
+  - ${SOURCERY_TEMPLATES}/Mocks.swifttemplate
+args:
+  import:
+    - Foundation

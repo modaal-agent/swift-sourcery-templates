@@ -8,6 +8,7 @@
 
 import Foundation
 import UIKit
+import ExampleProjectSpmCore
 import RxSwift
 import Alamofire // for `Result`
 import SwiftUI
@@ -433,4 +434,18 @@ protocol EscapingClosureService: AnyObject {
     using transformer: (String) -> String,
     completion: @escaping (_ output: String) -> Void
   )
+}
+
+// MARK: - Refining a protocol from another module
+//
+// `Persisting` lives in `ExampleProjectSpmCore`, which the test target reaches
+// only through this one. Sourcery only knows the declarations it parses, so a
+// mock generated without `ExampleProjectSpmCore` in the source set carries
+// `profileID` and not `save` — and the failure surfaces as "type
+// 'ProfilePersistingMock' does not conform to protocol 'ProfilePersisting'" in
+// the consumer's build, never here. ${SOURCERY_SOURCES} is what closes it.
+
+/// sourcery: CreateMock
+protocol ProfilePersisting: Persisting {
+    var profileID: String { get }
 }

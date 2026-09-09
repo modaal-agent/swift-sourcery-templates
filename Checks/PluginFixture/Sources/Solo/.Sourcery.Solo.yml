@@ -1,0 +1,3 @@
+# Says only what to generate. `sources:` and `output:` are the plugin's (§4.6).
+templates:
+  - Mocks

@@ -18,9 +18,14 @@ let package = Package(
     .package(name: "swift-sourcery-templates", path: "../.."),
   ],
   targets: [
+    // Two levels below the test target: `ExampleProjectSpmTests` depends on
+    // `ExampleProjectSpm`, which depends on this. No env var names it, so the
+    // config can only reach it through ${SOURCERY_SOURCES}.
+    .target(name: "ExampleProjectSpmCore"),
     .target(
       name: "ExampleProjectSpm",
       dependencies: [
+        "ExampleProjectSpmCore",
         .product(name: "Alamofire", package: "Alamofire"),
         .product(name: "RIBs", package: "RIBs"),
         .product(name: "RxSwift", package: "RxSwift"),

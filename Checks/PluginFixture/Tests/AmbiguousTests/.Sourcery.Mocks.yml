@@ -1,0 +1,6 @@
+# Two candidate modules, so the plugin inserts no `args.testable` and says which
+# two it found. Both modules are imported normally instead.
+sources:
+  - ${SOURCERY_TARGET_AmbiguousTests}
+templates:
+  - Mocks

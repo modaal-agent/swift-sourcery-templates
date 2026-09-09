@@ -1,12 +1,13 @@
-# package:
-#   path: ../.. #${SOURCERY_PACKAGE_PATH}
-#   target:
-#     - ExampleProjectSpm
-sources:
-  - ${SOURCERY_TARGET_ExampleProjectSpm}
-output: ${SOURCERY_OUTPUT_DIR}
+# The zero-configuration shape: this config names two templates and the arguments
+# they need, and says nothing about where to read or where to write. The closure
+# is a superset of this target's own sources, and the output directory is the one
+# the build collects from — both are the plugin's to supply (spec 001 §4.6).
+#
+# Two templates from one config, so Sourcery writes TypeErase.generated.swift and
+# Component.generated.swift side by side (§1.4/F).
 templates:
-  - ${GIT_ROOT}/templates/TypeErase.swifttemplate
+  - TypeErase
+  - Component
 args:
   import:
     - RIBs

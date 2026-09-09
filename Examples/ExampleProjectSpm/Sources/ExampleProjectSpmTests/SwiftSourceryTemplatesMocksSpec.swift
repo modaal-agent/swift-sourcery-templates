@@ -6,6 +6,7 @@
 //  Copyright © 2018 AlbumPrinter BV. All rights reserved.
 //
 
+import Foundation
 import Quick
 import Nimble
 import RxSwift
@@ -55,5 +56,38 @@ class SwiftSourceryTemplatesMocksSpec: QuickSpec {
         } // context("entityObserver.on() called")
       }
     } // describe("mock with AnyObserver")
+
+    // The transitive first-party case. `ProfilePersisting` refines `Persisting`,
+    // which lives in ExampleProjectSpmCore — a module this test target reaches
+    // only through ExampleProjectSpm, and which no SOURCERY_TARGET_* var names.
+    // Before the plugin derived its own source closure the generated mock
+    // carried `profileID` and not `save`, and this file did not compile.
+    describe("mock of a protocol refining another module's protocol") {
+      var sut: ProfilePersistingMock!
+      beforeEach {
+        sut = ProfilePersistingMock()
+      }
+      it("starts with no recorded calls") {
+        expect(sut.saveCallCount) == 0
+        expect(sut.saveArgs).to(beEmpty())
+      }
+      context("save() called with the inherited requirement's signature") {
+        beforeEach {
+          try? sut.save(Data([0x01, 0x02]), key: "profile")
+        }
+        it("records the call") {
+          expect(sut.saveCallCount) == 1
+        }
+        it("records both arguments") {
+          expect(sut.saveArgs.count) == 1
+          expect(sut.saveArgs.first?.data) == Data([0x01, 0x02])
+          expect(sut.saveArgs.first?.key) == "profile"
+        }
+      } // context("save() called")
+      it("still carries the refining protocol's own requirement") {
+        sut.profileID = "abc"
+        expect(sut.profileID) == "abc"
+      }
+    } // describe("mock of a protocol refining another module's protocol")
   }
 }
