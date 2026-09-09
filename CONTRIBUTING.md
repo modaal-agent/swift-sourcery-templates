@@ -9,10 +9,13 @@ changed in each release**, see [CHANGELOG.md](CHANGELOG.md).
 
 ```
 templates/                          # the product
-  Mocks.swifttemplate               # entry point — includes Mocks/*, filters by `CreateMock`
-  TypeErase.swifttemplate           # entry point for type erasure
+  Mocks.swifttemplate               # entry point — includes Mocks/*, filters by `ProtocolMock`
+  TypeErase.swifttemplate           # entry point for type erasure, filters by `TypeErasure`
   Component.swifttemplate           # entry point — the same includes plus Component/, filters by `DuetComponent`
   _header.swifttemplate             # shared header — imports, SwiftLint directives
+  Annotations/
+    AnnotationRegistry.swift        # every annotation verb, named once — see A new annotation
+    AnnotationAccess.swift          # the only file that reads a `/// sourcery:` key by name
   Mocks/
     MockGenerator.swift             # orchestrator: iterates protocols, emits class shells
     MockMethod.swift                # method mocking: signature, handler closure, call count
@@ -21,7 +24,7 @@ templates/                          # the product
     SourceryRuntimeExtensions.swift # default values, smart defaults, the concurrency helpers
   Component/
     ComponentGenerator.swift        # forwarding emission; consumes the Mocks/ rules
-  Utility/                          # annotation parsing, generics, string helpers
+  Utility/                          # generics, string helpers
 
 Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprint, validate
   MockTemplates.swift               # command tree
@@ -36,6 +39,7 @@ Tests/                              # everything that verifies the product — s
     PluginFixtureRed/               # four packages that must FAIL, one per red control
   Examples/ExampleProjectSpm/       # full lane — RxSwift, RIBs, type erasure, the plugin
 Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
+Scripts/render-annotations.sh       # renders templates/Annotations/ into every document that documents it
 specs/                              # design specs, NNN-slug/spec.md — see What goes in which document
 ```
 
@@ -121,9 +125,17 @@ its consumers need no Sourcery installation.
 
 ### A new annotation
 
-1. `Utility/Annotations.swift` — parsing
-2. `Mocks/MockVar.swift` / `Mocks/MockMethod.swift`, or `Component/ComponentGenerator.swift`
-3. Add the row to README.md's annotations table
+1. `Annotations/AnnotationRegistry.swift` — add the record, and add it to `all`. A template selector
+   is an UpperCamelCase noun naming what gets generated; an option is lowerCamelCase. A spelling that
+   once worked goes in `aliases`, never in a second record
+2. Read it where the template needs it — `Mocks/MockVar.swift` / `Mocks/MockMethod.swift`, or
+   `Component/ComponentGenerator.swift` — through `isAnnotated(_:)` or `annotations(for:)`, passing
+   the record. A string literal there fails `Tests/Checks/run-annotation-checks.sh`
+3. Run `Scripts/render-annotations.sh --write`, read the diff, and commit what it wrote
+
+A verb that shipped is never deleted: move it to `retired` with the release that retired it and its
+replacement, so a consumer's next regenerate says what to write instead of dropping a mock in
+silence.
 
 ### The SPM plugin
 

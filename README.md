@@ -608,27 +608,33 @@ Sourcery picks up annotations from extensions on the protocol. Pass the annotati
 
 ## Annotations Reference
 
+<!-- annotations:start -->
+<!-- Rendered from templates/Annotations/AnnotationRegistry.swift by Scripts/render-annotations.sh. Do not edit inside this block. -->
+
+Annotation names are matched case-insensitively, except for `ProtocolMock`, `ObjcProtocolMock`, `TypeErasure`, `DuetComponent` and `owns`, which are matched exactly, including case.
+
 | Annotation | Target | Effect |
 |------------|--------|--------|
-| `CreateMock` | Protocol / extension | Generate mock class |
-| `TypeErase` | Protocol | Generate type erasure wrapper |
-| `associatedType = "T: Constraint"` | Protocol | Associated type for type erasure |
+| `ProtocolMock` | Protocol / extension | Generate the mock class |
+| `ObjcProtocolMock` | Protocol / extension | Generate the mock class with an `NSObject` superclass. A protocol refining `NSObjectProtocol` gets one without the annotation |
+| `TypeErasure` | Protocol | Generate the type-erasing wrapper |
+| `DuetComponent` | Protocol | Generate the forwarding Component class |
+| `associatedType = "T: Constraint"` | Protocol | Associated type for the type erasure |
 | `genericType = "T: Constraint"` | Method | Generic type parameter |
 | `annotatedGenericTypes = "{T}"` | Parameter | Generic placeholder marker |
-| `methodName = "customName"` | Method | Override mock variable name |
-| `const` | Variable | Use `let` in mock |
-| `init` | Variable | Include in mock initializer |
-| `handler` | Variable | Generate handler closure |
-| `import = "Module"` | Protocol | Add `import` to output |
-| `ObjcProtocol` | Protocol | Add `NSObject` superclass |
+| `methodName = "customName"` | Method | Override the mock variable name |
+| `const` | Variable | Use `let` in the mock |
+| `init` | Variable | Include in the mock initializer |
+| `handler` | Variable | Generate the handler closure |
+| `import = "Module"` | Protocol | Add an `import` to the output |
 | `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
-| `subject = "CurrentValue"` / `"Passthrough"` | Variable / method | Choose the subject backing an `AnyPublisher` member |
+| `subject = "CurrentValue"` | Variable / method | Choose the subject backing an `AnyPublisher` member — `CurrentValue` or `Passthrough` |
 | `skipArgumentRecording` | Protocol / method | Do not generate `<method>Args`; call counting and the handler are unaffected |
-| `DuetComponent` | Protocol | Generate the forwarding Component class |
 | `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
 | `componentAccess = "public"` | Protocol | Emit a `public` Component; the default is internal |
+<!-- annotations:end -->
 
 # License
 
