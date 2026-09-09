@@ -98,6 +98,20 @@ saying why the mock template does not see it.
 | `@escaping @Sendable` closure parameter | `RegistrationDependency` |
 | effectful property (`{ get async throws }`) | `ProfileDependency` |
 | `componentName` / `componentAccess` overrides | `OnboardingFlowDependency` |
+
+[`Vocabulary.swift`](Fixtures/Vocabulary.swift) covers which spelling selects
+which template. Every other fixture writes `CreateMock`, the spelling that
+shipped and is now an alias, so without this file the canonical names appear in
+no generated output.
+
+| construct | fixture |
+| --- | --- |
+| the canonical mock selector | `VocabularyCanonical` |
+| `ObjcProtocolMock` standing alone — an `NSObject` mock from one annotation | `VocabularyObjc` |
+| the `CreateMock` + `ObjcProtocol` pair a consumer's source still carries | `VocabularyLegacyObjc` |
+
+A misspelling is not here: it fails generation for the whole run, so it lives in
+`run-checks.sh`'s near-miss section and in `PluginFixtureRed/NearMiss`.
 | a Component name not derived from a `Dependency` suffix | `AppServicesRegistering` |
 | optional existentials in a forwarded signature | `DetailPresenting` |
 
