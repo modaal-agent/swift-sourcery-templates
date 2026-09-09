@@ -3,9 +3,22 @@ name: CI
 # Push-triggered on every branch. Tag pushes are excluded: a tag is cut from a
 # commit that was already built, so running again would only duplicate the
 # result.
+#
+# `branches` must be spelled out, and this is the whole trigger — do not
+# "simplify" it back to a bare `tags-ignore`. From the workflow-syntax
+# reference: "If you define only `tags`/`tags-ignore` or only
+# `branches`/`branches-ignore`, the workflow won't run for events affecting the
+# undefined Git ref." A lone `tags-ignore: ['**']` therefore leaves branches
+# undefined *and* excludes every tag, so the push trigger can never fire at all
+# — which is what it did here from the day this file was written until
+# 2026-09-09: every CI run in the history was a manual workflow_dispatch.
+#
+# With `branches` defined and no tag filter, tags are the undefined ref and are
+# excluded on their own, so no `tags-ignore` is needed. `'**'` rather than `'*'`
+# because `*` does not match a `/`, and branches here are named `spec/001-...`.
 on:
   push:
-    tags-ignore: ['**']
+    branches: ['**']
   workflow_dispatch:
 
 concurrency:
