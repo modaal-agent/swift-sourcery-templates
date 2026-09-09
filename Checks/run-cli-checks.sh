@@ -16,6 +16,10 @@
 #                    generated file is excluded from its own input set, and
 #                    a second run over the block-bearing file reproduces it
 #                    byte-identically (the fixed point exists).
+#   5. config        `validate --template/--args` recomputes the config
+#                    description and is green on the pair that generated the
+#                    file, red on a different template and red on a different
+#                    arg list; passing neither flag keeps the file green.
 #
 # Usage:
 #   Checks/run-cli-checks.sh
@@ -173,6 +177,39 @@ else
   fail "the self-scan fixed point does not hold across runs"
 fi
 rm -f "$SELF_OUT"
+
+# ── 5. Config description ─────────────────────────────────────────
+# The block's config line records what generated the file. Without the pair
+# the caller currently holds, validate can only check that line against its
+# own hash; with it, a config that moved and a file that did not is red.
+echo ""
+echo "── config ──"
+"${GENERATE[@]}" --output "$OUT"
+if "${VALIDATE[@]}" --template "$GIT_ROOT/templates/Mocks.swifttemplate" \
+    --args "import=Combine,import=Foundation" > /dev/null; then
+  echo "  the generating template and args validate"
+else
+  fail "validate rejected the template/args pair that generated the file"
+fi
+# The basename is what the line records, so a bare name is the same config.
+if "${VALIDATE[@]}" --template Mocks.swifttemplate \
+    --args "import=Combine,import=Foundation" > /dev/null; then
+  echo "  a bare template name is the same config as its path"
+else
+  fail "the template basename did not match the recorded line"
+fi
+expect_red "a different template" "${VALIDATE[@]}" \
+  --template Component.swifttemplate --args "import=Combine,import=Foundation"
+expect_red "a different arg list" "${VALIDATE[@]}" \
+  --template Mocks.swifttemplate --args "import=Foundation"
+expect_red "no args where the block records some" "${VALIDATE[@]}" \
+  --template Mocks.swifttemplate
+expect_red "args without a template" "${VALIDATE[@]}" --args "import=Combine,import=Foundation"
+if "${VALIDATE[@]}" > /dev/null; then
+  echo "  neither flag: the inputs, the body and the tag still verify"
+else
+  fail "validate without the config flags is red on a current file"
+fi
 
 # ── Result ────────────────────────────────────────────────────────
 echo ""

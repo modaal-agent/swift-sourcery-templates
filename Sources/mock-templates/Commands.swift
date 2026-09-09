@@ -1,6 +1,17 @@
 import ArgumentParser
 import Foundation
 
+/// The `config:` line's description, in one place: `generate` and `imprint`
+/// write it, and `validate --template` recomputes it from the caller's
+/// current config and fails on a difference. The template is recorded by
+/// basename, so a caller naming it by path and one naming it by file produce
+/// the same line; the arguments are sorted, so their order in a config does
+/// not move it.
+func mockTemplatesConfigDescription(template: String, arguments: [String]) -> String {
+  let name = URL(fileURLWithPath: template).lastPathComponent
+  return "template=\(name) args=\(arguments.sorted().joined(separator: ";"))"
+}
+
 /// The options `generate` and `imprint` share: everything the fingerprint
 /// records. The tool is policy-free — it hashes the files it is pointed at
 /// and knows nothing about who calls it or why; pin policy and source-set
@@ -34,8 +45,7 @@ struct FingerprintOptions: ParsableArguments {
   }
 
   var configDescription: String {
-    let template = URL(fileURLWithPath: templates).lastPathComponent
-    return "template=\(template) args=\(arguments.sorted().joined(separator: ";"))"
+    mockTemplatesConfigDescription(template: templates, arguments: arguments)
   }
 
   func hashedInputs() throws -> [Fingerprint.Input] {
@@ -148,7 +158,10 @@ struct Validate: ParsableCommand {
       Re-hashes every input the block lists, plus the body, and fails on any \
       difference. With --sources, also fails on a .swift file that is present \
       under a root but absent from the block — the case where a file was \
-      added after generation.
+      added after generation. With --template, recomputes the config \
+      description from the template and args the caller passes and fails when \
+      it differs from the one the block records — the case where the config \
+      that owns the file changed and the file was not regenerated.
       """
   )
 
@@ -163,6 +176,26 @@ struct Validate: ParsableCommand {
 
   @Option(help: "Fail unless the recorded bundle tag is exactly this.")
   var expectBundle: String?
+
+  @Option(
+    help: "The template the current config generates with — a name or a path, recorded by basename. Enables the config check."
+  )
+  var template: String?
+
+  @Option(
+    name: .customLong("args"),
+    help: "A generator argument, key=value, as the current config passes it. Repeatable; sorted into the recomputed config line. Needs --template."
+  )
+  var arguments: [String] = []
+
+  func validate() throws {
+    // Args alone cannot build the line — it names the template first — so a
+    // caller passing them without one is refused rather than run through the
+    // checks that apply when neither flag is given.
+    guard template != nil || arguments.isEmpty else {
+      throw ValidationError("--args needs --template: the config line names both")
+    }
+  }
 
   func run() throws {
     let data = try Data(contentsOf: URL(fileURLWithPath: file))
@@ -179,6 +212,14 @@ struct Validate: ParsableCommand {
     let expectedConfigHash = sha256Hex(Data(fingerprint.configDescription.utf8))
     if fingerprint.configHash != expectedConfigHash {
       failures.append("config: the hash does not match its own description line")
+    }
+
+    if let template {
+      let current = mockTemplatesConfigDescription(template: template, arguments: arguments)
+      if fingerprint.configDescription != current {
+        failures.append(
+          "config: the block records \(fingerprint.configDescription), the current config is \(current)")
+      }
     }
 
     if sha256Hex(body) != fingerprint.bodyHash {

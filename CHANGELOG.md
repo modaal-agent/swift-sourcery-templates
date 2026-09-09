@@ -19,6 +19,49 @@ pod.
 
 ---
 
+## 0.7.0 — 2026-09-09
+
+`validate` gains `--template <name>` and a repeatable `--args <key=value>`. Given them, it rebuilds
+the `template=<basename> args=<sorted, ";"-joined>` description that `generate` and `imprint` write
+into the fingerprint block and fails when it differs from the one the block records.
+
+That closes the two generation inputs the block records and the check did not cover. Every other
+field is verified against the world: the recorded input hashes against the files, the body hash
+against the body, the bundle tag against `--expect-bundle`. The config line was verified against its
+own SHA-256 alone — which catches a hand-edit to the line and nothing else, so a file generated with
+one template or one arg list, and a config that has since moved to another, validated green.
+
+```bash
+mock-templates validate \
+  --file Tests/MyModuleTests/Generated/MyModuleMocks.swift \
+  --root "$(pwd)" \
+  --sources Sources/MyModule \
+  --expect-bundle 0.7.0 \
+  --template Mocks.swifttemplate \
+  --args "import=Foundation,testable=MyModule"
+```
+
+The template is recorded by basename, so a bare name and a path to the same file are one config. The
+arguments are sorted into the line, so their order in a caller's config does not move it. One
+definition builds the string for all three subcommands, so `generate` and `validate` cannot drift
+apart on how it is spelled.
+
+### Generated output
+
+Unchanged. No template changed in this release, and the fast lane's snapshots are byte-identical.
+
+### Breaking
+
+None. Both flags are optional and a caller that passes neither gets exactly the checks 0.6.2 ran.
+`--args` without `--template` is a usage error — the config line names the template first, so args
+alone cannot build it.
+
+### Adopting
+
+Pass the two flags from whatever holds your generation config, alongside the `--sources` roots and
+`--expect-bundle` tag you already pass. A file whose config moved without a regenerate turns red on
+the first run; one `generate` makes it green.
+
 ## 0.6.2 — 2026-08-19
 
 A template whose scan matches no annotated protocol now renders one marker comment instead of

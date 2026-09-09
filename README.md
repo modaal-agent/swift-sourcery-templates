@@ -478,14 +478,25 @@ mock-templates validate \
   --file Tests/MyModuleTests/Generated/MyModuleMocks.swift \
   --root "$(pwd)" \
   --sources Sources/MyModule \
-  --expect-bundle 0.6.0
+  --expect-bundle 0.7.0 \
+  --template Mocks.swifttemplate \
+  --args "import=Foundation,testable=MyModule"
 ```
 
 `validate` fails on: a listed file whose content changed, a listed file that is gone, a `.swift` file
 present under `--sources` but absent from the block (a file added after generation), a body whose
-hash differs from the recorded one (a hand-edit), and — with `--expect-bundle` — a block imprinted
-by a different bundle tag. `imprint` rewrites the block over the existing body without regenerating.
-`generate --disable-cache` passes `--disableCache` through to Sourcery.
+hash differs from the recorded one (a hand-edit), with `--expect-bundle` a block imprinted
+by a different bundle tag, and with `--template` a block whose config line names a different
+template or a different arg list from the one the caller passes. `imprint` rewrites the block over
+the existing body without regenerating. `generate --disable-cache` passes `--disableCache` through
+to Sourcery.
+
+Pass `--template` and the same `--args` the generating config holds to cover the two generation
+inputs the recorded hashes do not: the template that drove the file and the arguments it was given.
+The line records the template by basename, so a name and a path to it are the same config, and the
+arguments are sorted, so their order in a config does not move it. Both flags are optional —
+`validate` with neither checks the inputs, the body and the bundle tag, as it does above. `--args`
+without `--template` is an error: the config line names the template first.
 
 Recorded paths are relative to `--root`, so the block reproduces across checkouts; a source outside
 the root is an error, never an absolute path. The tool is policy-free: which sources a generated
