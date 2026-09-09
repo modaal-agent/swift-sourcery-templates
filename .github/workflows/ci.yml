@@ -52,6 +52,29 @@ jobs:
         # Fix a failure with `cp AGENTS.md CLAUDE.md`.
         run: cmp AGENTS.md CLAUDE.md
 
+  # ── Annotation registry lane ─────────────────────────────────────
+  # `templates/Annotations/AnnotationRegistry.swift` is the one place an
+  # annotation verb is named, and every document that documents one carries a
+  # block rendered from it. This lane checks both directions of that rule and
+  # the freshness of every rendition.
+  #
+  # Ungated, for the same reason `rules` is, and it matters more here: a push
+  # that edits only `README.md` sets `code=false` below and skips all four macOS
+  # lanes, and a hand-edited annotation table is exactly what such a push
+  # produces. Shell, `grep` and `awk` only — no Swift toolchain, no Sourcery, no
+  # network — so it runs on ubuntu in seconds.
+  annotations:
+    name: Annotations (registry, rendition)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Registry and rendition
+        run: Tests/Checks/run-annotation-checks.sh
+
+      - name: Red controls — each check red on a seeded violation
+        run: Tests/Checks/run-annotation-checks.sh --self-test
+
   # ── Change filter ────────────────────────────────────────────────
   # Reports whether the push touched anything a build can read. Markdown cannot
   # break a Swift build, so a docs-only push skips the four macOS lanes rather

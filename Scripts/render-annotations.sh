@@ -20,6 +20,7 @@
 #   Scripts/render-annotations.sh --write    # rewrite the blocks in place
 #   Scripts/render-annotations.sh --print [flat|grouped]
 #   Scripts/render-annotations.sh --dump     # the parsed registry as TSV
+#   Scripts/render-annotations.sh --dump-retired
 #
 # This is `run-checks.sh --record`'s discipline applied to prose: run it, read
 # the diff it prints, commit what it wrote.
@@ -82,6 +83,43 @@ dump() {
       else if (key == "effect") effect = unquote(value)
       else if (key == "valueHint") hint = unquote(value)
       else if (key == "matching") { sub(/,$/, "", value); sub(/^\./, "", value); matching = value }
+    }
+  ' "$REGISTRY"
+}
+
+# One TSV line per retired entry: name, aliases (comma-joined), kind, retiredIn,
+# replacement. Empty while `retired` is empty, which is its resting state.
+dump_retired() {
+  awk '
+    function unquote(v) {
+      sub(/,$/, "", v)
+      sub(/^"/, "", v); sub(/"$/, "", v)
+      return v
+    }
+    /^        RetiredAnnotation\($/ {
+      name = ""; aliases = ""; kind = ""; retiredin = ""; replacement = ""
+      inrecord = 1
+      next
+    }
+    inrecord && /^        \),$/ {
+      printf "%s\t%s\t%s\t%s\t%s\n", name, aliases, kind, retiredin, replacement
+      inrecord = 0
+      next
+    }
+    inrecord {
+      line = $0
+      sub(/^            /, "", line)
+      key = line; sub(/:.*$/, "", key)
+      value = line; sub(/^[a-zA-Z]+: /, "", value)
+      if (key == "name") name = unquote(value)
+      else if (key == "aliases") {
+        sub(/,$/, "", value); sub(/^\[/, "", value); sub(/\]$/, "", value)
+        gsub(/"/, "", value); gsub(/, /, ",", value)
+        aliases = value
+      }
+      else if (key == "kind") { sub(/,$/, "", value); sub(/^\./, "", value); kind = value }
+      else if (key == "retiredIn") retiredin = unquote(value)
+      else if (key == "replacement") replacement = unquote(value)
     }
   ' "$REGISTRY"
 }
@@ -160,8 +198,9 @@ case "${1:-}" in
   --write) MODE="write" ;;
   --print) block "${2:-flat}"; exit 0 ;;
   --dump)  dump; exit 0 ;;
+  --dump-retired) dump_retired; exit 0 ;;
   "")      MODE="check" ;;
-  *)       echo "usage: $0 [--write|--print [flat|grouped]|--dump]" >&2; exit 2 ;;
+  *)       echo "usage: $0 [--write|--print [flat|grouped]|--dump|--dump-retired]" >&2; exit 2 ;;
 esac
 
 TMP="$(mktemp -d)"
