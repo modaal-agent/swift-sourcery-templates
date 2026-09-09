@@ -643,7 +643,19 @@ struct SourcerySwiftCodegenPlugin {
     let sourcery = try locateSourceryExecutable(context)
     Diagnostics.remark("Sourcery executable: '\(sourcery)'")
 
-    let sourceryConfigFileLocations = target.sourceryConfigFileLocations(rootDirectory: context.rootDirectory)
+    // A derived location that is not there is skipped, not reported. In an Xcode
+    // project a target that depends on a sibling target carries the linked
+    // framework in `inputFiles` — `<project>/build/Debug/Core.framework` — and
+    // the location derived from it, `<project>/build`, exists only if that
+    // project happened to be built in place. Reporting the missing directory as
+    // an error failed the build, at plan time, for every Xcode project with a
+    // dependency between two of its own targets (001 follow-up §1.4, F1). A
+    // location that *is* there and will not open keeps its error below: that is a
+    // real problem with a real cause, and silencing it would hide it.
+    let sourceryConfigFileLocations = target
+      .sourceryConfigFileLocations(rootDirectory: context.rootDirectory)
+      .filter { $0.isDirectory }
+      .sorted { $0.string < $1.string }
     let sourceryConfigFilePaths = sourceryConfigFileLocations.flatMap { location in
       do {
         let files = try FileManager.default.contentsOfDirectory(atPath: location.string)
@@ -1070,10 +1082,16 @@ extension XcodeProjectPlugin.XcodeTarget: CodegenPluginTarget {
     })
   }
 
-  /// §3.4. `XcodeTarget` has no `recursiveTargetDependencies`, so the placeholder
-  /// expands to the target's own input-file directories plus the `.product` module
-  /// directories already reachable — strictly better than nothing, and still not a
-  /// closure. Full derivation is SPM-only, and the README says so.
+  /// The placeholder expands to the target's own input-file directories, and to
+  /// nothing else. `XcodeTarget` has no `recursiveTargetDependencies`, and
+  /// `dependencies` was measured empty on Xcode 26.5 for a package product
+  /// dependency as well as for a sibling target, so `productDirectories` below is
+  /// always empty in practice (001 follow-up §1.3, which obsoletes 001 §3.4's
+  /// claim that the product modules are reached). It is kept rather than deleted
+  /// because it costs nothing and becomes correct if the API starts reporting
+  /// dependency edges; `run-xcode-checks.sh`'s **closure** gate is what reports
+  /// that change. Until then an author names any further directory in `sources:`
+  /// with `${SOURCERY_PROJECT}`, and the README says so.
   var derivedSourceRoots: [Path] {
     let inputDirectories = inputFiles
       .filter { $0.type == .source }

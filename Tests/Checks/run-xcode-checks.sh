@@ -297,22 +297,25 @@ fi
 # `Dependent` depends on `Core`, a second framework target in the same project.
 # The linked framework arrives in `Dependent`'s `inputFiles` as
 # `<project>/build/Debug/Core.framework`, so the plugin derives `<project>/build`
-# as a directory to look for configs in, that directory does not exist, and the
-# enumeration failure is reported as `Diagnostics.error` — which fails the build
-# before Sourcery runs.
-#
-# Asserted as it behaves today, so the commit that fixes it turns this gate over
-# rather than merely not breaking it (followup-xcode-lane.md §3 and §7 step 2).
+# as a directory to look for configs in. That directory does not exist, and while
+# the enumeration failure was reported as `Diagnostics.error`, every Xcode project
+# with a dependency between two of its own targets failed at plan time. The second
+# assertion is the other half: skipping the location that is missing must not lose
+# the one that is there.
 echo ""
 echo "── sibling target ──"
 DEP_LOG="$WORK_DIR/dependent-build.log"
-if xcbuild "$FIXTURE_DIR/XcodeFixture.xcodeproj" Dependent "$DD" "$DEP_LOG"; then
-  fail "the Dependent scheme built — §3 has been fixed, so this gate is now the wrong way round"
-elif grep -q 'The folder “build” doesn’t exist' "$DEP_LOG"; then
-  pass "a target depending on a sibling target fails, on the derived '$FIXTURE_DIR/build' that is not there"
+if ! xcbuild "$FIXTURE_DIR/XcodeFixture.xcodeproj" Dependent "$DD" "$DEP_LOG"; then
+  grep -E 'error:' "$DEP_LOG" | head -20
+  fail "a target depending on a sibling target did not build"
 else
-  tail -15 "$DEP_LOG"
-  fail "the Dependent scheme failed, but not on the missing config location"
+  pass "a target depending on a sibling target builds"
+  DEP_MOCK="$(generated "$DD" Dependent Sourcery.Dependent Mocks.generated.swift)"
+  if [ -n "$DEP_MOCK" ] && grep -q 'class DispatchingMock' "$DEP_MOCK"; then
+    pass "and its own config was still found and run"
+  else
+    fail "the Dependent target built, but its config was not found"
+  fi
 fi
 
 # ── 8. Bare name ──────────────────────────────────────────────────
