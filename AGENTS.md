@@ -43,7 +43,7 @@ must not be: regenerate `modaal-firebase-wrappers` against `master` and record t
 its diff in the `CHANGELOG.md` entry. A release whose consumer impact was not measured is not ready to
 tag. Write the entry **before** tagging, for a consumer deciding whether to bump.
 
-## Keep the three documents in their lanes
+## Keep the documents in their lanes
 
 - **README.md** — what the templates do and how to use them. A new annotation adds a row to its
   reference table.
@@ -51,6 +51,10 @@ tag. Write the entry **before** tagging, for a consumer deciding whether to bump
   pitfalls, testing, release procedure, open items.
 - **AGENTS.md / CLAUDE.md** — rules only. If you are about to write a paragraph explaining what
   something *is*, it belongs in one of the other two.
+- **specs/`NNN-slug`/spec.md** — the plan for a change too big to carry in a commit message: what is
+  true now (measured, with file and line references), what the rule becomes, the phasing, the
+  decisions and what stays open. A spec is written before the change and left in place after it, as
+  the record of why. It never becomes the place a *rule* lives — that is still AGENTS.md.
 
 ## Scope
 

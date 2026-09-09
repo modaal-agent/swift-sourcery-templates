@@ -14,6 +14,7 @@ Where the rest lives:
 | how the templates are built, where to change what, the pitfalls already hit | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | what changed in a release and what it breaks | [CHANGELOG.md](CHANGELOG.md) |
 | which fixture covers which construct | [Checks/README.md](Checks/README.md) |
+| the plan for a change too big to carry in a commit message | [specs/](specs/) |
 
 The two commands worth memorising:
 

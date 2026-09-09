@@ -33,6 +33,7 @@ Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin
 Checks/                             # fast lane + CLI lane — see Testing below
 Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
 Examples/ExampleProjectSpm/         # full lane — RxSwift, RIBs, type erasure, the plugin
+specs/                              # design specs, NNN-slug/spec.md — see Keep the documents in their lanes
 ```
 
 An `includeFile` in a `.swifttemplate` inlines that file into one compilation unit, so `private` at
