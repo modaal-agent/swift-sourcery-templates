@@ -54,7 +54,5 @@ tag. Write the entry **before** tagging, for a consumer deciding whether to bump
 
 ## Scope
 
-- `Examples/ExampleProjectCocoapods/` and `SwiftMockTemplates.podspec` are being retired and are stale.
-  Do not update them, and do not fold them into an unrelated change.
 - Generated output in a consumer repo is that repo's build product. Do not hand-edit a consumer's
   generated file to work around a template gap — fix the template and regenerate.

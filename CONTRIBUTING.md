@@ -33,7 +33,6 @@ Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin
 Checks/                             # fast lane + CLI lane — see Testing below
 Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
 Examples/ExampleProjectSpm/         # full lane — RxSwift, RIBs, type erasure, the plugin
-Examples/ExampleProjectCocoapods/   # stale; see Open items
 ```
 
 An `includeFile` in a `.swifttemplate` inlines that file into one compilation unit, so `private` at
@@ -305,7 +304,7 @@ version first.
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to
    bump: what the generated output looks like now, what can fail after a regenerate and how to fix it,
    what to do beyond bumping the tag
-4. Tag `master`. There is no release branch, and a tag does not publish a pod
+4. Tag `master`. There is no release branch
 5. The tag push runs `.github/workflows/release.yml`, which publishes the release assets:
    `Scripts/assemble-release.sh <tag>` builds the `mock-templates` CLI universal
    (arm64 + x86_64), vendors the Sourcery engine at the `sourcery` binaryTarget pin in
@@ -358,6 +357,3 @@ version first.
   The Component template **does** forward it (`Checks/Fixtures/Forwarding.swift`,
   `ProfileDependency`), because forwarding an effectful requirement is a pass-through and mocking one
   is not.
-- **CocoaPods distribution is being retired.** `SwiftMockTemplates.podspec` (version `0.2.7`, Sourcery
-  dependency `2.1.2`) and `Examples/ExampleProjectCocoapods` are stale against the SPM path and are
-  not kept in step. Do not spend effort on them.

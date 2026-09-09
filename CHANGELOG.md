@@ -13,9 +13,8 @@ Each release lists:
 - **Breaking** — anything that can fail a consumer's build after a regenerate, with the fix.
 - **Adopting** — what to do beyond bumping the tag, when there is anything.
 
-Versions are `MAJOR.MINOR.PATCH` tags on `master`. There is no separate release branch, and the
-CocoaPods distribution (`SwiftMockTemplates.podspec`) is being retired — a tag does not publish a
-pod.
+Versions are `MAJOR.MINOR.PATCH` tags on `master`. There is no separate release branch. The
+templates are distributed through SPM and through the assets a tag publishes on its GitHub release.
 
 ---
 
