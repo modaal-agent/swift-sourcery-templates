@@ -36,7 +36,7 @@ Tests/                              # everything that verifies the product — s
     PluginFixtureRed/               # four packages that must FAIL, one per red control
   Examples/ExampleProjectSpm/       # full lane — RxSwift, RIBs, type erasure, the plugin
 Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
-specs/                              # design specs, NNN-slug/spec.md — see Keep the documents in their lanes
+specs/                              # design specs, NNN-slug/spec.md — see What goes in which document
 ```
 
 An `includeFile` in a `.swifttemplate` inlines that file into one compilation unit, so `private` at
