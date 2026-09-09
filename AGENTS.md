@@ -73,8 +73,17 @@ Habits to avoid (common LLM-isms):
   work they have not seen. If a commit is authorized and the index is partly staged, ask which scope
   before running anything.
 - **Subject line:** imperative, naming the change — "Retire the CocoaPods distribution". Work backed
-  by a spec carries the slug: `[001-plugin-source-discovery] Derive the source closure`. No spec in
-  play, no prefix — do not invent one.
+  by a spec carries the slug, **and the commit that writes the spec is the first such commit**. So a
+  spec numbered 002 produces:
+
+  ```
+  [002-annotation-registry-and-agent-skill] Specify the registry and the skill
+  [002-annotation-registry-and-agent-skill] Route every annotation read through the registry
+  [002-annotation-registry-and-agent-skill] Render the annotation table into README
+  ```
+
+  The slug names the feature and the rest names what that commit does, so the subject after the
+  bracket does not repeat the slug. No spec in play, no prefix — do not invent one.
 
 ## Changes reach `master` through a pull request
 
