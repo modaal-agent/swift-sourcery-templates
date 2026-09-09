@@ -95,7 +95,7 @@ class MockGenerator {
 
 private extension SourceryRuntime.`Type` {
     var isObjcProtocol: Bool {
-        return annotations["ObjcProtocol"] != nil
+        return isAnnotated(AnnotationRegistry.objcProtocolMock)
             || inheritedTypes.contains("NSObjectProtocol")
     }
 }

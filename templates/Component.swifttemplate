@@ -1,5 +1,6 @@
 <%- include("_header") -%>
-<%- includeFile("Utility/Annotations") -%>
+<%- includeFile("Annotations/AnnotationRegistry") -%>
+<%- includeFile("Annotations/AnnotationAccess") -%>
 <%- includeFile("Utility/Generics") -%>
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
@@ -9,4 +10,4 @@
 <%- includeFile("Mocks/SourceCode") -%>
 <%- includeFile("Mocks/SourceryRuntimeExtensions") -%>
 <%- includeFile("Component/ComponentGenerator") -%>
-<%= try ComponentGenerator.generate(for: types.protocols.map { $0 }.filter { $0.annotations["DuetComponent"] != nil }) %>
+<%= try ComponentGenerator.generate(for: types.protocols.map { $0 }.filter { $0.isAnnotated(AnnotationRegistry.duetComponent) }) %>

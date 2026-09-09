@@ -8,14 +8,14 @@ struct GenericTypeInfo {
 
 extension SourceryRuntime.Annotated {
     func annotatedAssociatedTypes() -> [GenericTypeInfo] {
-        return extractAnnotatedGenericTypes(for: ["associatedtype", "associatedtypes"])
+        return extractAnnotatedGenericTypes(for: [AnnotationRegistry.associatedType])
     }
     func annotatedGenericTypes() -> [GenericTypeInfo] {
-        return extractAnnotatedGenericTypes(for: ["generictype", "generictypes"])
+        return extractAnnotatedGenericTypes(for: [AnnotationRegistry.genericType])
     }
 
     // Each element in `names` might contain several declarations, e.g., "S: Sequence, S: Annotable, S.Iterator.Element: Object"
-    private func extractAnnotatedGenericTypes(for names: [String]) -> [GenericTypeInfo] {
+    private func extractAnnotatedGenericTypes(for names: [Annotation]) -> [GenericTypeInfo] {
         return annotations(for: names)
             .flatMap {
                 return $0.commaSeparated().map { constraint in

@@ -19,12 +19,13 @@
   The pattern implemented here follows this article: https://www.bignerdranch.com/blog/breaking-down-type-erasures-in-swift/
 -%>
 <%- include("_header") -%>
-<%- includeFile("Utility/Annotations") -%>
+<%- includeFile("Annotations/AnnotationRegistry") -%>
+<%- includeFile("Annotations/AnnotationAccess") -%>
 <%- includeFile("Utility/Generics") -%>
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
 <%_
-  let typesToProcess = types.protocols.filter { $0.annotations["TypeErase"] != nil }
+  let typesToProcess = types.protocols.filter { $0.isAnnotated(AnnotationRegistry.typeErasure) }
   generateAdditionalImports(typesToProcess)
 
   for type in typesToProcess {

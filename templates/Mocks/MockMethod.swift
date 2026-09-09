@@ -44,7 +44,7 @@ extension MockMethod {
 
 extension MockMethod {
     fileprivate var annotatedMethodName: String? {
-        return method.annotations(for: ["methodName"]).first
+        return method.annotations(for: AnnotationRegistry.methodName).first
     }
 
     fileprivate var mockedMethodName: String {
@@ -228,7 +228,7 @@ extension MockMethod {
             .map {
                 let referenceTaking = $0.`inout` ? "&" : ""
                 let parameterName = "\(referenceTaking)\($0.name)"
-                if isGeneric, let extractedAnnotatedGenericTypesPlaceholder = $0.annotations(for: ["annotatedGenericType", "annotatedGenericTypes", "genericTypePlaceholder", "genericTypesPlaceholder"]).first {
+                if isGeneric, let extractedAnnotatedGenericTypesPlaceholder = $0.annotations(for: AnnotationRegistry.annotatedGenericTypes).first {
                     let forceCastingToGenericParameterType = " as! \(extractedAnnotatedGenericTypesPlaceholder.resolvingGenericPlaceholders(prefix: genericTypePrefix))"
                     return "\(parameterName)\(forceCastingToGenericParameterType)"
                 } else {

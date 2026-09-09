@@ -14,7 +14,7 @@ extension SourceryRuntime.`Type` {
     /// explicitly with `/// sourcery: globalActor = "MyIsolation"`; the
     /// annotation wins over the attribute.
     var globalActorAttributeName: String? {
-        if let annotated = annotations(for: ["globalActor"]).first, !annotated.isEmpty {
+        if let annotated = annotations(for: AnnotationRegistry.globalActor).first, !annotated.isEmpty {
             return annotated.hasPrefix("@") ? String(annotated.dropFirst()) : annotated
         }
         let actorAttributes = attributes.keys
@@ -31,7 +31,7 @@ extension SourceryRuntime.`Type` {
     /// statement for a test double, and it is what keeps the generated file
     /// compiling in the Swift 6 language mode.
     var requiresUncheckedSendable: Bool {
-        if annotations[caseInsensitiveKey: "uncheckedSendable"] != nil { return true }
+        if isAnnotated(AnnotationRegistry.uncheckedSendable) { return true }
         if inheritedTypes.contains("Sendable") { return true }
         return based.keys.contains("Sendable")
     }
@@ -72,17 +72,11 @@ extension SourceryRuntime.Annotated {
     /// `/// sourcery: subject = "CurrentValue"` / `"Passthrough"` on the member.
     /// Also accepts the full type names.
     var requestedSubjectKind: SubjectKind {
-        switch annotations(for: ["subject"]).first?.lowercased() {
+        switch annotations(for: AnnotationRegistry.subject).first?.lowercased() {
         case "currentvalue", "currentvaluesubject": return .currentValue
         case "passthrough", "passthroughsubject": return .passthrough
         default: return .automatic
         }
-    }
-}
-
-private extension Dictionary where Key == String {
-    subscript(caseInsensitiveKey key: Key) -> Value? {
-        return first { $0.0.lowercased() == key.lowercased() }?.value
     }
 }
 
