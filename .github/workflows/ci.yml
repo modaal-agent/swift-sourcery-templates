@@ -36,6 +36,78 @@ env:
   SOURCERY_VERSION: '2.3.0'
 
 jobs:
+  # ── Rules lane ───────────────────────────────────────────────────
+  # AGENTS.md and CLAUDE.md are one file kept in two places, so that an agent
+  # reading either gets the same rules. This repository once carried different
+  # material in each and the copies drifted. The only lane that reads markdown
+  # and nothing else: no Swift toolchain, no Xcode, no macOS runner, so it runs
+  # on ubuntu in seconds and reports before the others have finished booting.
+  rules:
+    name: Rules files (AGENTS.md == CLAUDE.md)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: AGENTS.md and CLAUDE.md are byte-identical
+        # Fix a failure with `cp AGENTS.md CLAUDE.md`.
+        run: cmp AGENTS.md CLAUDE.md
+
+  # ── Change filter ────────────────────────────────────────────────
+  # Reports whether the push touched anything a build can read. Markdown cannot
+  # break a Swift build, so a docs-only push skips the four macOS lanes rather
+  # than spending about six minutes and a simulator boot to confirm a README is
+  # still a README. The `rules` job is deliberately not gated on this: it reads
+  # markdown, which is exactly what a docs-only push changes.
+  #
+  # It fails open. When the range cannot be computed — a branch's first push,
+  # where `event.before` is all zeros; a force push whose old tip is gone; a
+  # manual dispatch, which sets no range at all — it reports `true` and every
+  # lane runs. A filter that is wrong must be wrong in the direction of running
+  # the lane, because the other direction lands a change nothing checked.
+  changes:
+    name: Change filter
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The default depth of 1 cannot diff against the previous tip.
+          fetch-depth: 0
+
+      - id: filter
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BEFORE:-}" ] \
+             || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "no usable range (before='${BEFORE:-}') — running every lane"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$BEFORE" "$AFTER")"
+          if [ -z "$changed" ]; then
+            echo "empty diff — running every lane"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed files:"
+          printf '%s\n' "$changed" | sed 's/^/  /'
+          # Tested on the file list, not on grep's exit status: `grep -q -v`
+          # is not portable between grep implementations.
+          code_files="$(printf '%s\n' "$changed" | grep -vE '\.md$' || true)"
+          if [ -n "$code_files" ]; then
+            echo "outside **.md, so every lane runs:"
+            printf '%s\n' "$code_files" | sed 's/^/  /'
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "markdown only — skipping the four macOS lanes"
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # ── Fast lane ────────────────────────────────────────────────────
   # Runs first, and alone, because it catches most template regressions in
   # about a minute: it is the only lane that diffs the generated output against
@@ -43,6 +115,8 @@ jobs:
   # language mode. It needs no simulator and no third-party package.
   checks:
     name: Checks (snapshot, both language modes, behaviour)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
@@ -73,6 +147,8 @@ jobs:
   # a minute.
   cli:
     name: CLI (mock-templates build + checks)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
@@ -99,6 +175,8 @@ jobs:
   # through one package shape).
   plugin:
     name: Plugin (source closure, synthesized config, red controls)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
@@ -129,7 +207,8 @@ jobs:
   # resolutions.
   example-project:
     name: Example project (RxSwift, RIBs, type erasure, SPM plugin)
-    needs: checks
+    needs: [changes, checks]
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
