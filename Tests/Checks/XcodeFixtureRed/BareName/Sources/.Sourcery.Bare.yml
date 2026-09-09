@@ -1,0 +1,4 @@
+# `Mocks` is a shipped template, and naming it this way works under SPM. Here it
+# must fail, naming the reason.
+templates:
+  - Mocks

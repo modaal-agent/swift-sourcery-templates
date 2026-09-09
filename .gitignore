@@ -11,3 +11,8 @@ xcuserdata
 # what a consumer does.
 Tests/Checks/PluginFixture/Package.resolved
 Tests/Checks/PluginFixtureRed/*/Package.resolved
+# The Xcode lane generates its projects from a committed `xcodegen.yml` on every
+# run and never commits them: the spec is what a reviewer reads, and the
+# project.pbxproj it produces is generated identifiers.
+Tests/Checks/XcodeFixture/*.xcodeproj
+Tests/Checks/XcodeFixtureRed/*/*.xcodeproj
