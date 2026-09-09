@@ -72,7 +72,8 @@ on a test target with one dependency, `args.testable`.
 
 **Cost, measured.** The derived closure is much larger than what the example used to list — RxSwift,
 RxCocoa, RxRelay, RxBlocking, RxTest, Alamofire, Quick, Nimble and RIBs in full. The example lane
-(`Examples/ExampleProjectSpm/test-ios.sh`), cold, three samples each, Xcode 26.6 / Sourcery 2.3.0:
+(`Tests/Examples/ExampleProjectSpm/test-ios.sh`), cold, three samples each, Xcode 26.6 / Sourcery
+2.3.0:
 
 | | wall time |
 | --- | --- |
@@ -99,10 +100,17 @@ root-package-only `${SOURCERY_SOURCES_LOCAL}`, or keeping explicit variables —
   the shared `--cacheBasePath` and `--buildPath` showed no interference across repeated cold and warm
   rebuilds, so they stay shared.
 
-**Checking it:** a new lane, `Checks/run-plugin-checks.sh`, black-box over `Checks/PluginFixture` and
-four red-control packages under `Checks/PluginFixtureRed/`. It runs in about a minute, needs no
-simulator, and is the only lane that can test the plugin's own logic — a plugin target cannot be
-imported by a test target. It runs in CI beside `checks` and `cli`.
+**Checking it:** a new lane, `Tests/Checks/run-plugin-checks.sh`, black-box over
+`Tests/Checks/PluginFixture` and four red-control packages under `Tests/Checks/PluginFixtureRed/`. It
+runs in about a minute, needs no simulator, and is the only lane that can test the plugin's own
+logic — a plugin target cannot be imported by a test target. It runs in CI beside `checks` and
+`cli`.
+
+**Moved:** everything that verifies the templates now lives under one root — `Checks/` became
+`Tests/Checks/` and `Examples/` became `Tests/Examples/`. Nothing a consumer imports moved: the
+templates, the plugin and the CLI are where they were, and no tag's assets change shape. Only the
+commands move, so a contributor's muscle memory is what breaks — `Checks/run-checks.sh` is now
+`Tests/Checks/run-checks.sh`. Paths quoted in the released entries below predate the move.
 
 Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md).
 

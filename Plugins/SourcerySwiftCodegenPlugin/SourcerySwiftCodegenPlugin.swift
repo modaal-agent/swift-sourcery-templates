@@ -4,8 +4,9 @@ import PackagePlugin
 // The plugin is one file on purpose: a build-tool plugin cannot depend on a
 // library target, so there is no Yams, no shared code with Sources/mock-templates
 // and no unit-test target that can import any of this. See
-// specs/001-plugin-source-discovery/spec.md §1.5, and Checks/run-plugin-checks.sh
-// for the black-box lane that stands in for the tests this file cannot have.
+// specs/001-plugin-source-discovery/spec.md §1.5, and
+// Tests/Checks/run-plugin-checks.sh for the black-box lane that stands in for
+// the tests this file cannot have.
 
 /// This package's manifest name, used to find it in a consumer's graph (§4.5).
 /// The manifest name lives in this repository, so it survives a consumer

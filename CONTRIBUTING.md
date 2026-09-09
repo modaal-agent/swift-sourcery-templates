@@ -30,11 +30,12 @@ Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprin
   SourceSet.swift                   # input enumeration and root-relative paths
 
 Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin — one file, no dependencies allowed
-Checks/                             # fast lane + CLI lane + plugin lane — see Testing below
-  PluginFixture/                    # the plugin lane's green package: one target per config shape
-  PluginFixtureRed/                 # four packages that must FAIL, one per red control
+Tests/                              # everything that verifies the product — see Testing below
+  Checks/                           # fast lane + CLI lane + plugin lane
+    PluginFixture/                  # the plugin lane's green package: one target per config shape
+    PluginFixtureRed/               # four packages that must FAIL, one per red control
+  Examples/ExampleProjectSpm/       # full lane — RxSwift, RIBs, type erasure, the plugin
 Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
-Examples/ExampleProjectSpm/         # full lane — RxSwift, RIBs, type erasure, the plugin
 specs/                              # design specs, NNN-slug/spec.md — see Keep the documents in their lanes
 ```
 
@@ -66,7 +67,7 @@ member — one overload for variables, one for methods.
 Sourcery binary in the artifact bundle, discovers `*.sourcery.yml` files in the target's sources,
 exports `SOURCERY_TARGET_*` environment variables for target and dependency source paths, and runs
 Sourcery per config. Output lands in `$SOURCERY_OUTPUT_DIR` inside DerivedData, never in the source
-tree — which is why `Checks/Snapshots/` exists at all.
+tree — which is why `Tests/Checks/Snapshots/` exists at all.
 
 `modaal-firebase-wrappers` uses the other mode: `sourcery` invoked from a script, output committed, so
 its consumers need no Sourcery installation.
@@ -79,7 +80,7 @@ its consumers need no Sourcery installation.
 2. Add it to `MethodParameter.closureAttributesDecl` in `Mocks/MockMethod.swift` — the **one** place
    that decides which attributes survive. Both the signature and the handler type read it, and the
    Component forwarder reads it through `parametersDecl`
-3. Add the shape to `Checks/Fixtures/`, `--record`, read the diff
+3. Add the shape to `Tests/Checks/Fixtures/`, `--record`, read the diff
 4. If it needs RxSwift or RIBs to express, add a protocol to the example project's `Protocols.swift`
    and a Quick spec
 
@@ -89,9 +90,9 @@ its consumers need no Sourcery installation.
 2. `smartDefaultValueImplementation()` and `hasComplexTypeWithSmartDefaultValue()` for complex ones
    (RxSwift, Combine)
 3. **Mind the match order**: `AnyPublisher`, then `AnyCancellable`, then `Disposable`, then the
-   RxSwift generics. A case inserted in the wrong place silently changes which branch an existing type
-   takes; the snapshot gate is what surfaces it
-4. Add the shape to `Checks/Fixtures/`, `--record`, read the diff
+   RxSwift generics. A case inserted in the wrong place silently changes which branch an existing
+   type takes; the snapshot gate is what surfaces it
+4. Add the shape to `Tests/Checks/Fixtures/`, `--record`, read the diff
 
 ### A concurrency rule
 
@@ -112,9 +113,9 @@ its consumers need no Sourcery installation.
    `reject(unsupportedMembersOf:)` holds the refusals
 2. Reuse rather than restate: isolation from `Mocks/SourceryRuntimeExtensions.swift`, parameter
    declarations from `MethodParameter.parametersDecl`
-3. Add the requirement shape to `Checks/Fixtures/Forwarding.swift`, `--record`, read the diff, and add
-   a behaviour assertion — forwarding has runtime semantics (identity, mutation reaching the parent,
-   `inout` by reference) that a typecheck does not see
+3. Add the requirement shape to `Tests/Checks/Fixtures/Forwarding.swift`, `--record`, read the diff,
+   and add a behaviour assertion — forwarding has runtime semantics (identity, mutation reaching the
+   parent, `inout` by reference) that a typecheck does not see
 4. A construct that cannot be forwarded belongs in `reject(...)` with a sentence naming what the
    author should do, not in a partial emission
 
@@ -127,19 +128,19 @@ its consumers need no Sourcery installation.
 ### The SPM plugin
 
 1. `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift` — all of it. A build-tool
-   plugin **cannot depend on a library target** (SwiftPM rejects it outright), so there is no Yams, no
-   code shared with `Sources/mock-templates`, and no test target that can import any of these types.
-   Everything is PackagePlugin + Foundation in one file
+   plugin **cannot depend on a library target** (SwiftPM rejects it outright), so there is no Yams,
+   no code shared with `Sources/mock-templates`, and no test target that can import any of these
+   types. Everything is PackagePlugin + Foundation in one file
 2. Three parts, in reading order: `YamlLine` (the line rules), `SourceryConfigSynthesizer` (the
-   rewrite — placeholder, template names, defaults, the `output:` check), and
-   `_createBuildCommands` (discovery, the per-config output directories, the collision check)
+   rewrite — placeholder, template names, defaults, the `output:` check), and `_createBuildCommands`
+   (discovery, the per-config output directories, the collision check)
 3. The synthesizer never parses YAML. It recognises a mapping key at column 0 and a whole list item,
    and copies every other byte through. A construct it does not recognise is one it does not touch —
    which is the whole safety argument, so keep new rules to that shape
 4. Conditional compilation for the Swift 5.x vs 6.0+ plugin API differences
-5. Run `Checks/run-plugin-checks.sh` — black-box over `Checks/PluginFixture`, ~1 minute, no simulator.
-   It is the only lane that can test the plugin at all. `Examples/ExampleProjectSpm/test-ios.sh`
-   covers it too, but through one package shape
+5. Run `Tests/Checks/run-plugin-checks.sh` — black-box over `Tests/Checks/PluginFixture`, ~1 minute,
+   no simulator. It is the only lane that can test the plugin at all.
+   `Tests/Examples/ExampleProjectSpm/test-ios.sh` covers it too, but through one package shape
 
 ### The `mock-templates` CLI
 
@@ -148,9 +149,9 @@ its consumers need no Sourcery installation.
    entries skipped, recorded root-relative, sorted), the verbs in `Commands.swift`
 2. The CLI is policy-free: it hashes what it is pointed at and knows nothing about who calls it.
    Anything that decides *which* sources, templates or tag — keep in the calling script
-3. Run `Checks/run-cli-checks.sh`. Its transparency gate diffs `generate`'s body against the fast
-   lane's snapshot, so a wrapper change that alters output is caught even when the templates never
-   changed
+3. Run `Tests/Checks/run-cli-checks.sh`. Its transparency gate diffs `generate`'s body against the
+   fast lane's snapshot, so a wrapper change that alters output is caught even when the templates
+   never changed
 4. A block-format change invalidates every committed fingerprint downstream — bump the version in
    the header line (`mock-templates:fingerprint v1`) and say so in CHANGELOG.md
 
@@ -162,7 +163,7 @@ supported way to change behaviour.
 **Member-level global actors are not propagated.** A non-isolated protocol whose method is
 `@MainActor` produces a non-isolated mock method. A non-isolated witness satisfies the requirement,
 and propagating would make the mock uncallable from a non-isolated test body.
-`Checks/Fixtures/Isolation.swift`'s `TimelineBuildable` keeps this true.
+`Tests/Checks/Fixtures/Isolation.swift`'s `TimelineBuildable` keeps this true.
 
 **`owns` exists because a generated type cannot carry a hand-written `lazy var`**, and Swift has no
 stored properties in extensions. The base-class split is the only shape that lets a composition level
@@ -173,15 +174,15 @@ the protocol would widen a module's API surface as a side effect of generating b
 `componentAccess = "public"` is the opt-in.
 
 **Arguments are recorded by default, and closures never are.** `<method>Args` is generated for every
-mocked method with at least one non-closure parameter: an annotation per method would make the common
-case the opt-in one. Closures are excluded on two counts — a non-escaping one cannot be stored at
-all, and storing an escaping one keeps the caller's captures alive for as long as the mock, which a
-consumer's leak or churn spec reads as a retain by the code under test. The same hazard exists for a
-value parameter of reference type, and `skipArgumentRecording` — on the method or on the protocol —
-is its escape hatch; `Checks/Behaviour/Main.swift`'s `checkArgumentRecordingOptOut` asserts both
-halves with a `weak var`. A generic method records nothing: its parameter types name the *method's*
-generic parameters and a stored property can only name the class's, so the array would be typed
-against a different `S` than the call has.
+mocked method with at least one non-closure parameter: an annotation per method would make the
+common case the opt-in one. Closures are excluded on two counts — a non-escaping one cannot be
+stored at all, and storing an escaping one keeps the caller's captures alive for as long as the
+mock, which a consumer's leak or churn spec reads as a retain by the code under test. The same
+hazard exists for a value parameter of reference type, and `skipArgumentRecording` — on the method
+or on the protocol — is its escape hatch; `Tests/Checks/Behaviour/Main.swift`'s
+`checkArgumentRecordingOptOut` asserts both halves with a `weak var`. A generic method records
+nothing: its parameter types name the *method's* generic parameters and a stored property can only
+name the class's, so the array would be typed against a different `S` than the call has.
 
 **An `AnyPublisher` member is backed by a `PassthroughSubject` — variable and method alike — and a
 replaying stream is the test's to supply through the member's closure.** This is the rule the
@@ -191,11 +192,11 @@ test wrote — `""`, `[:]`, `[]` — the moment the code under test subscribes; 
 then a *second* element, and a bridge awaiting the first value resumes its continuation twice and
 traps. It cannot be opted out of at the call site either: assigning a `PassthroughSubject` to a
 `CurrentValueSubject`-typed property does not compile. Replay goes through `<name>GetHandler` /
-`<name>Handler`, which every publisher member already generates, or through
-`/// sourcery: subject = "CurrentValue"` when every test for that member wants it.
-`Checks/Behaviour/Main.swift`'s `checkCombineStreams` asserts all four corners: the default does not
-replay, a get handler that returns a `CurrentValueSubject` does, `share(id:)` says nothing until the
-test sends, and the annotated `token()` answers on subscribe.
+`<name>Handler`, which every publisher member already generates, or through `/// sourcery: subject =
+"CurrentValue"` when every test for that member wants it. `Tests/Checks/Behaviour/Main.swift`'s
+`checkCombineStreams` asserts all four corners: the default does not replay, a get handler that
+returns a `CurrentValueSubject` does, `share(id:)` says nothing until the test sends, and the
+annotated `token()` answers on subscribe.
 
 **A Component refuses what it cannot forward** — `static`, `init` and `subscript` requirements, and
 associated types — with a diagnostic naming the member. Check `isInitializer` **before** `isStatic`:
@@ -214,37 +215,37 @@ that does not tell the author what to do.
   (including parameter labels). If those still collide — same name *and* parameter list, differing
   only by return type, as when a refining protocol overrides `func data() -> [String: Any]?` with
   `func data() -> [String: Any]` — a sanitized return-type suffix is appended
-  (`dataStringAnyOptionalHandler` vs `dataStringAnyHandler`). Optional types contribute an `Optional`
-  suffix; bracket, colon and space characters are stripped and the remainder camel-cased.
-  `ReturnTypeOverloadMocksSpec.swift` is the reproducer, mirroring Firebase's
-  `QueryDocumentSnapshot : DocumentSnapshot`.
+  (`dataStringAnyOptionalHandler` vs `dataStringAnyHandler`). Optional types contribute an
+  `Optional` suffix; bracket, colon and space characters are stripped and the remainder camel-cased.
+  `ReturnTypeOverloadMocksSpec.swift` is the reproducer, mirroring Firebase's `QueryDocumentSnapshot
+  : DocumentSnapshot`.
 - **A non-Sendable mock and `async`.** A mock of a non-isolated protocol is a non-Sendable class.
   Constructing it on the main actor and then calling a nonisolated `async` member sends it across an
   isolation boundary, which Swift 6 rejects — the test body has to be non-isolated too. This is
-  Swift's rule, not a template defect; `Checks/Behaviour/Main.swift`'s `checkAsync` documents it in
-  place.
+  Swift's rule, not a template defect; `Tests/Checks/Behaviour/Main.swift`'s `checkAsync` documents
+  it in place.
 - **`SourceryRuntime.Protocol` needs backticks** inside a template: the unquoted form collides with
   Foundation's Objective-C protocol metatype and fails to resolve.
 - **Never emit `typeName.name` or `typeName.asSource` directly** — emit `typeName.declaredName`, or
-  `mockTypeName` where a smart default is also in play. The parser returns `(any Sheet)?` as
-  `any Sheet?` in both properties, and that does not compile: *"optional 'any' type must be written
-  '(any Sheet)?'"*. The loss is the same for `some`, for compositions (`(any A & B)?`), and for the
-  type nested inside a closure parameter — which is why
-  `TypeName.parenthesizingOptionalExistentials` works on the rendered string rather than branching on
-  `isOptional`. `DetailPresenting` in `Checks/Fixtures/Composition.swift` pins all four positions.
+  `mockTypeName` where a smart default is also in play. The parser returns `(any Sheet)?` as `any
+  Sheet?` in both properties, and that does not compile: *"optional 'any' type must be written '(any
+  Sheet)?'"*. The loss is the same for `some`, for compositions (`(any A & B)?`), and for the type
+  nested inside a closure parameter — which is why `TypeName.parenthesizingOptionalExistentials`
+  works on the rendered string rather than branching on `isOptional`. `DetailPresenting` in
+  `Tests/Checks/Fixtures/Composition.swift` pins all four positions.
 - **Sourcery only knows the declarations it parses.** `allVariables` / `allMethods` include an
   inherited requirement only when the inherited protocol is among the `--sources`. A protocol
   refining one from *another module* generates a mock missing those requirements, and the failure
   surfaces in the consumer's build as "type 'XMock' does not conform to protocol 'Y'" — never here.
-  The fix belongs to whatever drives generation: pass the other module's sources too. **On the plugin
-  path, `${SOURCERY_SOURCES}` closes this** — the plugin derives the target's whole dependency
-  closure and splices it into the config it runs, so a refinement across any module boundary needs no
-  config change (spec [001](specs/001-plugin-source-discovery/spec.md);
-  `Checks/PluginFixture/Sources/App` is the reproducer, and
-  `Examples/ExampleProjectSpm`'s `ProfilePersisting` is the same shape on the full lane). On the CLI
-  path it stays the caller's job: the Duet reference app's `scripts/generate-mocks.sh` derives the
-  set from `swift package dump-package` (every path dependency, plus the framework at its exact pin)
-  rather than listing paths, so a new refinement needs no change to the script.
+  The fix belongs to whatever drives generation: pass the other module's sources too. **On the
+  plugin path, `${SOURCERY_SOURCES}` closes this** — the plugin derives the target's whole
+  dependency closure and splices it into the config it runs, so a refinement across any module
+  boundary needs no config change (spec [001](specs/001-plugin-source-discovery/spec.md);
+  `Tests/Checks/PluginFixture/Sources/App` is the reproducer, and
+  `Tests/Examples/ExampleProjectSpm`'s `ProfilePersisting` is the same shape on the full lane). On
+  the CLI path it stays the caller's job: the Duet reference app's `scripts/generate-mocks.sh`
+  derives the set from `swift package dump-package` (every path dependency, plus the framework at
+  its exact pin) rather than listing paths, so a new refinement needs no change to the script.
 
 ### SourceryRuntime API notes
 
@@ -264,34 +265,35 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 
 | lane | command | needs |
 |------|---------|-------|
-| fast | `Checks/run-checks.sh` | a Swift toolchain; ~10s |
-| CLI | `Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
-| plugin | `Checks/run-plugin-checks.sh` | a Swift toolchain and, once, the network; ~1 min cold |
-| full | `cd Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
+| fast | `Tests/Checks/run-checks.sh` | a Swift toolchain; ~10s |
+| CLI | `Tests/Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | a Swift toolchain and, once, the network; ~1 min cold |
+| full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
-Both check lanes provision the pinned Sourcery through `Checks/ensure-sourcery.sh` — the pin and the
-download path live once; `SOURCERY=/path/to/sourcery` overrides it in either lane.
+Both check lanes provision the pinned Sourcery through `Tests/Checks/ensure-sourcery.sh` — the pin
+and the download path live once; `SOURCERY=/path/to/sourcery` overrides it in either lane.
 
-The fast lane runs every template in its `TEMPLATES` list over `Checks/Fixtures`, diffs each output
-against `Checks/Snapshots/`, typechecks the fixtures **and all generated files together** under
-`-swift-version 5 -strict-concurrency=complete` and `-swift-version 6` at zero diagnostics, then runs
-`Checks/Behaviour/Main.swift` — plain assertions in one executable, no test framework. Compiling every
-template's output in one invocation is what keeps a mock and a Component of the same protocol from
-disagreeing about isolation.
+The fast lane runs every template in its `TEMPLATES` list over `Tests/Checks/Fixtures`, diffs each
+output against `Tests/Checks/Snapshots/`, typechecks the fixtures **and all generated files
+together** under `-swift-version 5 -strict-concurrency=complete` and `-swift-version 6` at zero
+diagnostics, then runs `Tests/Checks/Behaviour/Main.swift` — plain assertions in one executable, no
+test framework. Compiling every template's output in one invocation is what keeps a mock and a
+Component of the same protocol from disagreeing about isolation.
 
 Adding a template is one line in `TEMPLATES` plus a recorded snapshot.
 
-The plugin lane builds `Checks/PluginFixture` — a package whose targets are one per config shape, over
-a three-level dependency chain (`App` → `Middle` → `Leaf`, with `ExternalKit` arriving through
-`Middle` from a second package) — and then reads what the plugin wrote: the synthesized configs, the
-generated code, and the build's own outcome. Its four red controls live in
-`Checks/PluginFixtureRed/`, one package each, because build planning runs *every* target's plugin: a
-plan-time error in one target fails the build for all of them, so no `--target` can isolate a red
-control that shares a package with a green one. See `Checks/README.md`.
+The plugin lane builds `Tests/Checks/PluginFixture` — a package whose targets are one per config
+shape, over a three-level dependency chain (`App` → `Middle` → `Leaf`, with `ExternalKit` arriving
+through `Middle` from a second package) — and then reads what the plugin wrote: the synthesized
+configs, the generated code, and the build's own outcome. Its four red controls live in
+`Tests/Checks/PluginFixtureRed/`, one package each, because build planning runs *every* target's
+plugin: a plan-time error in one target fails the build for all of them, so no `--target` can
+isolate a red control that shares a package with a green one. See `Tests/Checks/README.md`.
 
-The full lane is Quick + Nimble specs in `Examples/ExampleProjectSpm/Sources/ExampleProjectSpmTests/`,
-driven by the prebuild plugin. It covers what the fast lane structurally cannot: RxSwift smart
-defaults, the RIBs external-annotation pattern, type erasure, and the plugin itself.
+The full lane is Quick + Nimble specs in
+`Tests/Examples/ExampleProjectSpm/Sources/ExampleProjectSpmTests/`, driven by the prebuild plugin.
+It covers what the fast lane structurally cannot: RxSwift smart defaults, the RIBs
+external-annotation pattern, type erasure, and the plugin itself.
 
 `test-ios.sh` resolves whatever iOS runtime is installed; override with `DESTINATION`, `OS_VERSION` or
 `DEVICE_NAME`.
@@ -300,17 +302,17 @@ defaults, the RIBs external-annotation pattern, type erasure, and the plugin its
 
 | lane | file | covers |
 |------|------|--------|
-| fast | `Checks/Snapshots/Mocks.generated.swift` | the generated mocks, as a reviewable diff |
-| fast | `Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
-| fast | `Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
-| CLI | `Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
-| plugin | `Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and four red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone |
+| fast | `Tests/Checks/Snapshots/Mocks.generated.swift` | the generated mocks, as a reviewable diff |
+| fast | `Tests/Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
+| fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
+| CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and four red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |
 | full | `SwiftSourceryTemplatesTypeErasureSpec.swift` | type erasure wrapper conformance |
 
-`Checks/README.md` maps construct → fixture.
+`Tests/Checks/README.md` maps construct → fixture.
 
 ### CI
 
@@ -347,7 +349,7 @@ version first.
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is the `sourcery` binaryTarget in `Package.swift` — `Scripts/assemble-release.sh` parses it when vendoring the engine into the release bundle; `Checks/ensure-sourcery.sh` keeps a copy for the check lanes |
+| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is the `sourcery` binaryTarget in `Package.swift` — `Scripts/assemble-release.sh` parses it when vendoring the engine into the release bundle; `Tests/Checks/ensure-sourcery.sh` keeps a copy for the check lanes |
 | swift-argument-parser | 1.3.0+ | the `mock-templates` CLI's command-line surface |
 | Quick | 7.3.0 | BDD test framework (full lane) |
 | Nimble | 13.0.0 | matchers (full lane) |
@@ -359,13 +361,13 @@ version first.
 
 - **[modaal-firebase-wrappers](https://github.com/modaal-agent/modaal-firebase-wrappers)** — the
   reference consumer: 34 mocks across 7 modules, pre-generated and committed. Its
-  `scripts/generate-mocks.sh` is the adopter pattern worth copying — templates cloned at a pinned tag,
-  annotations in their own directory, one output file per module, `TEMPLATES_DIR` override for local
-  iteration. Regenerate it when measuring a release's consumer impact.
-- **The Duet reference app** — drove 0.2.15 and the Component template. 93
-  `/// sourcery: CreateMock` annotations including an `<X>Dependency` protocol at each of its 13
-  composition levels, built with `-strict-concurrency=complete`; the `Checks/Fixtures/` shapes are
-  taken from it. The shape the Component template emits is specified in `modaal-agent`'s
+  `scripts/generate-mocks.sh` is the adopter pattern worth copying — templates cloned at a pinned
+  tag, annotations in their own directory, one output file per module, `TEMPLATES_DIR` override for
+  local iteration. Regenerate it when measuring a release's consumer impact.
+- **The Duet reference app** — drove 0.2.15 and the Component template. 93 `/// sourcery:
+  CreateMock` annotations including an `<X>Dependency` protocol at each of its 13 composition
+  levels, built with `-strict-concurrency=complete`; the `Tests/Checks/Fixtures/` shapes are taken
+  from it. The shape the Component template emits is specified in `modaal-agent`'s
   `specs/100-android-parity/27-duet-composition-shape.md` — §2 for the rule, §13 for the
   macro-vs-template measurement behind choosing a template.
 
@@ -375,14 +377,14 @@ version first.
   a consumer shipping mocks in a separate SPM product needs `@testable import`. Making them `public`
   touches `MockGenerator.swift` (class declaration, initializer), `MockMethod.swift` (func,
   `<name>CallCount`, `<name>Handler`) and `MockVar.swift` (the variable, `GetCount` / `GetHandler` /
-  `SetCount`). Decide whether it is the default or gated behind an annotation
-  (`sourcery: publicMock`) or a template arg (`--args publicMocks`); `public` as the default is
-  probably right, since mocks are always consumed from another module.
-- **Effectful property requirements in the mock template.** `var x: T { get async throws }` is parsed
-  by Sourcery (`Variable.isAsync`, `Variable.throws`) and ignored by `Mocks.swifttemplate`, which
-  emits a plain property that does not satisfy the requirement. Fixing it means always emitting a
-  computed property with a `get async throws { }` accessor plus a separate backing store — a new
-  naming convention, so it was left out of 0.2.15 rather than guessed at. No consumer uses the shape.
-  The Component template **does** forward it (`Checks/Fixtures/Forwarding.swift`,
-  `ProfileDependency`), because forwarding an effectful requirement is a pass-through and mocking one
-  is not.
+  `SetCount`). Decide whether it is the default or gated behind an annotation (`sourcery:
+  publicMock`) or a template arg (`--args publicMocks`); `public` as the default is probably right,
+  since mocks are always consumed from another module.
+- **Effectful property requirements in the mock template.** `var x: T { get async throws }` is
+  parsed by Sourcery (`Variable.isAsync`, `Variable.throws`) and ignored by `Mocks.swifttemplate`,
+  which emits a plain property that does not satisfy the requirement. Fixing it means always
+  emitting a computed property with a `get async throws { }` accessor plus a separate backing store
+  — a new naming convention, so it was left out of 0.2.15 rather than guessed at. No consumer uses
+  the shape. The Component template **does** forward it (`Tests/Checks/Fixtures/Forwarding.swift`,
+  `ProfileDependency`), because forwarding an effectful requirement is a pass-through and mocking
+  one is not.

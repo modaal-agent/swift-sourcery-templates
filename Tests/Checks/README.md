@@ -12,9 +12,9 @@ simulator and no third-party package, so it runs in a few seconds and is the loo
 to use while editing `templates/`.
 
 ```bash
-Checks/run-checks.sh              # run the gates
-Checks/run-checks.sh --record     # rewrite the snapshots, then run the gates
-SOURCERY=/path/to/sourcery Checks/run-checks.sh
+Tests/Checks/run-checks.sh              # run the gates
+Tests/Checks/run-checks.sh --record     # rewrite the snapshots, then run the gates
+SOURCERY=/path/to/sourcery Tests/Checks/run-checks.sh
 ```
 
 | gate | what it proves |
@@ -121,19 +121,19 @@ fail the whole lane.
 RxSwift smart defaults (`Single`, `Observable`, `AnyObserver`, `Disposable`),
 RIBs protocol annotation and type erasure. Those need the dependencies and the
 simulator, and they live in
-[`Examples/ExampleProjectSpm`](../Examples/ExampleProjectSpm) — run
+[`Tests/Examples/ExampleProjectSpm`](../Examples/ExampleProjectSpm) — run
 `./test-ios.sh` there. The build-tool plugin has a lane of its own, below. Run
 all of them before cutting a tag.
 
 # The plugin lane
 
 ```bash
-Checks/run-plugin-checks.sh          # ~1 min cold, no simulator
-Checks/run-plugin-checks.sh --keep   # keep the plugin outputs too (faster, less cold)
+Tests/Checks/run-plugin-checks.sh          # ~1 min cold, no simulator
+Tests/Checks/run-plugin-checks.sh --keep   # keep the plugin outputs too (faster, less cold)
 ```
 
 A build-tool plugin may not depend on a library target, so no test target can
-import [`SourcerySwiftCodegenPlugin.swift`](../Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift).
+import [`SourcerySwiftCodegenPlugin.swift`](../../Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift).
 Every gate is therefore black-box: build a fixture package, then read the
 synthesized configs under `.sourceryConfigs/`, the generated code under
 `.generatedFiles/`, and the build's own outcome.

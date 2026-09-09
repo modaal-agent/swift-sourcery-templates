@@ -15,7 +15,7 @@ let package = Package(
     .package(url: "https://github.com/ReactiveX/RxSwift.git", from: "6.6.0"),
     .package(url: "https://github.com/Quick/Quick.git", from: "7.3.0"),
     .package(url: "https://github.com/Quick/Nimble.git", from: "13.0.0"),
-    .package(name: "swift-sourcery-templates", path: "../.."),
+    .package(name: "swift-sourcery-templates", path: "../../.."),
   ],
   targets: [
     // Two levels below the test target: `ExampleProjectSpmTests` depends on

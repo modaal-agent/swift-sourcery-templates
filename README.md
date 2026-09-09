@@ -94,7 +94,7 @@ Three things are deliberately not recorded:
 ## Concurrency
 
 The generated file is held to zero diagnostics under `-swift-version 5 -strict-concurrency=complete`
-and under `-swift-version 6` — see [`Checks/`](Checks).
+and under `-swift-version 6` — see [`Tests/Checks/`](Tests/Checks).
 
 | protocol declares | mock gets |
 | --- | --- |
@@ -225,9 +225,9 @@ the same helpers, so they cannot disagree about which member is `nonisolated`.
 
 | lane | command | covers |
 | --- | --- | --- |
-| fast | `Checks/run-checks.sh` | snapshot of every template's generated output, both language modes, runtime behaviour. Mocks and Components are typechecked together, so the two cannot disagree about isolation. No simulator, no third-party packages, seconds |
-| plugin | `Checks/run-plugin-checks.sh` | the SPM build-tool plugin, black-box over a fixture package: the derived source closure, the synthesized config, the defaults it supplies, and four red controls that must stay red. No simulator |
-| full | `Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
+| fast | `Tests/Checks/run-checks.sh` | snapshot of every template's generated output, both language modes, runtime behaviour. Mocks and Components are typechecked together, so the two cannot disagree about isolation. No simulator, no third-party packages, seconds |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the SPM build-tool plugin, black-box over a fixture package: the derived source closure, the synthesized config, the defaults it supplies, and four red controls that must stay red. No simulator |
+| full | `Tests/Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
 
 All of them run on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), the fast lane
 first. Run them locally before cutting a tag.
@@ -317,7 +317,7 @@ xattr -dr com.apple.quarantine <...Derived Data Folder>/SourcePackages/checkouts
 2. Configuring code generation
 
 Code generation is configured per target. Put a `*.sourcery*.yml` config file in the target's
-source folder (refer to the [example project](Examples/ExampleProjectSpm/)):
+source folder (refer to the [example project](Tests/Examples/ExampleProjectSpm/)):
 
 <img src="/docs/img/sourcery_target_config.png" alt="Sourcery config files per target" style="height: 332px;"/>
 

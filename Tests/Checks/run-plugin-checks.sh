@@ -32,7 +32,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GIT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+GIT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 WORK_DIR="$GIT_ROOT/.build/plugin-checks"
 CACHE_DIR="$WORK_DIR/cache"

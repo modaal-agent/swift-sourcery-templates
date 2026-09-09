@@ -32,7 +32,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GIT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+GIT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 FIXTURES_DIR="$SCRIPT_DIR/Fixtures"
 BEHAVIOUR_DIR="$SCRIPT_DIR/Behaviour"

@@ -63,7 +63,7 @@ jobs:
         run: swift --version
 
       - name: Run checks
-        run: Checks/run-checks.sh
+        run: Tests/Checks/run-checks.sh
 
   # ── CLI lane ─────────────────────────────────────────────────────
   # The mock-templates executable: `generate` transparency against the fast
@@ -88,15 +88,15 @@ jobs:
           key: sourcery-${{ runner.os }}-${{ env.SOURCERY_VERSION }}
 
       - name: Run CLI checks
-        run: Checks/run-cli-checks.sh
+        run: Tests/Checks/run-cli-checks.sh
 
   # ── Plugin lane ──────────────────────────────────────────────────
-  # The SPM build-tool plugin, black-box over Checks/PluginFixture: the derived
-  # source closure, the synthesized config, the defaults it supplies and the four
-  # red controls that must stay red. Runs beside `checks` and `cli` rather than
-  # behind them — it needs no simulator, and it is the only lane that exercises
-  # the plugin's own logic (the example lane exercises the plugin, but through
-  # one package shape).
+  # The SPM build-tool plugin, black-box over Tests/Checks/PluginFixture: the
+  # derived source closure, the synthesized config, the defaults it supplies and
+  # the four red controls that must stay red. Runs beside `checks` and `cli`
+  # rather than behind them — it needs no simulator, and it is the only lane that
+  # exercises the plugin's own logic (the example lane exercises the plugin, but
+  # through one package shape).
   plugin:
     name: Plugin (source closure, synthesized config, red controls)
     runs-on: macos-15
@@ -117,7 +117,7 @@ jobs:
           restore-keys: plugin-checks-${{ runner.os }}-${{ env.SOURCERY_VERSION }}-
 
       - name: Run plugin checks
-        run: Checks/run-plugin-checks.sh
+        run: Tests/Checks/run-plugin-checks.sh
 
   # ── Full lane ────────────────────────────────────────────────────
   # Covers what the fast lane structurally cannot: the RxSwift smart defaults
@@ -145,7 +145,7 @@ jobs:
         run: xcrun simctl list devices available
 
       - name: Run example project tests
-        working-directory: Examples/ExampleProjectSpm
+        working-directory: Tests/Examples/ExampleProjectSpm
         run: ./test-ios.sh
         # If this lane's wall time becomes a problem, the fix is to teach
         # test-ios.sh a `-derivedDataPath` and cache it, the way the
