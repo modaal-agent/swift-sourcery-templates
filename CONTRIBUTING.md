@@ -9,10 +9,13 @@ changed in each release**, see [CHANGELOG.md](CHANGELOG.md).
 
 ```
 templates/                          # the product
-  Mocks.swifttemplate               # entry point — includes Mocks/*, filters by `CreateMock`
-  TypeErase.swifttemplate           # entry point for type erasure
+  Mocks.swifttemplate               # entry point — includes Mocks/*, filters by `ProtocolMock`
+  TypeErase.swifttemplate           # entry point for type erasure, filters by `TypeErasure`
   Component.swifttemplate           # entry point — the same includes plus Component/, filters by `DuetComponent`
   _header.swifttemplate             # shared header — imports, SwiftLint directives
+  Annotations/
+    AnnotationRegistry.swift        # every annotation verb, named once — see A new annotation
+    AnnotationAccess.swift          # the only file that reads a `/// sourcery:` key by name
   Mocks/
     MockGenerator.swift             # orchestrator: iterates protocols, emits class shells
     MockMethod.swift                # method mocking: signature, handler closure, call count
@@ -21,7 +24,7 @@ templates/                          # the product
     SourceryRuntimeExtensions.swift # default values, smart defaults, the concurrency helpers
   Component/
     ComponentGenerator.swift        # forwarding emission; consumes the Mocks/ rules
-  Utility/                          # annotation parsing, generics, string helpers
+  Utility/                          # generics, string helpers
 
 Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprint, validate
   MockTemplates.swift               # command tree
@@ -33,16 +36,25 @@ Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin — one file, no depen
 Tests/                              # everything that verifies the product — see Testing below
   Checks/                           # fast lane + CLI lane + plugin lane + Xcode lane
     PluginFixture/                  # the plugin lane's green package: one target per config shape
-    PluginFixtureRed/               # four packages that must FAIL, one per red control
+    PluginFixtureRed/               # five packages that must FAIL, one per red control
     PluginFixtureBundleRoute/       # the only fixture that runs the artifact-bundle template route
     XcodeFixture/                   # the Xcode lane's green project — an xcodegen.yml, no .xcodeproj
     XcodeFixtureRed/                # one project per red control — each must FAIL
   Examples/
     ExampleProjectSpm/              # full lane — RxSwift, RIBs, type erasure, the plugin
     ExampleProjectXcode/            # the adopter's shape, by URL at a tag — not a lane
+  Evals/                            # the skill's behavioural gate — five prompts, run with it and without
 Scripts/
   assemble-release.sh               # builds the release assets — see Cutting a release
   engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
+  render-annotations.sh             # renders templates/Annotations/ into every document that documents it
+skills/                             # the agent skill, published by four channels — see The agent skill
+  swift-sourcery-mocks/
+    SKILL.md                        # the resident body; its annotation block is rendered
+    references/*.md                 # loaded per lane, not resident
+.claude-plugin/                     # the Claude Code plugin channel: the repository root is the marketplace
+  marketplace.json                  # one entry, source "./"
+  plugin.json                       # the plugin; its default skills/ is the tree above
 specs/                              # design specs, NNN-slug/spec.md — see What goes in which document
 ```
 
@@ -128,9 +140,17 @@ its consumers need no Sourcery installation.
 
 ### A new annotation
 
-1. `Utility/Annotations.swift` — parsing
-2. `Mocks/MockVar.swift` / `Mocks/MockMethod.swift`, or `Component/ComponentGenerator.swift`
-3. Add the row to README.md's annotations table
+1. `Annotations/AnnotationRegistry.swift` — add the record, and add it to `all`. A template selector
+   is an UpperCamelCase noun naming what gets generated; an option is lowerCamelCase. A spelling that
+   once worked goes in `aliases`, never in a second record
+2. Read it where the template needs it — `Mocks/MockVar.swift` / `Mocks/MockMethod.swift`, or
+   `Component/ComponentGenerator.swift` — through `isAnnotated(_:)` or `annotations(for:)`, passing
+   the record. A string literal there fails `Tests/Checks/run-annotation-checks.sh`
+3. Run `Scripts/render-annotations.sh --write`, read the diff, and commit what it wrote
+
+A verb that shipped is never deleted: move it to `retired` with the release that retired it and its
+replacement, so a consumer's next regenerate says what to write instead of dropping a mock in
+silence.
 
 ### The SPM plugin
 
@@ -161,6 +181,28 @@ its consumers need no Sourcery installation.
    never changed
 4. A block-format change invalidates every committed fingerprint downstream — bump the version in
    the header line (`mock-templates:fingerprint v1`) and say so in CHANGELOG.md
+
+### The agent skill
+
+1. `skills/swift-sourcery-mocks/` — `SKILL.md` says what to do and stays under 400 lines, because it
+   is in context for every turn after it is invoked; anything longer moves into `references/*.md`,
+   which cost nothing until the agent opens one
+2. It teaches an agent working in a repository that *adopts* the templates. Editing the templates is
+   this file's subject and AGENTS.md's, and both are already loaded by an agent working here
+3. The annotation table is rendered by `Scripts/render-annotations.sh`, never written by hand
+4. No version literal anywhere in the tree: a `from: "0.7.0"` in a snippet is wrong the day after
+   the next tag and nothing in the adopter's repository reads it. Snippets carry a placeholder and
+   the command that resolves the newest tag
+5. Run `Tests/Checks/run-skill-checks.sh`. SC6 and SC7 are why the skill lives here: every
+   `SOURCERY_*` variable it names is compared against the plugin source and every `mock-templates`
+   flag against `Commands.swift`, on the push that changes either side
+6. The frontmatter carries only the Agent Skills standard's six keys, so the directory uploads to
+   claude.ai unedited — and its values are quoted or free of `: `, which the cross-agent CLI's YAML
+   parser refuses in a plain scalar
+7. `Tests/Evals/` holds the suite that measures whether the skill changes what an agent does. It
+   cannot live under `skills/`: that is the plugin's skill component directory, and the runner
+   refuses a case directory inside one. `.claude-plugin/plugin.json` names it in
+   `experimental.evals`, and `Tests/Evals/README.md` gives the two ways to run it
 
 ## Design rules already decided
 
@@ -272,11 +314,20 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 
 | lane | command | needs |
 |------|---------|-------|
-| fast | `Tests/Checks/run-checks.sh` | a Swift toolchain; ~10s |
+| annotations | `Tests/Checks/run-annotation-checks.sh` | nothing but a shell; seconds |
+| skill | `Tests/Checks/run-skill-checks.sh` | a shell and `python3`; seconds |
+| fast | `Tests/Checks/run-checks.sh` | a Swift toolchain; ~15s |
 | CLI | `Tests/Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | a Swift toolchain and, once, the network; ~1 min cold |
 | xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
+
+`Tests/Evals/` is not a lane. It is the skill's behavioural gate: each of five prompts run once with
+the plugin loaded and once without, and the two answers compared — `claude plugin eval . --ablation
+with-without`, or the pair of `claude -p` invocations in `Tests/Evals/README.md`. It spends model
+calls and a few minutes, the runner is in early access, and no CI job runs it. Run it when the
+skill's text changes. What runs on every push is `run-skill-checks.sh` SC13, which only checks that
+each case would parse.
 
 `Tests/Examples/ExampleProjectXcode/build.sh` is not a *branch* lane. It resolves this package from
 its published URL at a version, so making it one would put every push at the mercy of the last
@@ -295,18 +346,20 @@ Both check lanes provision Sourcery through `Tests/Checks/ensure-sourcery.sh`, w
 from `Scripts/engine-pin.sh`; `SOURCERY=/path/to/sourcery` overrides it in either lane.
 
 The fast lane runs every template in its `TEMPLATES` list over `Tests/Checks/Fixtures`, diffs each
-output against `Tests/Checks/Snapshots/`, typechecks the fixtures **and all generated files
-together** under `-swift-version 5 -strict-concurrency=complete` and `-swift-version 6` at zero
-diagnostics, then runs `Tests/Checks/Behaviour/Main.swift` — plain assertions in one executable, no
-test framework. Compiling every template's output in one invocation is what keeps a mock and a
-Component of the same protocol from disagreeing about isolation.
+output against `Tests/Checks/Snapshots/`, checks that a misspelled selector fails generation and a
+misspelled option writes one comment line and generates anyway, typechecks the fixtures **and all
+generated files together** under `-swift-version 5 -strict-concurrency=complete` and
+`-swift-version 6` at zero diagnostics, then runs `Tests/Checks/Behaviour/Main.swift` — plain
+assertions in one executable, no test framework. Compiling every template's output in one
+invocation is what keeps a mock and a Component of the same protocol from disagreeing about
+isolation.
 
 Adding a template is one line in `TEMPLATES` plus a recorded snapshot.
 
 The plugin lane builds `Tests/Checks/PluginFixture` — a package whose targets are one per config
 shape, over a three-level dependency chain (`App` → `Middle` → `Leaf`, with `ExternalKit` arriving
 through `Middle` from a second package) — and then reads what the plugin wrote: the synthesized
-configs, the generated code, and the build's own outcome. Its four red controls live in
+configs, the generated code, and the build's own outcome. Its five red controls live in
 `Tests/Checks/PluginFixtureRed/`, one package each, because build planning runs *every* target's
 plugin: a plan-time error in one target fails the build for all of them, so no `--target` can
 isolate a red control that shares a package with a green one. See `Tests/Checks/README.md`.
@@ -340,8 +393,10 @@ external-annotation pattern, type erasure, and the plugin itself.
 | fast | `Tests/Checks/Snapshots/Mocks.generated.swift` | the generated mocks, as a reviewable diff |
 | fast | `Tests/Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
+| annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
+| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11); every eval case under the directory `experimental.evals` names carrying a prompt and at least one grader the runner would accept (SC13). `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
-| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and four red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match |
 | plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
 | xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
@@ -353,8 +408,10 @@ external-annotation pattern, type erasure, and the plugin itself.
 
 ### CI
 
-`.github/workflows/ci.yml` runs all five lanes on every push: fast, CLI, plugin and xcode in
-parallel, full gated on fast. A push touching only `**.md` skips all five. Xcode is
+`.github/workflows/ci.yml` runs all seven lanes on every push: fast, CLI, plugin and xcode in
+parallel, full gated on fast, and annotations and skill on ubuntu. A push touching only `**.md`,
+`.claude-plugin/` or `skills/` skips the five macOS lanes; annotations and skill are outside that
+filter, because those three paths are exactly what they read. Xcode is
 pinned via `XCODE_VERSION` because the fast lane's gate is *zero diagnostics*: a runner image whose
 compiler emits one new warning would turn it red for a reason unrelated to the templates. The gate has
 been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4), so the pin is for
@@ -376,7 +433,7 @@ the assets to the tag's GitHub release.
 
 ## Cutting a release
 
-1. Run all five lanes green
+1. Run all seven lanes green
 2. Regenerate the reference consumer (`modaal-firebase-wrappers`) against `master` and record the size
    and shape of its diff. A release whose consumer impact was not measured is not ready to tag
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to

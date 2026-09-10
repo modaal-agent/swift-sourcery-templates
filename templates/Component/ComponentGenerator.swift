@@ -94,7 +94,7 @@ private extension ComponentGenerator {
     /// its whole name as the stem, so `Timeline` → `TimelineComponent` too.
     static func componentName(for type: SourceryRuntime.`Type`) throws -> String {
         let suffix = ownsScope(type) ? "ComponentBase" : "Component"
-        if let annotated = type.annotations(for: ["componentName"]).first, !annotated.isEmpty {
+        if let annotated = type.annotations(for: AnnotationRegistry.componentName).first, !annotated.isEmpty {
             return "\(annotated)\(ownsScope(type) ? "Base" : "")"
         }
         let stem = type.name.hasSuffix("Dependency")
@@ -107,13 +107,13 @@ private extension ComponentGenerator {
     }
 
     static func ownsScope(_ type: SourceryRuntime.`Type`) -> Bool {
-        return type.annotations["owns"] != nil
+        return type.isAnnotated(AnnotationRegistry.owns)
     }
 
     /// Internal unless asked otherwise. Returns the modifier with its trailing
     /// space, so it concatenates directly.
     static func accessDecl(_ type: SourceryRuntime.`Type`) -> String {
-        guard let requested = type.annotations(for: ["componentAccess"]).first, !requested.isEmpty else { return "" }
+        guard let requested = type.annotations(for: AnnotationRegistry.componentAccess).first, !requested.isEmpty else { return "" }
         return requested.hasSuffix(" ") ? requested : "\(requested) "
     }
 }

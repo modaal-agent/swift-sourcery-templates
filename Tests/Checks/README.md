@@ -8,7 +8,7 @@ generated Xcode project. The fast lane comes first.
 ## The fast lane
 
 `./run-checks.sh` runs every template in its `TEMPLATES` list over
-[`Fixtures/`](Fixtures) and holds the results to four gates. It needs no
+[`Fixtures/`](Fixtures) and holds the results to five gates. It needs no
 simulator and no third-party package, so it runs in a few seconds and is the loop
 to use while editing `templates/`.
 
@@ -22,6 +22,7 @@ SOURCERY=/path/to/sourcery Tests/Checks/run-checks.sh
 | --- | --- |
 | **snapshot** | each generated file matches its recording in [`Snapshots/`](Snapshots), so every template change shows up as a reviewable diff of real output |
 | **zero-match** | a scan with no matching annotation still writes the file — the generators emit a marker comment, because the engine skips whitespace-only renders and consumers commit + fingerprint the output — snapshotted as `ZeroMatch-*` |
+| **near-miss** | a selector whose spelling differs from the registry's only in case fails the run, naming the type, the spelling found and the canonical form; an option that does writes one `// sourcery-templates:` comment into the generated file and generation continues |
 | **typecheck** | all of them compile **together** with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6` |
 | **behaviour** | the mocks count calls, record arguments, run handlers, suspend where the protocol suspends and deliver values pushed into their subjects; the Components forward to the parent and hold what the level owns — [`Behaviour/Main.swift`](Behaviour/Main.swift), plain assertions in one executable |
 
@@ -99,6 +100,20 @@ saying why the mock template does not see it.
 | `@escaping @Sendable` closure parameter | `RegistrationDependency` |
 | effectful property (`{ get async throws }`) | `ProfileDependency` |
 | `componentName` / `componentAccess` overrides | `OnboardingFlowDependency` |
+
+[`Vocabulary.swift`](Fixtures/Vocabulary.swift) covers which spelling selects
+which template. Every other fixture writes `CreateMock`, the spelling that
+shipped and is now an alias, so without this file the canonical names appear in
+no generated output.
+
+| construct | fixture |
+| --- | --- |
+| the canonical mock selector | `VocabularyCanonical` |
+| `ObjcProtocolMock` standing alone — an `NSObject` mock from one annotation | `VocabularyObjc` |
+| the `CreateMock` + `ObjcProtocol` pair a consumer's source still carries | `VocabularyLegacyObjc` |
+
+A misspelling is not here: it fails generation for the whole run, so it lives in
+`run-checks.sh`'s near-miss section and in `PluginFixtureRed/NearMiss`.
 | a Component name not derived from a `Dependency` suffix | `AppServicesRegistering` |
 | optional existentials in a forwarded signature | `DetailPresenting` |
 
@@ -193,7 +208,7 @@ assertions fail.
 
 ## The red controls
 
-[`PluginFixtureRed/`](PluginFixtureRed) holds four packages that must **fail**,
+[`PluginFixtureRed/`](PluginFixtureRed) holds five packages that must **fail**,
 each matched on its diagnostic. One package each: build planning runs every
 target's plugin, so a plan-time error in one target fails the build for all of
 them and no `--target` can isolate it.
@@ -204,6 +219,7 @@ them and no `--target` can isolate it.
 | `Collision` | two configs of one target name the same template, so both would put files declaring the same types on one compile path |
 | `UnknownTemplate` | its `templates:` entry names nothing; the plugin warns and lists the shipped templates, then Sourcery fails |
 | `PackageKey` | it declares `package:` in place of `sources:`; the gate is that **no** `sources:` block was appended over it |
+| `NearMiss` | its protocol is annotated `protocolmock`, which is not `ProtocolMock` — names are matched exactly, including case, and the error names the type and the canonical spelling |
 
 A red control that stops failing is a gate that stopped gating, so each one
 matches on the diagnostic text, not merely on a non-zero exit.

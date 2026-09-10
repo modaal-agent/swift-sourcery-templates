@@ -14,7 +14,7 @@ extension SourceryRuntime.`Type` {
     /// explicitly with `/// sourcery: globalActor = "MyIsolation"`; the
     /// annotation wins over the attribute.
     var globalActorAttributeName: String? {
-        if let annotated = annotations(for: ["globalActor"]).first, !annotated.isEmpty {
+        if let annotated = annotations(for: AnnotationRegistry.globalActor).first, !annotated.isEmpty {
             return annotated.hasPrefix("@") ? String(annotated.dropFirst()) : annotated
         }
         let actorAttributes = attributes.keys
@@ -31,7 +31,7 @@ extension SourceryRuntime.`Type` {
     /// statement for a test double, and it is what keeps the generated file
     /// compiling in the Swift 6 language mode.
     var requiresUncheckedSendable: Bool {
-        if annotations[caseInsensitiveKey: "uncheckedSendable"] != nil { return true }
+        if isAnnotated(AnnotationRegistry.uncheckedSendable) { return true }
         if inheritedTypes.contains("Sendable") { return true }
         return based.keys.contains("Sendable")
     }
@@ -68,21 +68,58 @@ enum SubjectKind {
     case passthrough
 }
 
+// MARK: - Annotated member shapes
+
+// What a `/// sourcery:` option means for one mocked member. The verbs come
+// from `Annotations/AnnotationRegistry.swift`; what they do to a mock is this
+// file's subject, which is why these live here and not beside the registry.
+
+extension SourceryRuntime.Annotated {
+    // `get`-only variable requirements in protocols are considered mutable and are mocked using `var` declarations by default.
+    // To generate a `let` declaration, annotate with `sourcery: const`.
+    var isAnnotatedConst: Bool {
+        return isAnnotated(AnnotationRegistry.const)
+    }
+
+    // For a 'get'-only variable requirement in the protocol, determine if it should be included in the mock class' initializer list.
+    var isAnnotatedInit: Bool {
+        precondition(!isAnnotatedInitInternal || !isAnnotatedHandlerInternal, "`isAnnotatedInit` is mutually exclusive with `isAnnotatedHandler`")
+        return isAnnotatedInitInternal
+    }
+    private var isAnnotatedInitInternal: Bool {
+        return isAnnotated(AnnotationRegistry.initVariable)
+    }
+
+    // Suppresses the `<method>Args` array on a mocked method, or on every method
+    // of a protocol when it is declared on the type.
+    //
+    // A recorded argument lives as long as the mock does. When the argument is
+    // the object a churn or leak spec asserts the deallocation of, that retain
+    // reads as a leak in the code under test, and this is the opt-out. Call
+    // counts and the handler are unaffected.
+    var isAnnotatedSkipArgumentRecording: Bool {
+        return isAnnotated(AnnotationRegistry.skipArgumentRecording)
+    }
+
+    // For a `get`-only variable requirement in the protocol,
+    var isAnnotatedHandler: Bool {
+        precondition(!isAnnotatedHandlerInternal || !isAnnotatedInitInternal, "`isAnnotatedHandler` is mutually exclusive with `isAnnotatedInit`")
+        return isAnnotatedHandlerInternal
+    }
+    private var isAnnotatedHandlerInternal: Bool {
+        return isAnnotated(AnnotationRegistry.handler)
+    }
+}
+
 extension SourceryRuntime.Annotated {
     /// `/// sourcery: subject = "CurrentValue"` / `"Passthrough"` on the member.
     /// Also accepts the full type names.
     var requestedSubjectKind: SubjectKind {
-        switch annotations(for: ["subject"]).first?.lowercased() {
+        switch annotations(for: AnnotationRegistry.subject).first?.lowercased() {
         case "currentvalue", "currentvaluesubject": return .currentValue
         case "passthrough", "passthroughsubject": return .passthrough
         default: return .automatic
         }
-    }
-}
-
-private extension Dictionary where Key == String {
-    subscript(caseInsensitiveKey key: Key) -> Value? {
-        return first { $0.0.lowercased() == key.lowercased() }?.value
     }
 }
 

@@ -18,3 +18,6 @@ Tests/Checks/XcodeFixture/*.xcodeproj
 Tests/Checks/XcodeFixtureRed/*/*.xcodeproj
 # The by-URL example is generated the same way, by its own build.sh.
 Tests/Examples/ExampleProjectXcode/*.xcodeproj
+# `claude plugin eval` writes one directory per run under the eval suite. The
+# five cases are the committed part; what a run scored is not.
+Tests/Evals/results/

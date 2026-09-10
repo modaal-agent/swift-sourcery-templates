@@ -15,6 +15,8 @@ in each and the copies drifted.
 | how the templates are built, where to change what, the pitfalls already hit | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | what changed in a release and what it breaks | [CHANGELOG.md](CHANGELOG.md) |
 | which fixture covers which construct | [Tests/Checks/README.md](Tests/Checks/README.md) |
+| what an adopting repository's agent is told to do | [skills/swift-sourcery-mocks/SKILL.md](skills/swift-sourcery-mocks/SKILL.md) |
+| how that skill is measured against a session without it | [Tests/Evals/README.md](Tests/Evals/README.md) |
 | the plan for a change too big to carry in a commit message | [specs/](specs/) |
 
 Run from the repository root:
@@ -87,11 +89,12 @@ Habits to avoid (common LLM-isms):
 
 ## Changes reach `master` through a pull request
 
-- Code goes on a branch and through a PR, so [`ci.yml`](.github/workflows/ci.yml)'s five lanes run
+- Code goes on a branch and through a PR, so [`ci.yml`](.github/workflows/ci.yml)'s seven lanes run
   before it lands. They trigger on push, not on PR open.
 - Any merge strategy — merge, rebase or squash — chosen for the nature of the PR.
 - A change touching no code may go straight to `master`: a spec, a note, README or CHANGELOG
-  wording. `templates/`, `Sources/`, `Plugins/`, `Tests/`, `Scripts/` and `.github/` are code.
+  wording, the skill tree under `skills/` or a `.claude-plugin/` manifest. `templates/`, `Sources/`,
+  `Plugins/`, `Tests/`, `Scripts/` and `.github/` are code.
 - Branch when the work starts. If code is ready and the checkout is `master`, ask which branch.
 - Pushing, opening a PR and merging one each need their own go-ahead.
 
@@ -137,6 +140,42 @@ Habits to avoid (common LLM-isms):
   error under the second.
 - A construct the template cannot handle gets a diagnostic naming the member and what to do about
   it, not a partial emission that fails at the consumer's conformance.
+- An annotation verb is named once, in `templates/Annotations/AnnotationRegistry.swift`. Reading a
+  `/// sourcery:` key by string literal anywhere else fails
+  `Tests/Checks/run-annotation-checks.sh`, and so does a record no template reads. Every documented
+  annotation table is rendered from that file by `Scripts/render-annotations.sh` — run it, read the
+  diff, commit what it wrote, and never edit between `<!-- annotations:start -->` and
+  `<!-- annotations:end -->`.
+
+## The skill is for adopters, and it restates no rule
+
+`skills/swift-sourcery-mocks/` is read by an agent working in a repository that *uses* these
+templates. `Tests/Checks/run-skill-checks.sh` gates every rule below that a script can gate, and
+`--self-test` is its red control.
+
+- **It says what to do and does not re-derive why.** "Write `- ${SOURCERY_SOURCES}` in `sources:`"
+  belongs in the skill; the measurement behind that instruction belongs in the spec that measured
+  it, and the reference material in README and CONTRIBUTING.
+- **Never hand-write its annotation table.** `Scripts/render-annotations.sh` renders it into
+  `skills/swift-sourcery-mocks/SKILL.md` and `references/writing-testable-protocols.md`, the same
+  way it renders README's, and nothing between the markers is edited by hand.
+- **No contributor material.** How the templates are built, `run-checks.sh --record`, the snapshot
+  diff, the release procedure: CONTRIBUTING and this file, both of which an agent working in *this*
+  repository already has.
+- **No version literal anywhere in the tree.** A snippet carries a placeholder and the command that
+  resolves the newest tag; check SC9 fails on `[0-9]+\.[0-9]+\.[0-9]+`.
+- **Frontmatter is the Agent Skills standard's six keys only** — `name`, `description`, `license`,
+  `compatibility`, `metadata`, `allowed-tools` — one key per line, with no unquoted value carrying
+  `: `. An extension key stops the directory uploading to claude.ai unedited; the colon stops the
+  cross-agent CLI parsing the file at all.
+- **`SKILL.md` stays under 400 lines and each `references/*.md` under 250.** The body is resident
+  for every turn after the skill is invoked; a reference costs nothing until the agent opens it.
+- **The skill's behavioural gate is `Tests/Evals/`, and it does not live under `skills/`** — the
+  runner refuses a case directory inside a plugin's component directory, so
+  `.claude-plugin/plugin.json` names the suite in `experimental.evals`. Each of the five prompts is
+  run once with the plugin loaded and once without, in fresh sessions, and the two answers compared.
+  A with-arm answer that is wrong is a defect in the skill's text: edit the skill and run that case
+  again. It spends model calls and no CI job runs it; SC13 only checks that each case would parse.
 
 ## Do not tag without measuring the consumer
 
@@ -153,6 +192,8 @@ whether to bump.
   pitfalls, testing, release procedure, open items.
 - **AGENTS.md / CLAUDE.md** — rules only, and one file in two places. If you are about to write a
   paragraph explaining what something *is*, it belongs in one of the other two.
+- **skills/`<name>`/** — what an agent in an adopting repository is told to do, and nothing about
+  how the templates are built.
 - **specs/`NNN-slug`/spec.md** — the plan for a change too big to carry in a commit message: what is
   true now (measured, with file and line references), what the rule becomes, the phasing, the
   decisions and what stays open. Written before the change and left in place after it, as the record

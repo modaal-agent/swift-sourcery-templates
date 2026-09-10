@@ -1,5 +1,6 @@
 <%- include("_header") -%>
-<%- includeFile("Utility/Annotations") -%>
+<%- includeFile("Annotations/AnnotationRegistry") -%>
+<%- includeFile("Annotations/AnnotationAccess") -%>
 <%- includeFile("Utility/Generics") -%>
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
@@ -8,4 +9,5 @@
 <%- includeFile("Mocks/MockGenerator") -%>
 <%- includeFile("Mocks/SourceCode") -%>
 <%- includeFile("Mocks/SourceryRuntimeExtensions") -%>
-<%= try MockGenerator.generate(for: types.protocols.map { $0 }.filter { $0.annotations["CreateMock"] != nil }) %>
+<%_ try AnnotationRegistry.rejectNearMisses(in: types.protocols) -%>
+<%= try MockGenerator.generate(for: types.protocols.map { $0 }.filter { $0.isAnnotated(any: AnnotationRegistry.mockSelectors) }) %>

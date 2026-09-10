@@ -52,12 +52,66 @@ jobs:
         # Fix a failure with `cp AGENTS.md CLAUDE.md`.
         run: cmp AGENTS.md CLAUDE.md
 
+  # ── Annotation registry lane ─────────────────────────────────────
+  # `templates/Annotations/AnnotationRegistry.swift` is the one place an
+  # annotation verb is named, and every document that documents one carries a
+  # block rendered from it. This lane checks both directions of that rule and
+  # the freshness of every rendition.
+  #
+  # Ungated, for the same reason `rules` is, and it matters more here: a push
+  # that edits only `README.md` sets `code=false` below and skips all five macOS
+  # lanes, and a hand-edited annotation table is exactly what such a push
+  # produces. Shell, `grep` and `awk` only — no Swift toolchain, no Sourcery, no
+  # network — so it runs on ubuntu in seconds.
+  annotations:
+    name: Annotations (registry, rendition)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Registry and rendition
+        run: Tests/Checks/run-annotation-checks.sh
+
+      - name: Red controls — each check red on a seeded violation
+        run: Tests/Checks/run-annotation-checks.sh --self-test
+
+  # ── Skill lane ───────────────────────────────────────────────────
+  # `skills/` is published to adopters through four channels, and two of this
+  # script's checks are the reason it lives in this repository at all: every
+  # `SOURCERY_*` variable and every `mock-templates` flag the skill writes is
+  # compared against the plugin source and `Commands.swift` on the push that
+  # changes either side.
+  #
+  # Ungated for the same reason `rules` and `annotations` are, and here the
+  # filter below makes it load-bearing: a push touching only `skills/` or
+  # `.claude-plugin/` skips every macOS lane, so this job is the only one that
+  # reads what changed. Markdown, JSON and `python3` — no Swift toolchain, no
+  # Sourcery, no network.
+  skills:
+    name: Skill (frontmatter, budgets, the names it claims)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Skill tree and plugin manifests
+        run: Tests/Checks/run-skill-checks.sh
+
+      - name: Red controls — each check red on a seeded violation
+        run: Tests/Checks/run-skill-checks.sh --self-test
+
   # ── Change filter ────────────────────────────────────────────────
   # Reports whether the push touched anything a build can read. Markdown cannot
   # break a Swift build, so a docs-only push skips the five macOS lanes rather
   # than spending about six minutes and a simulator boot to confirm a README is
-  # still a README. The `rules` job is deliberately not gated on this: it reads
-  # markdown, which is exactly what a docs-only push changes.
+  # still a README. Two more paths are documentation without being markdown:
+  # `.claude-plugin/` holds the two manifests that publish the skill, and
+  # `skills/` holds the skill tree, whose non-markdown files are its manifests'
+  # companions. `templates/Annotations/` is deliberately not in the pattern —
+  # it changes what the templates emit, so it runs every lane.
+  #
+  # The `rules`, `annotations` and `skills` jobs are deliberately not gated on
+  # this: between them they read every path the pattern exempts, which is
+  # exactly what a docs-only push changes.
   #
   # It fails open. When the range cannot be computed — a branch's first push,
   # where `event.before` is all zeros; a force push whose old tip is gone; a
@@ -98,13 +152,13 @@ jobs:
           printf '%s\n' "$changed" | sed 's/^/  /'
           # Tested on the file list, not on grep's exit status: `grep -q -v`
           # is not portable between grep implementations.
-          code_files="$(printf '%s\n' "$changed" | grep -vE '\.md$' || true)"
+          code_files="$(printf '%s\n' "$changed" | grep -vE '\.md$|^\.claude-plugin/|^skills/' || true)"
           if [ -n "$code_files" ]; then
-            echo "outside **.md, so every lane runs:"
+            echo "outside the documentation paths, so every lane runs:"
             printf '%s\n' "$code_files" | sed 's/^/  /'
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
-            echo "markdown only — skipping the five macOS lanes"
+            echo "documentation only — skipping the five macOS lanes"
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -169,7 +223,7 @@ jobs:
   # ── Plugin lane ──────────────────────────────────────────────────
   # The SPM build-tool plugin, black-box over Tests/Checks/PluginFixture: the
   # derived source closure, the synthesized config, the defaults it supplies and
-  # the four red controls that must stay red. Runs beside `checks` and `cli`
+  # the five red controls that must stay red. Runs beside `checks` and `cli`
   # rather than behind them — it needs no simulator, and it is the only lane that
   # exercises the plugin's own logic (the example lane exercises the plugin, but
   # through one package shape).

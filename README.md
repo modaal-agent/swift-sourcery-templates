@@ -23,7 +23,7 @@ conformance. See [Concurrency](#concurrency).
 For a protocol method:
 
 ```swift
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 protocol DataService {
     func fetchData(id: String, completion: @escaping (String?, Error?) -> Void)
 }
@@ -117,7 +117,7 @@ Two deliberate non-goals:
 An `AnyPublisher<Output, Failure>` requirement is backed by a subject the test drives:
 
 ```swift
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 @MainActor
 protocol UserRepositoryProtocol {
     var meStream: AnyPublisher<UserSummary?, Never> { get }
@@ -217,7 +217,7 @@ a stored instance, so generation fails rather than emitting a class that will no
 consumed by its own module's builders, and widening a module's API surface as a side effect of
 generating boilerplate is not a decision a template should make. `componentAccess = "public"` opts in.
 
-Mocks and Components compose: a protocol annotated `/// sourcery: CreateMock, DuetComponent` gets the
+Mocks and Components compose: a protocol annotated `/// sourcery: ProtocolMock, DuetComponent` gets the
 double a spec drives *and* the production class that forwards. Both read the same isolation rules from
 the same helpers, so they cannot disagree about which member is `nonisolated`.
 
@@ -226,7 +226,7 @@ the same helpers, so they cannot disagree about which member is `nonisolated`.
 | lane | command | covers |
 | --- | --- | --- |
 | fast | `Tests/Checks/run-checks.sh` | snapshot of every template's generated output, both language modes, runtime behaviour. Mocks and Components are typechecked together, so the two cannot disagree about isolation. No simulator, no third-party packages, seconds |
-| plugin | `Tests/Checks/run-plugin-checks.sh` | the SPM build-tool plugin, black-box over a fixture package: the derived source closure, the synthesized config, the defaults it supplies, and four red controls that must stay red. No simulator |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the SPM build-tool plugin, black-box over a fixture package: the derived source closure, the synthesized config, the defaults it supplies, and five red controls that must stay red. No simulator |
 | xcode | `Tests/Checks/run-xcode-checks.sh` | the same plugin through `XcodeBuildToolPlugin`, over an Xcode project XcodeGen generates from a committed spec: config discovery, the one-directory expansion, a hand-listed `${SOURCERY_PROJECT}` entry, a target depending on a sibling target, and a bare template name that must fail. Needs `xcodegen`, no simulator |
 | full | `Tests/Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
 
@@ -627,18 +627,57 @@ Passed via `--args` on the CLI or `args:` in a YAML config:
 
 A Component is production code, so its output takes `import=`, not `testable=`.
 
+## Agent skill
+
+`skills/swift-sourcery-mocks/` is an [agent skill](https://code.claude.com/docs/en/skills): the
+setup above, written for a coding agent working in a repository that *adopts* these templates. It
+picks the lane, writes the config, and names the cause when generation produces a mock that does not
+conform. Its annotation table is rendered from the same registry this README's is
+(`Scripts/render-annotations.sh`), so the two cannot drift apart.
+
+Four channels install it, over one tree.
+
+**1. Any of ~75 agents, through the cross-agent CLI.** `-g` installs for every project on the
+machine instead of this one; `--list` lists without installing.
+
+```bash
+npx skills add modaal-agent/swift-sourcery-templates
+```
+
+**2. As a Claude Code plugin.** The repository root is both the marketplace and the plugin:
+
+```
+/plugin marketplace add modaal-agent/swift-sourcery-templates
+/plugin install swift-sourcery-mocks@swift-sourcery-templates
+```
+
+**3. By hand.**
+
+```bash
+git clone https://github.com/modaal-agent/swift-sourcery-templates
+cp -r swift-sourcery-templates/skills/* ~/.claude/skills/     # or .claude/skills/ per project
+```
+
+**4. claude.ai and the Skills API.** The frontmatter carries only the Agent Skills standard's keys,
+so `skills/swift-sourcery-mocks/` packages and uploads unedited.
+
+The skill is not a release asset. All four channels read this repository, so a change to it is
+published by landing on `master`; `Tests/Checks/run-skill-checks.sh` gates it on every push,
+including the check that every `SOURCERY_*` variable and every `mock-templates` flag it names is one
+this repository actually provides.
+
 ## Annotating External Protocols
 
-To generate mocks for protocols defined in external packages (without modifying their source), use empty extensions with the `CreateMock` annotation:
+To generate mocks for protocols defined in external packages (without modifying their source), use empty extensions with the `ProtocolMock` annotation:
 
 ```swift
 // In your SourceryAnnotations/ directory:
 import ExternalFramework
 
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 extension ExternalProtocol {}
 
-/// sourcery: CreateMock
+/// sourcery: ProtocolMock
 extension AnotherProtocol {}
 ```
 
@@ -646,27 +685,37 @@ Sourcery picks up annotations from extensions on the protocol. Pass the annotati
 
 ## Annotations Reference
 
+<!-- annotations:start -->
+<!-- Rendered from templates/Annotations/AnnotationRegistry.swift by Scripts/render-annotations.sh. Do not edit inside this block. -->
+
+Annotation names are matched exactly, including case.
+
 | Annotation | Target | Effect |
 |------------|--------|--------|
-| `CreateMock` | Protocol / extension | Generate mock class |
-| `TypeErase` | Protocol | Generate type erasure wrapper |
-| `associatedType = "T: Constraint"` | Protocol | Associated type for type erasure |
+| `ProtocolMock` | Protocol / extension | Generate the mock class |
+| `ObjcProtocolMock` | Protocol / extension | Generate the mock class with an `NSObject` superclass. A protocol refining `NSObjectProtocol` gets one without the annotation |
+| `TypeErasure` | Protocol | Generate the type-erasing wrapper |
+| `DuetComponent` | Protocol | Generate the forwarding Component class |
+| `associatedType = "T: Constraint"` | Protocol | Associated type for the type erasure |
 | `genericType = "T: Constraint"` | Method | Generic type parameter |
 | `annotatedGenericTypes = "{T}"` | Parameter | Generic placeholder marker |
-| `methodName = "customName"` | Method | Override mock variable name |
-| `const` | Variable | Use `let` in mock |
-| `init` | Variable | Include in mock initializer |
-| `handler` | Variable | Generate handler closure |
-| `import = "Module"` | Protocol | Add `import` to output |
-| `ObjcProtocol` | Protocol | Add `NSObject` superclass |
+| `methodName = "customName"` | Method | Override the mock variable name |
+| `const` | Variable | Use `let` in the mock |
+| `init` | Variable | Include in the mock initializer |
+| `handler` | Variable | Generate the handler closure |
+| `import = "Module"` | Protocol | Add an `import` to the output |
 | `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
-| `subject = "CurrentValue"` / `"Passthrough"` | Variable / method | Choose the subject backing an `AnyPublisher` member |
+| `subject = "CurrentValue"` | Variable / method | Choose the subject backing an `AnyPublisher` member — `CurrentValue` or `Passthrough` |
 | `skipArgumentRecording` | Protocol / method | Do not generate `<method>Args`; call counting and the handler are unaffected |
-| `DuetComponent` | Protocol | Generate the forwarding Component class |
 | `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
 | `componentAccess = "public"` | Protocol | Emit a `public` Component; the default is internal |
+<!-- annotations:end -->
+
+`ProtocolMock`, `ObjcProtocolMock` and `TypeErasure` were previously spelled `CreateMock`,
+`ObjcProtocol` and `TypeErase`. Those spellings still select the same template, and a release after
+this one stops accepting them — see [CHANGELOG.md](CHANGELOG.md).
 
 # License
 

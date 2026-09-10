@@ -8,10 +8,13 @@
 #                 matching annotation (the engine skips whitespace-only
 #                 renders, so the generators emit a marker comment), and the
 #                 result matches its snapshot
-#   3. typecheck  they compile clean together under Swift 5 + complete
+#   3. near-miss  a misspelled selector fails generation naming the canonical
+#                 spelling; a misspelled option still generates and writes one
+#                 comment line
+#   4. typecheck  they compile clean together under Swift 5 + complete
 #                 concurrency checking, and under the Swift 6 language mode —
 #                 zero warnings, zero errors
-#   4. behaviour  they do what a consumer needs: mocks count calls, run handlers
+#   5. behaviour  they do what a consumer needs: mocks count calls, run handlers
 #                 and deliver values pushed into their subjects; Components
 #                 forward to the parent and hold what the level owns
 #
@@ -143,7 +146,73 @@ for entry in "${TEMPLATES[@]}"; do
   fi
 done
 
-# ── 3. Typecheck, both language modes ─────────────────────────────
+# ── 3. Near miss ──────────────────────────────────────────────────
+# Names are matched exactly, including case, and a spelling that differs only in
+# case used to be silent: Sourcery stored the key, no template asked for it, and
+# generation completed with the mock simply absent. Severity follows what the
+# annotation does. A selector that matches nothing means the type generates
+# nothing, so it fails the run; an option leaves a working mock missing one
+# behaviour, and an adopter may own the name for their own template, so it writes
+# a comment into the file and carries on.
+#
+# The comment rather than a log line is measured, not chosen: a Swift template's
+# stdout is the generated file, and Sourcery 2.3.0 turns any write to the
+# template's stderr into `error: <template>: <text>` and aborts with exit 3.
+echo ""
+echo "── near-miss ──"
+NEAR_MISS_DIR="$WORK_DIR/near-miss"
+rm -rf "$NEAR_MISS_DIR"
+mkdir -p "$NEAR_MISS_DIR/selector" "$NEAR_MISS_DIR/option"
+cat > "$NEAR_MISS_DIR/selector/Selector.swift" <<'SWIFT'
+/// sourcery: protocolmock
+public protocol NearMissSelector: AnyObject {
+    func run()
+}
+SWIFT
+cat > "$NEAR_MISS_DIR/option/Option.swift" <<'SWIFT'
+/// sourcery: ProtocolMock
+public protocol NearMissOption: AnyObject {
+    /// sourcery: skipargumentrecording
+    func run(id: String)
+}
+SWIFT
+
+near_miss_log="$WORK_DIR/near-miss-selector.log"
+if "$SOURCERY" --sources "$NEAR_MISS_DIR/selector" \
+     --templates "$GIT_ROOT/templates/Mocks.swifttemplate" \
+     --output "$NEAR_MISS_DIR/selector.generated.swift" \
+     --disableCache --quiet > "$near_miss_log" 2>&1; then
+  fail "a misspelled selector generated instead of failing"
+elif grep -q 'protocolmock' "$near_miss_log" \
+  && grep -q 'NearMissSelector' "$near_miss_log" \
+  && grep -q 'ProtocolMock' "$near_miss_log"; then
+  echo "  a misspelled selector fails, naming the type and the canonical spelling"
+else
+  tail -10 "$near_miss_log"
+  fail "a misspelled selector failed, but its message does not name the type, the spelling found and the canonical form"
+fi
+
+near_miss_option="$NEAR_MISS_DIR/option.generated.swift"
+if ! "$SOURCERY" --sources "$NEAR_MISS_DIR/option" \
+       --templates "$GIT_ROOT/templates/Mocks.swifttemplate" \
+       --output "$near_miss_option" \
+       --disableCache --quiet > "$WORK_DIR/near-miss-option.log" 2>&1; then
+  tail -10 "$WORK_DIR/near-miss-option.log"
+  fail "a misspelled option failed the run, and it must not"
+else
+  notes="$(grep -c 'sourcery-templates:' "$near_miss_option" || true)"
+  if [ "$notes" != "1" ]; then
+    fail "a misspelled option wrote $notes comment lines, expected 1"
+  elif ! grep -q 'skipArgumentRecording' "$near_miss_option"; then
+    fail "the comment does not name the canonical spelling"
+  elif ! grep -q 'class NearMissOptionMock' "$near_miss_option"; then
+    fail "a misspelled option stopped the mock being generated"
+  else
+    echo "  a misspelled option writes one comment line and still generates"
+  fi
+fi
+
+# ── 4. Typecheck, both language modes ─────────────────────────────
 typecheck() {
   local label="$1"; shift
   local log="$WORK_DIR/typecheck-$label.log"
@@ -166,7 +235,7 @@ echo "── typecheck ──"
 typecheck "swift5-complete" -swift-version 5 -strict-concurrency=complete
 typecheck "swift6" -swift-version 6
 
-# ── 4. Behaviour ──────────────────────────────────────────────────
+# ── 5. Behaviour ──────────────────────────────────────────────────
 echo ""
 echo "── behaviour ──"
 BEHAVIOUR_BIN="$WORK_DIR/behaviour"

@@ -13,7 +13,7 @@
 #                dependency chain (App → Middle → Leaf, with ExternalKit arriving
 #                through Middle from a second package) so the closure has
 #                something to reach that no env var can name.
-#   red lane     Checks/PluginFixtureRed/* — four packages, each of which must
+#   red lane     Checks/PluginFixtureRed/* — five packages, each of which must
 #                FAIL, for a reason this script matches on. One package per
 #                control: build planning runs every target's plugin, so a
 #                plan-time error in one target fails the build for all of them.
@@ -447,6 +447,9 @@ red_control Collision \
 red_control UnknownTemplate \
   "template 'Mocsk' is neither a file beside the config nor a shipped template" \
   "an unresolvable template name warns, lists the shipped templates, and then fails"
+red_control NearMiss \
+  '`protocolmock` on `NearMissProtocol` is not `ProtocolMock`' \
+  "a selector that differs only in case fails generation, naming the type and the canonical spelling"
 red_control PackageKey \
   "Invalid sources|fatalError|package" \
   "a config declaring package: is left alone and fails on its own terms"
