@@ -338,8 +338,12 @@ been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4
 reproducibility rather than fragility. Bumping it means re-running the lanes locally on the new
 version first.
 
-`.github/workflows/release.yml` runs on tag pushes only (which ci.yml deliberately skips): it runs
-`Scripts/assemble-release.sh` and attaches the assets it produces to the tag's GitHub release.
+`.github/workflows/release.yml` runs on tag pushes only (which ci.yml deliberately skips), and
+routes two tag shapes to two jobs. A `templates-X.Y.Z` tag publishes the artifact bundle a
+`Package.swift` pin can name, as a prerelease. A bare `X.Y.Z` tag runs
+`Scripts/check-pinned-templates.sh` — which refuses to publish unless the pinned bundle's
+`templates/` is byte-identical to the commit's — then `Scripts/assemble-release.sh`, and attaches
+the assets to the tag's GitHub release.
 
 ## Cutting a release
 
