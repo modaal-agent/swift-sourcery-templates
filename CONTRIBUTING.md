@@ -279,7 +279,7 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 
 `Tests/Examples/ExampleProjectXcode/build.sh` is not a lane. It resolves this package from its
 published URL at a tag, so it lags one release and belongs to the release procedure, not to a
-branch; see step 6 of Cutting a release.
+branch; see step 7 of Cutting a release.
 
 Both check lanes provision Sourcery through `Tests/Checks/ensure-sourcery.sh`, which reads the pin
 from `Scripts/engine-pin.sh`; `SOURCERY=/path/to/sourcery` overrides it in either lane.
@@ -353,14 +353,26 @@ the assets to the tag's GitHub release.
 
 ## Cutting a release
 
-1. Run all three lanes green
+1. Run all five lanes green
 2. Regenerate the reference consumer (`modaal-firebase-wrappers`) against `master` and record the size
    and shape of its diff. A release whose consumer impact was not measured is not ready to tag
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to
    bump: what the generated output looks like now, what can fail after a regenerate and how to fix it,
    what to do beyond bumping the tag
-4. Tag `master`. There is no release branch
-5. The tag push runs `.github/workflows/release.yml`, which publishes the release assets:
+4. If `templates/` changed since the bundle `Package.swift` pins, the release needs two tags, in
+   this order. `Scripts/check-pinned-templates.sh` tells you whether it does, and the release lane
+   refuses to publish if you skip it:
+   1. tag `templates-X.Y.Z` on `master`. Its lane assembles the bundle from that commit's
+      `templates/` and publishes it as a prerelease, with the `.binaryTarget` block in the notes
+   2. land a commit that changes **only** the `sourcery` binaryTarget's `url` and `checksum` to
+      that asset's
+
+   A release that changes only the plugin, the CLI or the docs skips this: the pin stays where it
+   is and the gate passes, because `templates/` did not move. The pin lands *after* the asset
+   exists, so `master` can never reference a zip that was never uploaded
+5. Tag `master` with the bare `X.Y.Z`. There is no release branch
+6. The tag push runs `.github/workflows/release.yml`, which compares the pinned bundle's
+   `templates/` with the commit's and then publishes the release assets:
    `Scripts/assemble-release.sh <tag>` builds the `mock-templates` CLI universal
    (arm64 + x86_64), vendors the Sourcery engine at the `Scripts/engine-pin.sh` pin (the download
    is checksum-verified against it), smoke-runs `generate` + `validate` from the assembled layout,
@@ -368,7 +380,7 @@ the assets to the tag's GitHub release.
    `swift-sourcery-templates-<tag>.artifactbundle.zip`, `mock-templates-<tag>-macos.zip`, a
    `.sha256` beside each, and the release-notes body. Rehearse it locally with
    `Scripts/assemble-release.sh <version>` — everything lands in `.build/release-assets/`
-6. Build `Tests/Examples/ExampleProjectXcode` and record the version it printed. It is the only
+7. Build `Tests/Examples/ExampleProjectXcode` and record the version it printed. It is the only
    thing here that resolves this package from its published URL at a tag, and the only thing that
    reads `templates/` out of the pinned artifact bundle — every lane reaches this repository by
    path, so neither is checked on a branch. It is not a CI lane on purpose: a lane over it would
@@ -380,7 +392,7 @@ the assets to the tag's GitHub release.
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is `Scripts/engine-pin.sh`, read by name by `Scripts/assemble-release.sh` when vendoring the engine into the release bundle and by `Tests/Checks/ensure-sourcery.sh` when provisioning it for the check lanes |
+| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is `Scripts/engine-pin.sh`, read by name by `Scripts/assemble-release.sh` when vendoring the engine into the release bundle and by `Tests/Checks/ensure-sourcery.sh` when provisioning it for the check lanes. `Package.swift`'s `sourcery` binaryTarget is a different pin: this repository's own artifact bundle, which carries an engine built from that one plus `templates/` |
 | swift-argument-parser | 1.3.0+ | the `mock-templates` CLI's command-line surface |
 | XcodeGen | 2.44.1 | generates the Xcode lane's fixture projects from their committed specs — `brew install xcodegen`; contributors and CI only, never a consumer's dependency |
 | Quick | 7.3.0 | BDD test framework (full lane) |
