@@ -8,5 +8,8 @@
   "homepage": "https://github.com/modaal-agent/swift-sourcery-templates",
   "repository": "https://github.com/modaal-agent/swift-sourcery-templates",
   "license": "Apache-2.0",
-  "keywords": ["swift", "sourcery", "mocks", "codegen", "testing"]
+  "keywords": ["swift", "sourcery", "mocks", "codegen", "testing"],
+  "experimental": {
+    "evals": "Tests/Evals"
+  }
 }
