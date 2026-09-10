@@ -655,8 +655,10 @@ npx skills add modaal-agent/swift-sourcery-templates
 
 ```bash
 git clone https://github.com/modaal-agent/swift-sourcery-templates
-cp -r swift-sourcery-templates/skills/* ~/.claude/skills/     # or .claude/skills/ per project
+cp -r swift-sourcery-templates/skills/* ~/.claude/skills/
 ```
+
+`.claude/skills/` inside a project installs it for that project alone.
 
 **4. claude.ai and the Skills API.** The frontmatter carries only the Agent Skills standard's keys,
 so `skills/swift-sourcery-mocks/` packages and uploads unedited.
