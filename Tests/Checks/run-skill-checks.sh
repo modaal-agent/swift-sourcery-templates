@@ -79,11 +79,16 @@ if [ "${1:-}" = "--self-test" ]; then
   # directory that holds no `skills/<name>/SKILL.md`.
   mutate_SC11() { sed -i.bak 's|"source": "./"|"source": "./Scripts"|' .claude-plugin/marketplace.json && rm -f .claude-plugin/marketplace.json.bak; }
 
+  # SC13 — a grader the runner would refuse: `type:` is the one field it needs
+  # to know how to score, and it is checked against a closed set of six.
+  mutate_SC13() { sed -i.bak 's/^type: llm$/type: judge/' Tests/Evals/plugin-lane-setup/graders/correct-lane.md && rm -f Tests/Evals/plugin-lane-setup/graders/correct-lane.md.bak; }
+
   seed() {
     local check="$1" expected="$2"
     local root="$SELF_TEST_DIR/$check"
     mkdir -p "$root/Tests/Checks"
     cp -R skills "$root/skills"
+    cp -R Tests/Evals "$root/Tests/Evals"
     cp -R .claude-plugin "$root/.claude-plugin"
     mkdir -p "$root/Plugins/SourcerySwiftCodegenPlugin" "$root/Sources/mock-templates" "$root/Scripts"
     cp Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift "$root/Plugins/SourcerySwiftCodegenPlugin/"
@@ -120,6 +125,7 @@ if [ "${1:-}" = "--self-test" ]; then
   seed SC9 "SC9"
   seed SC10 "SC10"
   seed SC11 "SC11"
+  seed SC13 "SC13"
 
   echo ""
   if [ "$seed_failures" = "0" ]; then
@@ -466,6 +472,114 @@ if [ -n "$SC11" ]; then
   fail SC11 "the plugin root and the skill tree have come apart:$SC11"
 else
   pass SC11 "every entry's source holds the tree the other channels read"
+fi
+
+# ── SC13: every eval case parses ─────────────────────────────────
+# The eval suite is the skill's only behavioural gate: each case is run twice,
+# once with the plugin loaded and once without, and the two answers compared
+# (spec 002, §7.1). `claude plugin eval` reads it from the directory
+# `experimental.evals` names — one case per directory, `prompt.md` carrying the
+# frontmatter and the user prompt, one `graders/<name>.md` per grader, the file
+# name being the grader's name.
+#
+# The two key sets and the six grader types below are the runner's own, read out
+# of the Claude Code binary at 2.1.263 and re-read unchanged at 2.1.267. The
+# runner is in early access, so a machine without it cannot run the suite at all
+# — which is exactly why a mistyped key has to fail here rather than at the first
+# run.
+#
+# SC12 is not used: §6.1 assigned that number to a check for D9's fallback, and
+# the fallback was not taken (spec 002, §12.3).
+echo ""
+echo "── SC13: every eval case parses ──"
+if SC13="$(python3 - "$PLUGIN_MANIFEST" <<'PY'
+import json, os, re, sys
+
+COMPONENT_DIRS = {"commands", "skills", "agents", "hooks", "themes", "output-styles", "monitors", "workflows"}
+TOP_KEYS = {"schema_version", "name", "description", "tags", "plugins", "runs", "expected_outcome"}
+EXECUTION_KEYS = {"model", "max_turns", "timeout_seconds", "allowed_tools", "artifact_publish",
+                  "growthbook_overrides", "append_system_prompt", "env"}
+GRADER_TYPES = {"regex", "tool_order", "tool_used", "file_exists", "llm", "baseline"}
+
+problems = []
+manifest = json.load(open(sys.argv[1]))
+eval_dir = (manifest.get("experimental") or {}).get("evals")
+if not isinstance(eval_dir, str) or not eval_dir:
+    problems.append(f"{sys.argv[1]}: no `experimental.evals` naming the eval directory")
+    print("\n".join(problems)); raise SystemExit
+
+segments = [s for s in eval_dir.split("/") if s not in ("", ".")]
+if segments and segments[0].lower() in COMPONENT_DIRS:
+    problems.append(f"experimental.evals `{eval_dir}` is inside the plugin's {segments[0]}/ "
+                    "component directory, which the runner refuses")
+if not os.path.isdir(eval_dir):
+    problems.append(f"experimental.evals names `{eval_dir}`, which is not a directory")
+    print("\n".join(problems)); raise SystemExit
+
+FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(\n|\Z)", re.S)
+
+def frontmatter(path):
+    text = open(path, encoding="utf-8").read()
+    match = FRONTMATTER.match(text)
+    if match is None:
+        problems.append(f"{path}: no frontmatter between `---` markers")
+        return None, ""
+    keys = {}
+    for number, line in enumerate(match.group(1).split("\n"), start=2):
+        if not line.strip() or line.startswith((" ", "\t", "#")):
+            continue
+        key, separator, value = line.partition(":")
+        if not separator:
+            problems.append(f"{path}:{number}: not `key: value`")
+            continue
+        keys[key.strip()] = value.strip()
+    return keys, text[match.end():]
+
+cases = sorted(entry for entry in os.listdir(eval_dir)
+               if os.path.isdir(os.path.join(eval_dir, entry)) and entry != "results")
+if not cases:
+    problems.append(f"{eval_dir}/ holds no case directory")
+
+for case in cases:
+    directory = os.path.join(eval_dir, case)
+    prompt_path = os.path.join(directory, "prompt.md")
+    if not os.path.isfile(prompt_path):
+        problems.append(f"{directory}/: no prompt.md, so the runner reads no case here")
+        continue
+    keys, body = frontmatter(prompt_path)
+    if keys is not None:
+        for key in keys:
+            if key not in TOP_KEYS and key not in EXECUTION_KEYS:
+                problems.append(f"{prompt_path}: unknown frontmatter key `{key}`")
+    if not body.strip():
+        problems.append(f"{prompt_path}: the body is the user prompt, and it is empty")
+    graders_dir = os.path.join(directory, "graders")
+    graders = sorted(name for name in os.listdir(graders_dir)) if os.path.isdir(graders_dir) else []
+    graders = [name for name in graders if name.endswith(".md")]
+    if not graders:
+        problems.append(f"{directory}/: no graders/*.md, and a case needs at least one grader")
+    for grader in graders:
+        grader_path = os.path.join(graders_dir, grader)
+        keys, body = frontmatter(grader_path)
+        if keys is None:
+            continue
+        kind = keys.get("type")
+        if kind not in GRADER_TYPES:
+            problems.append(f"{grader_path}: `type: {kind}` is not one of "
+                            + " | ".join(sorted(GRADER_TYPES)))
+        elif kind in ("llm", "baseline") and not body.strip():
+            problems.append(f"{grader_path}: an `{kind}` grader's body is its criteria, and it is empty")
+        elif kind == "regex" and not body.strip():
+            problems.append(f"{grader_path}: a `regex` grader's body is its pattern, and it is empty")
+
+print("\n".join(problems))
+PY
+)" && [ -z "$SC13" ]; then
+  eval_dir="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["experimental"]["evals"])' "$PLUGIN_MANIFEST")"
+  pass SC13 "$(find "$eval_dir" -mindepth 1 -maxdepth 1 -type d ! -name results | wc -l | tr -d ' ') case(s) under $eval_dir, $(find "$eval_dir" -path '*/graders/*.md' | wc -l | tr -d ' ') graders"
+else
+  fail SC13 "a case the runner would refuse:"
+  printf '%s\n' "$SC13" | sed 's/^/      /'
 fi
 
 # ── Result ────────────────────────────────────────────────────────
