@@ -100,6 +100,7 @@ RETIRED
     cp -R templates "$root/templates"
     cp -R Scripts "$root/Scripts"
     cp README.md "$root/README.md"
+    cp -R skills "$root/skills"
     cp "$SCRIPT_DIR/run-annotation-checks.sh" "$root/Tests/Checks/"
     if ! ( cd "$root" && "mutate_$check" ); then
       echo "  $check: FAIL — the mutation itself did not apply"
@@ -142,7 +143,11 @@ fi
 
 REGISTRY="templates/Annotations/AnnotationRegistry.swift"
 RENDER="Scripts/render-annotations.sh"
-RENDER_TARGETS=(README.md)
+RENDER_TARGETS=(
+  README.md
+  skills/swift-sourcery-mocks/SKILL.md
+  skills/swift-sourcery-mocks/references/writing-testable-protocols.md
+)
 
 START='<!-- annotations:start -->'
 END='<!-- annotations:end -->'

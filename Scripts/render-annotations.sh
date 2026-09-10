@@ -35,10 +35,11 @@ START='<!-- annotations:start -->'
 END='<!-- annotations:end -->'
 
 # <path relative to the repository root>:<style>. `flat` is one table in registry
-# order; `grouped` splits selectors from options. Phase B1 adds the two skill
-# files.
+# order; `grouped` splits selectors from options.
 TARGETS=(
   "README.md:flat"
+  "skills/swift-sourcery-mocks/SKILL.md:flat"
+  "skills/swift-sourcery-mocks/references/writing-testable-protocols.md:grouped"
 )
 
 [ -f "$REGISTRY" ] || { echo "FAIL: no registry at $REGISTRY" >&2; exit 1; }

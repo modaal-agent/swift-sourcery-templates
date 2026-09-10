@@ -1,0 +1,19 @@
+{
+  "name": "swift-sourcery-templates",
+  "owner": {
+    "name": "modaal-agent",
+    "url": "https://github.com/modaal-agent"
+  },
+  "metadata": {
+    "description": "Swift mock, type-erasure and Component generation templates for Sourcery.",
+    "version": "1"
+  },
+  "plugins": [
+    {
+      "name": "swift-sourcery-mocks",
+      "source": "./",
+      "description": "Generate Swift protocol mocks, type erasures and forwarding Components with the swift-sourcery-templates Sourcery templates.",
+      "category": "development"
+    }
+  ]
+}
