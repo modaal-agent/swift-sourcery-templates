@@ -758,6 +758,8 @@ Body, budgeted at **under 400 lines** against the documented 500:
 | failure modes | the table in §5.4 | ~45 lines |
 | links to `references/` | one line each | ~10 lines |
 
+A ninth section, "Publishers are subject-backed", was added later — §14.3.
+
 ### 5.3 `references/` — loaded per lane
 
 | file | what it holds | budget |
@@ -766,6 +768,8 @@ Body, budgeted at **under 400 lines** against the documented 500:
 | `references/cli-lane.md` | every `mock-templates` flag, what `validate` fails on, `imprint`, the artifact-bundle download and checksum, and the `generate-mocks.sh` shape from `modaal-firebase-wrappers` | ≤250 lines |
 | `references/writing-testable-protocols.md` | what to annotate and how to shape a protocol so its mock is usable, plus the rendered table grouped by `kind` | ≤200 lines |
 | `references/troubleshooting.md` | the long form of §5.4, one section per symptom | ≤200 lines |
+
+A fifth file, `references/generated-api.md`, was added later — §14.2.
 
 ### 5.4 The failure modes the body names
 
@@ -1464,6 +1468,8 @@ than taken: `--args` is repeatable (`Sources/mock-templates/Commands.swift:27`, 
 `args: { testable: Payments }` as a scalar is read by `_header.swifttemplate:18-25`, which accepts a
 `String` or a `[String]`.
 
+The model those runs used and the Claude Code version they ran under are in §14.4.
+
 The two diagnostic prompts are where the skill adds least: without it, both answers name the cause
 correctly from general Swift knowledge and miss only this repository's vocabulary — the member names
 in one, the lane-specific `sources:` fix in the other. The three setup prompts are where it decides
@@ -1487,3 +1493,167 @@ costs model calls and no CI job runs it.
   prompt carries the package's shape in its text, because a scaffold does not run without
   `--scaffold` and a case that needs one grades against an empty directory by default.
 - **Phase A5** — §10.4, unchanged by anything here.
+
+---
+
+## 14. Amendment — the cross-repository comparison of 2026-09-10
+
+Written after §13, from a fourteen-row table comparing this repository with
+[kotlin-ksp-mocks](https://github.com/modaal-agent/kotlin-ksp-mocks), the processor that generates
+the same test vocabulary for Kotlin. The twin's half of the table is implemented and recorded in its
+001 §16, written the same day; this section is the half that names files here. Two rows ask for
+nothing and are flagged: §14.6 and §14.7.
+
+### 14.1 What this repository changed
+
+| row | what it asked | what landed |
+| --- | --- | --- |
+| 2, 6 | a `references/generated-api.md` — the emitted Swift per shape, plus the member map to the twin | `skills/swift-sourcery-mocks/references/generated-api.md`, 224 lines against SC5's 250, ten sections. §14.2 |
+| 4 | a section on publisher members in the body, about 12 lines | `SKILL.md:229-246`, "Publishers are subject-backed". §14.3 |
+| 9 | the model and the Claude Code version appended to §13's run record | §14.4 |
+| 10 | read the graders for the `not_contains`-on-a-tool-name shape the twin deleted one for | §14.5 — 18 graders read, none changed |
+| 11 | one form of the manual-copy line in both READMEs | `README.md:656-661` takes the twin's form: the command alone, then the sentence about `.claude/skills/` |
+| 13 | the writing-style section into `AGENTS.md` | it is already there, `AGENTS.md:29-65`. §14.7 |
+
+`SKILL.md` went 248 → 273 lines against SC5's 400. SC5, SC8 and SC9 are the checks a new reference
+file moves, and all three are green (§14.9).
+
+### 14.2 `references/generated-api.md` — a fifth reference file
+
+Adds a row to §5.3's table. What it holds, in the order it holds it: the file and class shape and the
+three variations of the class line; a method with one recorded parameter; a method with several,
+which records a labelled tuple; `async`/`throws` and the table of what an unset handler returns; the
+publisher members; the properties, including the initializer-seeded bag; the cancellation token
+members; the overload naming rule; what is not recorded; and the member map to the Kotlin twin.
+
+Three reasons it is a reference and not body text:
+
+- **It is per-shape lookup, not instruction.** A session that has already written the config opens it
+  once to answer "what is the member called and what does it return unseeded". §5.2's budget table
+  gives "what the generated mock gives a test" ~50 lines, and the member table there is the summary
+  this file is the long form of.
+- **The snippets are the emitted Swift**, copied from the generated file the fast lane snapshots, and
+  the defaults table is the one `TypeName.defaultValue()` implements. Neither is derivable from the
+  member names alone.
+- **The member map has to live beside them.** The map is only readable next to the Swift it maps
+  from; splitting it into a sixth file would put two halves of one table in two files.
+
+The map (`generated-api.md:201-224`) is the twin's D12 table with the columns the other way round,
+plus the two rows where the platforms differ rather than match: `<method>CancelCallCount` has no
+Kotlin counterpart, and the trapping *property* getter is spelled `` `<var>GetHandler` must be set! ``
+here (`templates/Mocks/MockVar.swift:91`) where the method form matches Kotlin's
+`<fn>Handler expected to be set.` exactly (`templates/Mocks/MockMethod.swift:146`). Neither CI can
+diff the two copies of the table, so each names the other repository and states that renaming a
+member is a change to both generators.
+
+### 14.3 "Publishers are subject-backed" — a ninth body section
+
+Adds a row to §5.2's table, between "what the generated mock gives a test" and the failure modes. It
+is 18 lines: the subject names, a four-line test that subscribes before it sends, the
+`PassthroughSubject` default and what it drops, and the two ways to make a member replay —
+`subject = "CurrentValue"` on the requirement, or a publisher of the test's own from
+`<var>GetHandler`.
+
+§5.4's symptom table already carries the hang, and `references/troubleshooting.md` carries the long
+form. The difference is when each is read: the symptom row is reached by an agent holding a failing
+test, and this section is reached by one about to write it. The `publisher-hangs` eval case measures
+the first path and not the second, which §14.8 leaves open.
+
+### 14.4 The model and the CLI version of §13.4's ten runs
+
+§13.4 records the date, the count and the cost, and names neither. Both, measured:
+
+- **Claude Code 2.1.267.** §13.2 and §13.3 already name it for the binary read and for the
+  early-access refusal; it is the same CLI that ran the ten arms.
+- **`claude-opus-5`.** No `--model` was passed to any arm — §13.3's command line has no such flag —
+  and `~/.claude/settings.json` carries no `model` key, so each arm took the CLI default. Measured
+  after the fact on the same version and the same account, from a fresh directory:
+  `claude -p --output-format json "…"` reports `canonicalModel: claude-opus-5` for the main agent and
+  `claude-haiku-4-5` for the side call the session makes.
+
+One version to record for the run that has not happened yet: `claude plugin eval --judge-model`
+defaults to haiku, so the `llm` graders of §13.6's first open item will be graded by a smaller model
+than the one that produced the answers.
+
+### 14.5 The grader audit — no `not_contains` here
+
+The twin deleted `evals/wire-a-jvm-module/graders/no-mocking-library.md` after a without-arm named
+MockK while refusing to use it: a `not_contains` on a tool name cannot tell "recommends X" from
+"declines X", and it redded an answer that was right. The eighteen graders of `Tests/Evals/` were
+read against that shape:
+
+| type | count | shape |
+| --- | --- | --- |
+| `regex` | 8 | every one `match: contains`, on a token the correct answer has to produce — `\$\{SOURCERY_SOURCES\}`, `--sources`, `mock-templates.{0,40}generate`, `subject = "CurrentValue"\|CurrentValueSubject` |
+| `tool_used` | 5 | `tool: Skill`, `arm: with-only`, the plugin-fired indicator |
+| `llm` | 5 | criteria plus an "It fails if …" clause |
+
+Nothing is changed. No grader excludes a string, so no answer can be redded for naming a tool it goes
+on to reject. The exclusions this suite does carry are the "It fails if …" clauses of the five `llm`
+graders — "It fails if it recommends adding the build-tool plugin to this package as well" — which a
+judge model reads as a judgement about the recommendation, not as a substring test. That is the
+property the twin's deleted grader lacked, and it is why the same row costs nothing here.
+
+### 14.6 Row 7 is not a defect in either spec — flagged
+
+The row reads: "One spec records the runner wrongly. Measure once with the installed runner and
+append the answer to both specs. Move nothing until then." Both specs are right, and the measurement
+needs the help text rather than a run. `claude plugin eval --help` at 2.1.267, read here:
+
+```
+--eval-dir <dir>   Directory name (below the plugin) that holds the eval cases; results go to
+                   <plugin>/<dir>/results/ … (default dir: the manifest's experimental.evals
+                   value, else evals/)
+```
+
+The default is the manifest's value **or** `evals/`. A plugin whose cases sit in `evals/` therefore
+needs no key — the twin, its 001 §8 D11 — and a plugin whose cases sit in `Tests/Evals` needs one,
+which is what §13.2 says and what `.claude-plugin/plugin.json` carries. The two records are about two
+directory names and do not contradict each other. Nothing moves: `Tests/Evals` stays where §13.2 put
+it, beside `Tests/Checks`. The twin's 001 §16.3 reaches the same reading from its own copy of the
+help text.
+
+### 14.7 Row 13 asks for what is already here — flagged
+
+The row's Swift column says `AGENTS.md` holds "rules for the skill and the gate" and asks for the
+writing-style section to be added. `AGENTS.md:29-65` is "## Writing style: state facts and actions,
+no aphorisms", six bullets and the sentence-level test, and it has been there since the file was
+written. The row's second clause — "CLAUDE.md there is a pointer, so one edit" — is wrong for both
+repositories: `AGENTS.md` and `CLAUDE.md` are byte-identical copies, `cp AGENTS.md CLAUDE.md`, and
+`ci.yml`'s `rules` job runs `cmp` on them. Editing one is always two files, never one. No edit.
+
+### 14.8 The rows that name the twin, and what stays open here
+
+Rows 1, 3 and 8 name `kotlin-ksp-mocks` and are implemented in its 001 §16.1: the decision table
+moved above the wiring block, the shaping heading renamed to this repository's first line, and an
+`evals/README.md`. Rows 5, 12 and 14 ask for nothing in either repository — the symptom-row counts
+and the marketplace descriptions are each right as they stand, and the wiring-shape counts differ
+because the build systems do.
+
+Open, unchanged by this section:
+
+- **No eval case reads a reference file.** §13.3's third condition means the with-arms answered from
+  `SKILL.md` alone, and `references/generated-api.md` joins the four files no case has exercised. A
+  case that asks what an unset handler returns, run with
+  `--add-dir <repo>/skills/swift-sourcery-mocks`, is what would measure it.
+- **§13.6's two items and phase A5**, unchanged.
+
+### 14.9 The gate
+
+| command | result |
+| --- | --- |
+| `Tests/Checks/run-skill-checks.sh` | twelve green, SC5 at 273 lines and 224 |
+| `Tests/Checks/run-skill-checks.sh --self-test` | twelve red against their seeded violations, then twelve green |
+| `Tests/Checks/run-annotation-checks.sh` | nine green |
+| `Tests/Checks/run-checks.sh` | snapshot, both language modes and the behaviour checks, all green |
+| `cmp AGENTS.md CLAUDE.md` | identical |
+
+No template, `Sources/`, `Plugins/` or `.github/` file is touched, so the five macOS lanes have
+nothing new to run; §6.2's change filter skips them for a push of `.md` files and `README.md`.
+
+**Corrected against the run.** The branch's first push ran all nine jobs and all nine passed (run
+`34531716017`, head `01efee2`). The paragraph above is right about the files and wrong about this
+push: a branch-creating push carries `before=0000000000000000000000000000000000000000`, and the
+filter's fallback — *no usable range (before='000…') — running every lane* — sets `code=true`
+before any path is examined. §6.2's path filter decides the second and later pushes of a branch,
+where a range exists; it never decides the first.
