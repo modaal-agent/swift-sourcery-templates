@@ -627,6 +627,45 @@ Passed via `--args` on the CLI or `args:` in a YAML config:
 
 A Component is production code, so its output takes `import=`, not `testable=`.
 
+## Agent skill
+
+`skills/swift-sourcery-mocks/` is an [agent skill](https://code.claude.com/docs/en/skills): the
+setup above, written for a coding agent working in a repository that *adopts* these templates. It
+picks the lane, writes the config, and names the cause when generation produces a mock that does not
+conform. Its annotation table is rendered from the same registry this README's is
+(`Scripts/render-annotations.sh`), so the two cannot drift apart.
+
+Four channels install it, over one tree.
+
+**1. Any of ~75 agents, through the cross-agent CLI.** `-g` installs for every project on the
+machine instead of this one; `--list` lists without installing.
+
+```bash
+npx skills add modaal-agent/swift-sourcery-templates
+```
+
+**2. As a Claude Code plugin.** The repository root is both the marketplace and the plugin:
+
+```
+/plugin marketplace add modaal-agent/swift-sourcery-templates
+/plugin install swift-sourcery-mocks@swift-sourcery-templates
+```
+
+**3. By hand.**
+
+```bash
+git clone https://github.com/modaal-agent/swift-sourcery-templates
+cp -r swift-sourcery-templates/skills/* ~/.claude/skills/     # or .claude/skills/ per project
+```
+
+**4. claude.ai and the Skills API.** The frontmatter carries only the Agent Skills standard's keys,
+so `skills/swift-sourcery-mocks/` packages and uploads unedited.
+
+The skill is not a release asset. All four channels read this repository, so a change to it is
+published by landing on `master`; `Tests/Checks/run-skill-checks.sh` gates it on every push,
+including the check that every `SOURCERY_*` variable and every `mock-templates` flag it names is one
+this repository actually provides.
+
 ## Annotating External Protocols
 
 To generate mocks for protocols defined in external packages (without modifying their source), use empty extensions with the `ProtocolMock` annotation:

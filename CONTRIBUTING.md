@@ -47,6 +47,13 @@ Scripts/
   assemble-release.sh               # builds the release assets — see Cutting a release
   engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
   render-annotations.sh             # renders templates/Annotations/ into every document that documents it
+skills/                             # the agent skill, published by four channels — see The agent skill
+  swift-sourcery-mocks/
+    SKILL.md                        # the resident body; its annotation block is rendered
+    references/*.md                 # loaded per lane, not resident
+.claude-plugin/                     # the Claude Code plugin channel: the repository root is the marketplace
+  marketplace.json                  # one entry, source "./"
+  plugin.json                       # the plugin; its default skills/ is the tree above
 specs/                              # design specs, NNN-slug/spec.md — see What goes in which document
 ```
 
@@ -174,6 +181,24 @@ silence.
 4. A block-format change invalidates every committed fingerprint downstream — bump the version in
    the header line (`mock-templates:fingerprint v1`) and say so in CHANGELOG.md
 
+### The agent skill
+
+1. `skills/swift-sourcery-mocks/` — `SKILL.md` says what to do and stays under 400 lines, because it
+   is in context for every turn after it is invoked; anything longer moves into `references/*.md`,
+   which cost nothing until the agent opens one
+2. It teaches an agent working in a repository that *adopts* the templates. Editing the templates is
+   this file's subject and AGENTS.md's, and both are already loaded by an agent working here
+3. The annotation table is rendered by `Scripts/render-annotations.sh`, never written by hand
+4. No version literal anywhere in the tree: a `from: "0.7.0"` in a snippet is wrong the day after
+   the next tag and nothing in the adopter's repository reads it. Snippets carry a placeholder and
+   the command that resolves the newest tag
+5. Run `Tests/Checks/run-skill-checks.sh`. SC6 and SC7 are why the skill lives here: every
+   `SOURCERY_*` variable it names is compared against the plugin source and every `mock-templates`
+   flag against `Commands.swift`, on the push that changes either side
+6. The frontmatter carries only the Agent Skills standard's six keys, so the directory uploads to
+   claude.ai unedited — and its values are quoted or free of `: `, which the cross-agent CLI's YAML
+   parser refuses in a plain scalar
+
 ## Design rules already decided
 
 **Mock classes are `final`.** Subclassing a generated mock is not supported; setting a handler is the
@@ -285,6 +310,7 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | lane | command | needs |
 |------|---------|-------|
 | annotations | `Tests/Checks/run-annotation-checks.sh` | nothing but a shell; seconds |
+| skill | `Tests/Checks/run-skill-checks.sh` | a shell and `python3`; seconds |
 | fast | `Tests/Checks/run-checks.sh` | a Swift toolchain; ~15s |
 | CLI | `Tests/Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | a Swift toolchain and, once, the network; ~1 min cold |
@@ -356,6 +382,7 @@ external-annotation pattern, type erasure, and the plugin itself.
 | fast | `Tests/Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
 | annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
+| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11). `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match |
 | plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
@@ -369,9 +396,10 @@ external-annotation pattern, type erasure, and the plugin itself.
 
 ### CI
 
-`.github/workflows/ci.yml` runs all six lanes on every push: fast, CLI, plugin and xcode in
-parallel, full gated on fast, and annotations on ubuntu. A push touching only `**.md` skips the five
-macOS lanes; annotations is outside that filter, because the tables it checks are markdown. Xcode is
+`.github/workflows/ci.yml` runs all seven lanes on every push: fast, CLI, plugin and xcode in
+parallel, full gated on fast, and annotations and skill on ubuntu. A push touching only `**.md`,
+`.claude-plugin/` or `skills/` skips the five macOS lanes; annotations and skill are outside that
+filter, because those three paths are exactly what they read. Xcode is
 pinned via `XCODE_VERSION` because the fast lane's gate is *zero diagnostics*: a runner image whose
 compiler emits one new warning would turn it red for a reason unrelated to the templates. The gate has
 been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4), so the pin is for
@@ -393,7 +421,7 @@ the assets to the tag's GitHub release.
 
 ## Cutting a release
 
-1. Run all six lanes green
+1. Run all seven lanes green
 2. Regenerate the reference consumer (`modaal-firebase-wrappers`) against `master` and record the size
    and shape of its diff. A release whose consumer impact was not measured is not ready to tag
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to
