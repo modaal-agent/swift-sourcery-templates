@@ -167,6 +167,30 @@ exactly the distance no `SOURCERY_TARGET_*` variable reaches.
 | **determinism** | a second build leaves every synthesized config byte-identical — the prebuild command re-runs every build, and a config that churns invalidates Sourcery's cache every time |
 | **shared cache** | a target with two configs, rebuilt with the caches dropped, produces the same output both times |
 
+## The artifact-bundle route
+
+[`PluginFixtureBundleRoute/`](PluginFixtureBundleRoute) is the only place route 3
+of the template-resolution order runs — the plugin reading `templates/` out of
+the artifact bundle `Package.swift` pins.
+
+Every other fixture reaches this repository directly, so the plugin's own source
+file sits beside a `templates/` directory and `#filePath` answers first. That is
+what a branch wants, and it leaves the bundle route covered by nothing. This
+fixture's dependency is therefore a copy of the repository with `templates/` left
+out, which `run-plugin-checks.sh` writes into `.build/plugin-checks/engine-package`
+before building: route 1 finds the package in the graph with no templates under
+it, route 2 finds none beside the plugin source, and route 3 answers.
+
+| gate | what it proves |
+| --- | --- |
+| **bundle route** | the build succeeds, the log names the pinned artifact bundle as the route, the resolved template path is inside an `.artifactbundle` rather than in this working tree, and the mock the bundle's template generated carries `func ferry` |
+
+The copy is generated rather than committed: it is this repository minus one
+directory, and a second copy in the tree would be a second thing to keep in step.
+Restoring `templates/` into it turns the route back to the package graph, which
+is the negative control — the log then reads `the package graph` and both path
+assertions fail.
+
 ## The red controls
 
 [`PluginFixtureRed/`](PluginFixtureRed) holds four packages that must **fail**,

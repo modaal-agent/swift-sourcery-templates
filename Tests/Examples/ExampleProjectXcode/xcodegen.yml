@@ -11,7 +11,8 @@
 # package is a full source checkout that carries `templates/`, so `#filePath`
 # answers and the log reads "shipped templates come from the plugin's own source
 # location, .../SourcePackages/checkouts/swift-sourcery-templates/templates".
-# Route 3 answers only where route 2 fails, which is what F6 built it for.
+# Route 3 answers only where route 2 fails, which is what F6 built it for, and
+# Tests/Checks/PluginFixtureBundleRoute is the fixture that makes it fail.
 #
 # Not a lane in ci.yml (F9): a branch lane here would make every push depend on
 # the last published artifact, which is the coupling §16 exists to avoid.

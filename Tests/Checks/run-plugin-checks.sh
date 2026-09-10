@@ -17,6 +17,10 @@
 #                FAIL, for a reason this script matches on. One package per
 #                control: build planning runs every target's plugin, so a
 #                plan-time error in one target fails the build for all of them.
+#   bundle route Checks/PluginFixtureBundleRoute — a package whose dependency is
+#                a copy of this repository with no `templates/`, so the two
+#                routes ahead of the artifact bundle cannot answer and the third
+#                one runs. The only place it does.
 #
 # Usage:
 #   Checks/run-plugin-checks.sh            # run the gates
@@ -39,6 +43,8 @@ CACHE_DIR="$WORK_DIR/cache"
 FIXTURE_DIR="$SCRIPT_DIR/PluginFixture"
 FIXTURE_SCRATCH="$WORK_DIR/fixture"
 RED_DIR="$SCRIPT_DIR/PluginFixtureRed"
+BUNDLE_ROUTE_DIR="$SCRIPT_DIR/PluginFixtureBundleRoute"
+ENGINE_PACKAGE="$WORK_DIR/engine-package"
 
 KEEP=0
 [ "$1" = "--keep" ] && KEEP=1
@@ -454,6 +460,57 @@ elif [ -z "$PACKAGEKEY_CONFIG" ]; then
   fail "PackageKey wrote no synthesized config to inspect"
 else
   fail "a sources: block was appended over a config that declares package:"
+fi
+
+# ── 12. The artifact-bundle template route ────────────────────────
+# Route 3 of followup-xcode-lane.md §12, and the only gate that runs it. Every
+# other fixture reaches this repository directly, so the plugin's own source file
+# sits beside a `templates/` directory and route 2 answers first — which is what
+# §16 wants on a branch, and what leaves route 3 covered by nothing.
+#
+# So the dependency here is a copy of this repository with `templates/` left out:
+# route 1 finds the package in the graph with no templates under it, route 2
+# finds none beside the plugin source, and the plugin falls through to the
+# artifact bundle its manifest pins. `-v` because a remark reaches the SwiftPM
+# log only in verbose mode.
+echo ""
+echo "── artifact-bundle route ──"
+rm -rf "$ENGINE_PACKAGE"
+mkdir -p "$ENGINE_PACKAGE"
+cp "$GIT_ROOT/Package.swift" "$ENGINE_PACKAGE/"
+cp -R "$GIT_ROOT/Plugins" "$GIT_ROOT/Sources" "$ENGINE_PACKAGE/"
+if [ -e "$ENGINE_PACKAGE/templates" ]; then
+  fail "the engine-package copy carries templates/, so this gate would test route 2 again"
+fi
+
+BUNDLE_ROUTE_SCRATCH="$WORK_DIR/bundle-route"
+BUNDLE_ROUTE_LOG="$WORK_DIR/bundle-route.log"
+if ! swift build --package-path "$BUNDLE_ROUTE_DIR" --scratch-path "$BUNDLE_ROUTE_SCRATCH" \
+     "${SWIFT_FLAGS[@]}" -v > "$BUNDLE_ROUTE_LOG" 2>&1; then
+  grep -E "error:" "$BUNDLE_ROUTE_LOG" | head -10
+  fail "the bundle-route fixture did not build — a bare name did not resolve without a templates/ in the checkout"
+else
+  pass "a bare template name resolves with no templates/ in the consumed checkout"
+  if grep -qF "shipped templates come from the pinned artifact bundle" "$BUNDLE_ROUTE_LOG"; then
+    pass "and the log names the artifact bundle as the route"
+  else
+    grep -o "shipped templates come from [^\"]*" "$BUNDLE_ROUTE_LOG" | head -1
+    fail "the log does not name the pinned artifact bundle as the route"
+  fi
+  BUNDLE_ROUTE_CONFIG="$(find "$BUNDLE_ROUTE_SCRATCH/plugins/outputs" -path "*/.sourceryConfigs/*" -type f 2>/dev/null | head -1)"
+  BUNDLE_ROUTE_TEMPLATE="$(block_paths "$BUNDLE_ROUTE_CONFIG" templates)"
+  case "$BUNDLE_ROUTE_TEMPLATE" in
+    */artifacts/*.artifactbundle/templates/Mocks.swifttemplate)
+      pass "'- Mocks' resolved inside the artifact bundle, not in this working tree" ;;
+    *)
+      fail "expected a path inside an .artifactbundle, got: $BUNDLE_ROUTE_TEMPLATE" ;;
+  esac
+  BUNDLE_ROUTE_MOCK="$(find "$BUNDLE_ROUTE_SCRATCH/plugins/outputs" -path "*/.generatedFiles/*/Mocks.generated.swift" -type f 2>/dev/null | head -1)"
+  if [ -n "$BUNDLE_ROUTE_MOCK" ] && grep -q 'func ferry' "$BUNDLE_ROUTE_MOCK"; then
+    pass "and the bundle's template generated the requirement the fixture declares"
+  else
+    fail "no mock, or one missing 'func ferry', from the bundle's template"
+  fi
 fi
 
 # ── Result ────────────────────────────────────────────────────────
