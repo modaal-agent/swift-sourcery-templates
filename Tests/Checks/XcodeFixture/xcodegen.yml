@@ -1,0 +1,90 @@
+# The Xcode-path fixture, as an XcodeGen spec. The generated
+# `XcodeFixture.xcodeproj` is not committed: this file is what a reviewer reads,
+# and the `project.pbxproj` it produces is generated identifiers
+# (specs/001-plugin-source-discovery/followup-xcode-lane.md, F3).
+#
+# Every target is a macOS framework: the plugin path under test does not vary by
+# platform, and this keeps the lane's requirements equal to the plugin lane's —
+# no simulator, no signing, no Info.plist.
+name: XcodeFixture
+options:
+  createIntermediateGroups: true
+  bundleIdPrefix: com.example.xcodefixture
+packages:
+  SwiftSourceryTemplates:
+    path: ../../..
+  Kit:
+    path: Libraries/Kit
+targets:
+  # The closure and hand-listed gates. It depends on a package product, which
+  # the plugin API reports as no dependency at all, so the package's sources are
+  # named by hand in the config beside the placeholder.
+  App:
+    type: framework
+    platform: macOS
+    deploymentTarget: '13.0'
+    sources: [App]
+    dependencies:
+      - package: Kit
+        product: KitCore
+    buildToolPlugins:
+      - plugin: SourcerySwiftCodegenPlugin
+        package: SwiftSourceryTemplates
+
+  # The defaults gate: a config that says only what to generate.
+  Solo:
+    type: framework
+    platform: macOS
+    deploymentTarget: '13.0'
+    sources: [Solo]
+    buildToolPlugins:
+      - plugin: SourcerySwiftCodegenPlugin
+        package: SwiftSourceryTemplates
+
+  # The bare-name gate: a config naming a template without a path. It resolves
+  # here through the plugin's own source location, which needs no package graph.
+  Bare:
+    type: framework
+    platform: macOS
+    deploymentTarget: '13.0'
+    sources: [Bare]
+    buildToolPlugins:
+      - plugin: SourcerySwiftCodegenPlugin
+        package: SwiftSourceryTemplates
+
+  # Carries no plugin. It exists to be depended on.
+  Core:
+    type: framework
+    platform: macOS
+    deploymentTarget: '13.0'
+    sources: [Core]
+
+  # The sibling-target gate: depending on Core puts a built framework in this
+  # target's inputFiles, under a directory that does not exist.
+  Dependent:
+    type: framework
+    platform: macOS
+    deploymentTarget: '13.0'
+    sources: [Dependent]
+    dependencies:
+      - target: Core
+    buildToolPlugins:
+      - plugin: SourcerySwiftCodegenPlugin
+        package: SwiftSourceryTemplates
+
+# Declared rather than left to xcodebuild's scheme autocreation, so the lane
+# builds one named target at a time and a plan-time error in one does not hide
+# the others.
+schemes:
+  App:
+    build:
+      targets: {App: all}
+  Solo:
+    build:
+      targets: {Solo: all}
+  Dependent:
+    build:
+      targets: {Dependent: all}
+  Bare:
+    build:
+      targets: {Bare: all}

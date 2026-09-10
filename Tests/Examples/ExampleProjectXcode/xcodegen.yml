@@ -1,0 +1,50 @@
+# The adopter's shape, as documentation rather than as a gate.
+#
+# Every fixture in Tests/Checks reaches this repository by path, because that is
+# what a fixture in this repository can do. This project is the one thing that
+# resolves the package from its published URL at a version, which is what an
+# adopter writes, and it is the only check that resolution works at all.
+#
+# It does NOT exercise route 3 of
+# specs/001-plugin-source-discovery/followup-xcode-lane.md §12, which that
+# spec's §17 expected it to. Measured 2026-09-10 against 0.8.0: a URL-resolved
+# package is a full source checkout that carries `templates/`, so `#filePath`
+# answers and the log reads "shipped templates come from the plugin's own source
+# location, .../SourcePackages/checkouts/swift-sourcery-templates/templates".
+# Route 3 answers only where route 2 fails, which is what F6 built it for, and
+# Tests/Checks/PluginFixtureBundleRoute is the fixture that makes it fail.
+#
+# Not a lane in ci.yml (F9): a branch lane here would make every push depend on
+# the last published artifact, which is the coupling §16 exists to avoid.
+# `.github/workflows/published-example.yml` runs `build.sh` where a published
+# artifact is the right thing to depend on — after a release, and weekly.
+#
+# `from:` rather than an exact version, so the project follows releases without
+# an edit; 0.8.0 is the first that builds it, and it printed
+# "BUILT against swift-sourcery-templates 0.8.0" on 2026-09-10. Against 0.7.0 it
+# failed, and the earliest reason was not the bare template name: that plugin
+# does not synthesize a config at all, so it ran `Sources/.Sourcery.Mocks.yml`
+# as written and Sourcery rejected it — "Invalid sources. 'sources', 'project'
+# or 'package' key are missing." A config this short needs the plugin to supply
+# `sources:` and `output:` as well.
+name: ExampleProjectXcode
+options:
+  createIntermediateGroups: true
+  bundleIdPrefix: com.example.exampleprojectxcode
+packages:
+  SwiftSourceryTemplates:
+    url: https://github.com/modaal-agent/swift-sourcery-templates
+    from: 0.7.0
+targets:
+  Example:
+    type: framework
+    platform: macOS
+    deploymentTarget: '13.0'
+    sources: [Sources]
+    buildToolPlugins:
+      - plugin: SourcerySwiftCodegenPlugin
+        package: SwiftSourceryTemplates
+schemes:
+  Example:
+    build:
+      targets: {Example: all}

@@ -34,12 +34,19 @@ Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprin
 
 Plugins/SourcerySwiftCodegenPlugin/ # SPM prebuild plugin — one file, no dependencies allowed
 Tests/                              # everything that verifies the product — see Testing below
-  Checks/                           # fast lane + CLI lane + plugin lane
+  Checks/                           # fast lane + CLI lane + plugin lane + Xcode lane
     PluginFixture/                  # the plugin lane's green package: one target per config shape
     PluginFixtureRed/               # five packages that must FAIL, one per red control
-  Examples/ExampleProjectSpm/       # full lane — RxSwift, RIBs, type erasure, the plugin
-Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
-Scripts/render-annotations.sh       # renders templates/Annotations/ into every document that documents it
+    PluginFixtureBundleRoute/       # the only fixture that runs the artifact-bundle template route
+    XcodeFixture/                   # the Xcode lane's green project — an xcodegen.yml, no .xcodeproj
+    XcodeFixtureRed/                # one project per red control — each must FAIL
+  Examples/
+    ExampleProjectSpm/              # full lane — RxSwift, RIBs, type erasure, the plugin
+    ExampleProjectXcode/            # the adopter's shape, by URL at a tag — not a lane
+Scripts/
+  assemble-release.sh               # builds the release assets — see Cutting a release
+  engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
+  render-annotations.sh             # renders templates/Annotations/ into every document that documents it
 specs/                              # design specs, NNN-slug/spec.md — see What goes in which document
 ```
 
@@ -281,10 +288,24 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | fast | `Tests/Checks/run-checks.sh` | a Swift toolchain; ~15s |
 | CLI | `Tests/Checks/run-cli-checks.sh` | a Swift toolchain; ~30s cold, seconds warm |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | a Swift toolchain and, once, the network; ~1 min cold |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
-Both check lanes provision the pinned Sourcery through `Tests/Checks/ensure-sourcery.sh` — the pin
-and the download path live once; `SOURCERY=/path/to/sourcery` overrides it in either lane.
+`Tests/Examples/ExampleProjectXcode/build.sh` is not a *branch* lane. It resolves this package from
+its published URL at a version, so making it one would put every push at the mercy of the last
+published artifact. `.github/workflows/published-example.yml` runs it where a published artifact is
+the right dependency: called by `release.yml` after a release publishes, weekly on a schedule, and
+on demand. `EXPECT_VERSION=<version>` makes it require a particular resolved version, which is what
+the release-time run passes.
+
+It resolves the package into a full source checkout that carries `templates/`, so the plugin's
+`#filePath` route answers and the artifact-bundle route does not — measured 2026-09-10 against
+0.8.0, correcting what `followup-xcode-lane.md` §17 expected of this project. The bundle route is
+reached only where `#filePath` fails, which is what it was built for;
+`Tests/Checks/PluginFixtureBundleRoute` is what runs it.
+
+Both check lanes provision Sourcery through `Tests/Checks/ensure-sourcery.sh`, which reads the pin
+from `Scripts/engine-pin.sh`; `SOURCERY=/path/to/sourcery` overrides it in either lane.
 
 The fast lane runs every template in its `TEMPLATES` list over `Tests/Checks/Fixtures`, diffs each
 output against `Tests/Checks/Snapshots/`, checks that a misspelled selector fails generation and a
@@ -305,6 +326,20 @@ configs, the generated code, and the build's own outcome. Its five red controls 
 plugin: a plan-time error in one target fails the build for all of them, so no `--target` can
 isolate a red control that shares a package with a green one. See `Tests/Checks/README.md`.
 
+`Tests/Checks/PluginFixtureBundleRoute` is the one fixture that runs the third template-resolution
+route, the artifact bundle. Every other fixture reaches this repository directly, so the plugin's
+own source file sits beside a `templates/` directory and `#filePath` answers first; this one depends
+on a generated copy of the repository with `templates/` left out, so the two routes ahead of the
+bundle cannot answer.
+
+The Xcode lane covers the other half of the same plugin. `XcodeBuildToolPlugin` is handed no package
+graph, no dependency edges and no shipped templates, so almost nothing the plugin lane asserts
+carries over, and until this lane existed that half of the file was typechecked but never run. It
+builds `Tests/Checks/XcodeFixture` one scheme at a time — four macOS framework targets, so no
+simulator — and reads the synthesized configs and generated code the same way. Both its projects are
+generated by `xcodegen` from a committed `xcodegen.yml` and are not committed: the spec is what a
+reviewer reads, and `project.pbxproj` is generated identifiers.
+
 The full lane is Quick + Nimble specs in
 `Tests/Examples/ExampleProjectSpm/Sources/ExampleProjectSpmTests/`, driven by the prebuild plugin.
 It covers what the fast lane structurally cannot: RxSwift smart defaults, the RIBs
@@ -323,6 +358,8 @@ external-annotation pattern, type erasure, and the plugin itself.
 | annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match |
+| plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |
@@ -332,41 +369,71 @@ external-annotation pattern, type erasure, and the plugin itself.
 
 ### CI
 
-`.github/workflows/ci.yml` runs all four lanes on every push: fast, CLI and plugin in parallel, full
-gated on fast. Xcode is
+`.github/workflows/ci.yml` runs all six lanes on every push: fast, CLI, plugin and xcode in
+parallel, full gated on fast, and annotations on ubuntu. A push touching only `**.md` skips the five
+macOS lanes; annotations is outside that filter, because the tables it checks are markdown. Xcode is
 pinned via `XCODE_VERSION` because the fast lane's gate is *zero diagnostics*: a runner image whose
 compiler emits one new warning would turn it red for a reason unrelated to the templates. The gate has
 been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4), so the pin is for
 reproducibility rather than fragility. Bumping it means re-running the lanes locally on the new
 version first.
 
-`.github/workflows/release.yml` runs on tag pushes only (which ci.yml deliberately skips): it runs
-`Scripts/assemble-release.sh` and attaches the assets it produces to the tag's GitHub release.
+`.github/workflows/published-example.yml` builds the by-URL example. `release.yml` calls it after a
+release publishes, a weekly `schedule:` runs it as a canary — `Package.swift` names an asset on the
+`templates-X.Y.Z` prerelease, so deleting that prerelease breaks resolution for every consumer at
+that version while every branch stays green — and `workflow_dispatch` runs it on demand. It caches
+nothing: resolving from the network is the thing under test.
+
+`.github/workflows/release.yml` runs on tag pushes only (which ci.yml deliberately skips), and
+routes two tag shapes to two jobs. A `templates-X.Y.Z` tag publishes the artifact bundle a
+`Package.swift` pin can name, as a prerelease. A bare `X.Y.Z` tag runs
+`Scripts/check-pinned-templates.sh` — which refuses to publish unless the pinned bundle's
+`templates/` is byte-identical to the commit's — then `Scripts/assemble-release.sh`, and attaches
+the assets to the tag's GitHub release.
 
 ## Cutting a release
 
-1. Run all three lanes green
+1. Run all six lanes green
 2. Regenerate the reference consumer (`modaal-firebase-wrappers`) against `master` and record the size
    and shape of its diff. A release whose consumer impact was not measured is not ready to tag
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to
    bump: what the generated output looks like now, what can fail after a regenerate and how to fix it,
    what to do beyond bumping the tag
-4. Tag `master`. There is no release branch
-5. The tag push runs `.github/workflows/release.yml`, which publishes the release assets:
+4. If `templates/` changed since the bundle `Package.swift` pins, the release needs two tags, in
+   this order. `Scripts/check-pinned-templates.sh` tells you whether it does, and the release lane
+   refuses to publish if you skip it:
+   1. tag `templates-X.Y.Z` on `master`. Its lane assembles the bundle from that commit's
+      `templates/` and publishes it as a prerelease, with the `.binaryTarget` block in the notes
+   2. land a commit that changes **only** the `sourcery` binaryTarget's `url` and `checksum` to
+      that asset's
+
+   A release that changes only the plugin, the CLI or the docs skips this: the pin stays where it
+   is and the gate passes, because `templates/` did not move. The pin lands *after* the asset
+   exists, so `master` can never reference a zip that was never uploaded
+5. Tag `master` with the bare `X.Y.Z`. There is no release branch
+6. The tag push runs `.github/workflows/release.yml`, which compares the pinned bundle's
+   `templates/` with the commit's and then publishes the release assets:
    `Scripts/assemble-release.sh <tag>` builds the `mock-templates` CLI universal
-   (arm64 + x86_64), vendors the Sourcery engine at the `sourcery` binaryTarget pin in
-   `Package.swift` (the manifest is the only pin; the download is checksum-verified against it),
-   smoke-runs `generate` + `validate` from the assembled layout, and emits
+   (arm64 + x86_64), vendors the Sourcery engine at the `Scripts/engine-pin.sh` pin (the download
+   is checksum-verified against it), smoke-runs `generate` + `validate` from the assembled layout,
+   and emits
    `swift-sourcery-templates-<tag>.artifactbundle.zip`, `mock-templates-<tag>-macos.zip`, a
    `.sha256` beside each, and the release-notes body. Rehearse it locally with
    `Scripts/assemble-release.sh <version>` — everything lands in `.build/release-assets/`
+7. Check the release run's **The by-URL example** job. It resolves the tag just published, from its
+   URL, and builds `Tests/Examples/ExampleProjectXcode` against it — the only check that an adopter
+   can resolve this package at all, since every lane reaches the repository by path. It runs after
+   the publish, because nothing can resolve an asset that is not there yet, so a failure means the
+   published release does not work and the fix is another release. Reproduce it locally with
+   `EXPECT_VERSION=<tag> Tests/Examples/ExampleProjectXcode/build.sh`
 
 ## Dependencies
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is the `sourcery` binaryTarget in `Package.swift` — `Scripts/assemble-release.sh` parses it when vendoring the engine into the release bundle; `Tests/Checks/ensure-sourcery.sh` keeps a copy for the check lanes |
+| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is `Scripts/engine-pin.sh`, read by name by `Scripts/assemble-release.sh` when vendoring the engine into the release bundle and by `Tests/Checks/ensure-sourcery.sh` when provisioning it for the check lanes. `Package.swift`'s `sourcery` binaryTarget is a different pin: this repository's own artifact bundle, which carries an engine built from that one plus `templates/` |
 | swift-argument-parser | 1.3.0+ | the `mock-templates` CLI's command-line surface |
+| XcodeGen | 2.44.1 | generates the Xcode lane's fixture projects from their committed specs — `brew install xcodegen`; contributors and CI only, never a consumer's dependency |
 | Quick | 7.3.0 | BDD test framework (full lane) |
 | Nimble | 13.0.0 | matchers (full lane) |
 | RxSwift | 6.6.0 | example protocols, smart defaults |

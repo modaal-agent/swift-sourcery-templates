@@ -1,0 +1,78 @@
+name: Published example
+
+# Builds Tests/Examples/ExampleProjectXcode — the only thing here that resolves
+# this package from its published URL at a version, which is what an adopter
+# writes. Every check lane reaches this repository by path, so nothing on a
+# branch exercises resolution at all.
+#
+# One job, three ways in:
+#
+#   workflow_call      release.yml calls it after publishing a bare X.Y.Z tag,
+#                      with expect-version set, so a release run reports whether
+#                      what it just published resolves and builds. It cannot
+#                      gate the publish — the asset has to exist before anything
+#                      can resolve it — so it reports rather than blocks.
+#   schedule           weekly, as the canary for what a release-time run cannot
+#                      see. `Package.swift`'s binaryTarget URL names an asset on
+#                      the `templates-X.Y.Z` *prerelease*; deleting that
+#                      prerelease breaks resolution for every consumer at that
+#                      version while every branch stays green.
+#   workflow_dispatch  on demand, optionally against a named version.
+#
+# Deliberately not a lane in ci.yml (followup-xcode-lane.md F9): a branch lane
+# here would make every push depend on the last published artifact, which is the
+# coupling that spec's §16 exists to avoid. This fails a release run or a
+# scheduled run instead of a branch.
+#
+# What it does not check: the plugin resolving templates out of the artifact
+# bundle. A URL-resolved package is a full source checkout carrying
+# `templates/`, so `#filePath` answers first — measured 2026-09-10.
+# Tests/Checks/PluginFixtureBundleRoute is what runs that route, on every push,
+# by depending on a copy of this repository with `templates/` left out.
+#
+# GitHub disables a scheduled workflow after 60 days with no repository
+# activity, and re-enabling it is a button in the Actions tab.
+on:
+  workflow_call:
+    inputs:
+      expect-version:
+        description: The version the example must resolve, e.g. 0.8.0.
+        type: string
+        required: false
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      expect-version:
+        description: Version the example must resolve. Empty accepts whatever `from:` picks.
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# Same pin, same reason, as ci.yml.
+env:
+  XCODE_VERSION: '26.3'
+
+jobs:
+  build:
+    name: Build the by-URL example
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build the example against the published package
+        # No cache. Resolving from the network is the thing under test, and a
+        # cached SourcePackages directory would hide exactly the failure the
+        # weekly run exists to catch.
+        env:
+          EXPECT_VERSION: ${{ inputs.expect-version }}
+        run: Tests/Examples/ExampleProjectXcode/build.sh

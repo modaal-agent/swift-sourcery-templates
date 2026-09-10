@@ -1,13 +1,14 @@
-# Checks — the fast lane, and the plugin lane
+# Checks — the fast lane, the plugin lane and the Xcode lane
 
 `run-checks.sh` and `run-cli-checks.sh` cover the templates and the CLI;
-`run-plugin-checks.sh` covers the build-tool plugin over its own fixture packages.
-The fast lane comes first.
+`run-plugin-checks.sh` covers the build-tool plugin's SwiftPM path over its own
+fixture packages, and `run-xcode-checks.sh` covers its Xcode path over a
+generated Xcode project. The fast lane comes first.
 
 ## The fast lane
 
 `./run-checks.sh` runs every template in its `TEMPLATES` list over
-[`Fixtures/`](Fixtures) and holds the results to four gates. It needs no
+[`Fixtures/`](Fixtures) and holds the results to five gates. It needs no
 simulator and no third-party package, so it runs in a few seconds and is the loop
 to use while editing `templates/`.
 
@@ -21,6 +22,7 @@ SOURCERY=/path/to/sourcery Tests/Checks/run-checks.sh
 | --- | --- |
 | **snapshot** | each generated file matches its recording in [`Snapshots/`](Snapshots), so every template change shows up as a reviewable diff of real output |
 | **zero-match** | a scan with no matching annotation still writes the file — the generators emit a marker comment, because the engine skips whitespace-only renders and consumers commit + fingerprint the output — snapshotted as `ZeroMatch-*` |
+| **near-miss** | a selector whose spelling differs from the registry's only in case fails the run, naming the type, the spelling found and the canonical form; an option that does writes one `// sourcery-templates:` comment into the generated file and generation continues |
 | **typecheck** | all of them compile **together** with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6` |
 | **behaviour** | the mocks count calls, record arguments, run handlers, suspend where the protocol suspends and deliver values pushed into their subjects; the Components forward to the parent and hold what the level owns — [`Behaviour/Main.swift`](Behaviour/Main.swift), plain assertions in one executable |
 
@@ -136,8 +138,8 @@ RxSwift smart defaults (`Single`, `Observable`, `AnyObserver`, `Disposable`),
 RIBs protocol annotation and type erasure. Those need the dependencies and the
 simulator, and they live in
 [`Tests/Examples/ExampleProjectSpm`](../Examples/ExampleProjectSpm) — run
-`./test-ios.sh` there. The build-tool plugin has a lane of its own, below. Run
-all of them before cutting a tag.
+`./test-ios.sh` there. The build-tool plugin has two lanes of its own below, one
+per plugin API. Run all of them before cutting a tag.
 
 # The plugin lane
 
@@ -180,6 +182,30 @@ exactly the distance no `SOURCERY_TARGET_*` variable reaches.
 | **determinism** | a second build leaves every synthesized config byte-identical — the prebuild command re-runs every build, and a config that churns invalidates Sourcery's cache every time |
 | **shared cache** | a target with two configs, rebuilt with the caches dropped, produces the same output both times |
 
+## The artifact-bundle route
+
+[`PluginFixtureBundleRoute/`](PluginFixtureBundleRoute) is the only place route 3
+of the template-resolution order runs — the plugin reading `templates/` out of
+the artifact bundle `Package.swift` pins.
+
+Every other fixture reaches this repository directly, so the plugin's own source
+file sits beside a `templates/` directory and `#filePath` answers first. That is
+what a branch wants, and it leaves the bundle route covered by nothing. This
+fixture's dependency is therefore a copy of the repository with `templates/` left
+out, which `run-plugin-checks.sh` writes into `.build/plugin-checks/engine-package`
+before building: route 1 finds the package in the graph with no templates under
+it, route 2 finds none beside the plugin source, and route 3 answers.
+
+| gate | what it proves |
+| --- | --- |
+| **bundle route** | the build succeeds, the log names the pinned artifact bundle as the route, the resolved template path is inside an `.artifactbundle` rather than in this working tree, and the mock the bundle's template generated carries `func ferry` |
+
+The copy is generated rather than committed: it is this repository minus one
+directory, and a second copy in the tree would be a second thing to keep in step.
+Restoring `templates/` into it turns the route back to the package graph, which
+is the negative control — the log then reads `the package graph` and both path
+assertions fail.
+
 ## The red controls
 
 [`PluginFixtureRed/`](PluginFixtureRed) holds five packages that must **fail**,
@@ -206,4 +232,71 @@ matches on the diagnostic text, not merely on a non-zero exit.
 2. Red means a config the plugin must refuse: add a package under
    `PluginFixtureRed/`, never a target beside a green one — a plan-time error
    fails the whole package, so a red control has to be alone.
+3. Assert on the diagnostic text, not just on the exit status.
+
+# The Xcode lane
+
+```bash
+Tests/Checks/run-xcode-checks.sh          # ~35s, no simulator
+Tests/Checks/run-xcode-checks.sh --keep   # keep the build outputs too (faster, less cold)
+```
+
+Needs [`xcodegen`](https://github.com/yonaskolb/XcodeGen) — `brew install xcodegen`.
+
+The plugin lane above runs the plugin through `PackagePlugin`. An Xcode project
+runs it through `XcodeBuildToolPlugin` instead, and that API is handed no package
+graph, no dependency edges and no shipped templates, so almost nothing the plugin
+lane asserts carries over. This lane is the only place the `XcodeProjectPlugin`
+half of
+[`SourcerySwiftCodegenPlugin.swift`](../../Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift)
+is run rather than only typechecked.
+
+## The green project
+
+[`XcodeFixture/`](XcodeFixture) is four macOS framework targets, built one scheme
+at a time. Its `.xcodeproj` is generated by `xcodegen` from
+[`xcodegen.yml`](XcodeFixture/xcodegen.yml) on every run and is not committed:
+the spec is 70-odd lines a reviewer can read, and the `project.pbxproj` it
+produces is generated identifiers. macOS frameworks rather than an iOS app
+because the plugin path under test does not vary by platform, and this way the
+lane needs no simulator, no signing and no `Info.plist`.
+
+| target | what it carries |
+| --- | --- |
+| `App` | the placeholder plus one hand-listed `${SOURCERY_PROJECT}` entry, and a dependency on a local package's product |
+| `Solo` | zero configuration: `templates:` and nothing else |
+| `Core` | no plugin and no config — it exists to be depended on |
+| `Dependent` | a dependency on `Core`, which is a sibling target in the same project |
+
+| gate | what it proves |
+| --- | --- |
+| **runs** | the config is discovered through the target's own directory, a synthesized copy is written with `output:` supplied, Sourcery runs, and the generated file is in the target's compile input list |
+| **closure** | the spliced `sources:` block is exactly the target's own input directory — `App` depends on a package product and that contributes nothing, because `XcodeTarget.dependencies` is empty for a package product as well as for a sibling target |
+| **hand-listed** | the one `${SOURCERY_PROJECT}`-rooted line the author wrote is scanned, and the mock carries `cacheLimit` (one module away) and `report` (two, through the first) |
+| **passthrough** | every other line of the config, comments included, survives in order |
+| **defaults** | a config carrying only `templates:` gains `sources:` and `output:`, and generates |
+| **determinism** | a second build leaves every synthesized config byte-identical |
+| **sibling target** | a target depending on a second target in the same project builds |
+
+The **closure** gate asserts a degradation rather than a feature. That is
+deliberate: the expansion being one directory is a fact about an API that may
+change, and a gate that reads the synthesized config reports the change instead
+of silently getting better.
+
+## The red control
+
+[`XcodeFixtureRed/BareName/`](XcodeFixtureRed/BareName) must **fail**, matched on
+its diagnostic: its `templates:` names `Mocks`, and an Xcode project has no
+package graph to resolve a shipped template against. A project of its own, for
+the reason the plugin lane's red controls are separate packages — build planning
+runs the plugin for every target being built.
+
+## Adding a check to the Xcode lane
+
+1. Green means a project shape that must work: add a target to
+   `XcodeFixture/xcodegen.yml` carrying it, plus a scheme, so the lane can build
+   it alone and a failure names the shape it broke.
+2. Red means a project the plugin must refuse: add a directory under
+   `XcodeFixtureRed/` with its own `xcodegen.yml`, never a target beside a green
+   one.
 3. Assert on the diagnostic text, not just on the exit status.
