@@ -1650,3 +1650,10 @@ Open, unchanged by this section:
 
 No template, `Sources/`, `Plugins/` or `.github/` file is touched, so the five macOS lanes have
 nothing new to run; §6.2's change filter skips them for a push of `.md` files and `README.md`.
+
+**Corrected against the run.** The branch's first push ran all nine jobs and all nine passed (run
+`34531716017`, head `01efee2`). The paragraph above is right about the files and wrong about this
+push: a branch-creating push carries `before=0000000000000000000000000000000000000000`, and the
+filter's fallback — *no usable range (before='000…') — running every lane* — sets `code=true`
+before any path is examined. §6.2's path filter decides the second and later pushes of a branch,
+where a range exists; it never decides the first.
