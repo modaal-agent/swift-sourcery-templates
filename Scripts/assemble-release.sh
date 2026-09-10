@@ -17,10 +17,12 @@
 #   notes.md
 #       The release-notes body the publish step attaches to the tag.
 #
-# The vendored engine's version, URL and checksum are parsed from the
-# `sourcery` binaryTarget in Package.swift — the manifest is the only pin,
-# and the downloaded zip is verified against the manifest checksum before
-# anything is unpacked from it.
+# The vendored engine's version, URL and checksum come from
+# Scripts/engine-pin.sh, which Tests/Checks/ensure-sourcery.sh reads too, and
+# the downloaded zip is verified against that checksum before anything is
+# unpacked from it. Package.swift's `sourcery` binaryTarget is a separate pin —
+# it names the artifact bundle a consumer resolves — and this script no longer
+# reads it; Scripts/engine-pin.sh says why.
 #
 # The engine's bin/ejs.js is NOT vendored: it serves only .ejs templates,
 # every template in this repo is a .swifttemplate, and the smoke test below
@@ -42,30 +44,29 @@ OUT="$GIT_ROOT/.build/release-assets"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-# ── The engine pin, from Package.swift ────────────────────────────
-SOURCERY_URL="$(sed -n 's/.*url: "\(https[^"]*\.artifactbundle\.zip\)".*/\1/p' "$GIT_ROOT/Package.swift" | head -1)"
-SOURCERY_CHECKSUM="$(sed -n 's/.*checksum: "\([0-9a-f]\{64\}\)".*/\1/p' "$GIT_ROOT/Package.swift" | head -1)"
-SOURCERY_VERSION="$(echo "$SOURCERY_URL" | sed -n 's|.*/download/\([^/]*\)/.*|\1|p')"
-[ -n "$SOURCERY_URL" ] && [ -n "$SOURCERY_CHECKSUM" ] && [ -n "$SOURCERY_VERSION" ] || {
-  echo "FAIL: could not parse the sourcery binaryTarget's url/checksum from Package.swift"
+# ── The engine pin ────────────────────────────────────────────────
+. "$GIT_ROOT/Scripts/engine-pin.sh"
+[ -n "$SOURCERY_ENGINE_URL" ] && [ -n "$SOURCERY_ENGINE_CHECKSUM" ] && [ -n "$SOURCERY_ENGINE_VERSION" ] || {
+  echo "FAIL: Scripts/engine-pin.sh did not set all three of"
+  echo "      SOURCERY_ENGINE_VERSION, SOURCERY_ENGINE_URL, SOURCERY_ENGINE_CHECKSUM"
   exit 1
 }
-echo "── engine ── Sourcery $SOURCERY_VERSION"
+echo "── engine ── Sourcery $SOURCERY_ENGINE_VERSION"
 
 ENGINE_ZIP="$OUT/sourcery-upstream.zip"
 # The check lanes cache the same zip; reuse it when its checksum matches.
-CACHED="$GIT_ROOT/.build/sourcery-$SOURCERY_VERSION/sourcery.zip"
-if [ -f "$CACHED" ] && echo "$SOURCERY_CHECKSUM  $CACHED" | shasum -a 256 -c - >/dev/null 2>&1; then
+CACHED="$GIT_ROOT/.build/sourcery-$SOURCERY_ENGINE_VERSION/sourcery.zip"
+if [ -f "$CACHED" ] && echo "$SOURCERY_ENGINE_CHECKSUM  $CACHED" | shasum -a 256 -c - >/dev/null 2>&1; then
   cp "$CACHED" "$ENGINE_ZIP"
 else
-  curl -fsSL -o "$ENGINE_ZIP" "$SOURCERY_URL"
+  curl -fsSL -o "$ENGINE_ZIP" "$SOURCERY_ENGINE_URL"
 fi
-echo "$SOURCERY_CHECKSUM  $ENGINE_ZIP" | shasum -a 256 -c - || {
-  echo "FAIL: the downloaded engine zip does not match Package.swift's checksum"
+echo "$SOURCERY_ENGINE_CHECKSUM  $ENGINE_ZIP" | shasum -a 256 -c - || {
+  echo "FAIL: the downloaded engine zip does not match the checksum in Scripts/engine-pin.sh"
   exit 1
 }
 unzip -q "$ENGINE_ZIP" -d "$OUT/engine"
-ENGINE_ROOT="$OUT/engine/sourcery-$SOURCERY_VERSION.artifactbundle/sourcery"
+ENGINE_ROOT="$OUT/engine/sourcery-$SOURCERY_ENGINE_VERSION.artifactbundle/sourcery"
 [ -x "$ENGINE_ROOT/bin/sourcery" ] || { echo "FAIL: no engine executable under $ENGINE_ROOT"; exit 1; }
 
 # ── The CLI, universal ────────────────────────────────────────────
@@ -99,7 +100,7 @@ cat > "$BUNDLE/info.json" <<EOF
   "artifacts": {
     "sourcery": {
       "type": "executable",
-      "version": "$SOURCERY_VERSION",
+      "version": "$SOURCERY_ENGINE_VERSION",
       "variants": [
         {
           "path": "sourcery/bin/sourcery",
@@ -129,8 +130,8 @@ python3 -m json.tool "$BUNDLE/info.json" >/dev/null || { echo "FAIL: info.json i
 echo "── smoke ──"
 SMOKE="$OUT/smoke"
 mkdir -p "$SMOKE"
-"$BUNDLE/sourcery/bin/sourcery" --version | grep -q "$SOURCERY_VERSION" || {
-  echo "FAIL: bundled engine does not report version $SOURCERY_VERSION"
+"$BUNDLE/sourcery/bin/sourcery" --version | grep -q "$SOURCERY_ENGINE_VERSION" || {
+  echo "FAIL: bundled engine does not report version $SOURCERY_ENGINE_VERSION"
   exit 1
 }
 "$BUNDLE/mock-templates/bin/mock-templates" generate \
@@ -168,10 +169,10 @@ CLI_SHA="$(cut -d' ' -f1 "$OUT/$CLI_ZIP.sha256")"
 
 cat > "$OUT/notes.md" <<EOF
 One download for a repo that generates: the artifact bundle carries the
-Sourcery $SOURCERY_VERSION engine (universal macOS binary), this repository's
-\`templates/\`, and the \`mock-templates\` CLI. Its \`info.json\` declares both
-executables, so a SwiftPM \`binaryTarget\` pointed at the zip resolves
-\`sourcery\` or \`mock-templates\` by artifact name.
+Sourcery $SOURCERY_ENGINE_VERSION engine (universal macOS binary), this
+repository's \`templates/\`, and the \`mock-templates\` CLI. Its \`info.json\`
+declares both executables, so a SwiftPM \`binaryTarget\` pointed at the zip
+resolves \`sourcery\` or \`mock-templates\` by artifact name.
 
 | Asset | Contents |
 | --- | --- |

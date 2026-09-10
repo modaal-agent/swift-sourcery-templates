@@ -112,7 +112,50 @@ templates, the plugin and the CLI are where they were, and no tag's assets chang
 commands move, so a contributor's muscle memory is what breaks — `Checks/run-checks.sh` is now
 `Tests/Checks/run-checks.sh`. Paths quoted in the released entries below predate the move.
 
-Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md).
+**Xcode projects:** a project with a dependency between two of its own targets could not build. The
+linked framework is an input file of the depending target, so the plugin derived `<project>/build`
+as a directory to search for configs; that directory does not exist when the project builds into
+DerivedData, `contentsOfDirectory` threw, and the plugin reported the throw as an error that failed
+the build before Sourcery ran. A config location that is not there is now skipped. One that exists
+and will not open still fails, with the same error.
+
+Two claims this repository made about the Xcode path were measured false, and this release corrects
+the documentation rather than changing the plugin to match it. `${SOURCERY_SOURCES}` in an Xcode
+project expands to the target's own input-file directories and nothing else — it never also reached
+the module directories of the target's product dependencies, because `XcodeTarget.dependencies` is
+empty on Xcode 26.5 for a package product as well as for a sibling target. For the same reason no
+`SOURCERY_TARGET_*` variable is exported there. Name any further directory in `sources:` yourself,
+as an absolute path built from `${SOURCERY_PROJECT}`. Nothing about the SPM path changes, and no
+config that already worked stops working.
+
+A fifth lane checks it: `Tests/Checks/run-xcode-checks.sh`, over an Xcode project XcodeGen generates
+from a committed spec. It is the first coverage `XcodeBuildToolPlugin` has had — about 35s, no
+simulator, `brew install xcodegen`.
+
+**A bare template name now works in an Xcode project.** `- Mocks` in a config resolves to the
+shipped `Mocks.swifttemplate` there exactly as it does in a package, and `SOURCERY_TEMPLATES` is
+exported on both paths. The plugin looks for the shipped `templates/` directory in three places and
+takes the first that is a directory on disk: the package graph, as before; the plugin's own source
+file, three components up; and the artifact bundle `Package.swift` pins, beside the engine. The last
+two read no package graph, which is what an Xcode project has none of. The build log names which one
+answered, so a config's effective `templates/` is visible from the build.
+
+**The engine an adopter downloads is this repository's artifact bundle, not upstream Sourcery's.**
+`Package.swift`'s `sourcery` binaryTarget names
+`swift-sourcery-templates-<version>.artifactbundle.zip`, which carries the same Sourcery 2.3.0
+engine plus `templates/` and the `mock-templates` CLI. Resolving the package therefore pins the
+engine and the templates at one version. The download grows by 58,332 bytes.
+
+One thing it does not carry: upstream's `bin/ejs.js`. Every template here is a `.swifttemplate` and
+the release assembly has never vendored it. A consumer driving the plugin with a `.ejs` template of
+their own loses the runtime that serves it — name the engine yourself if that is you.
+
+**Adopting:** nothing to do. A config naming templates by path keeps working unchanged; a bare name
+is new capability, not a change to an existing one.
+
+Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md)
+and, for the Xcode path,
+[`followup-xcode-lane.md`](specs/001-plugin-source-discovery/followup-xcode-lane.md).
 
 ---
 

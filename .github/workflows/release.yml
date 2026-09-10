@@ -1,14 +1,35 @@
 name: Release
 
-# Tag-triggered. ci.yml deliberately skips tag pushes — a tag is cut from a
-# commit already built on its branch push — so this workflow is the only one
-# a tag runs, and it does no re-testing: it assembles the release assets and
-# publishes them on the tag's GitHub release. The assembly script's smoke
-# test (generate + validate from the shipped layout) is the gate that runs
-# here; if it fails, nothing is published.
+# Tag-triggered, in two shapes. ci.yml deliberately skips tag pushes — a tag is
+# cut from a commit already built on its branch push — so this workflow is the
+# only one a tag runs.
+#
+#   templates-X.Y.Z   publishes the artifact bundle built from that commit's
+#                     templates/, so `Package.swift`'s `sourcery` binaryTarget
+#                     has a URL and a checksum to name. Nothing else changes,
+#                     and it is published as a prerelease: an adopter installs
+#                     the bare tag, not this one.
+#   X.Y.Z             the release. Before anything is published, the pinned
+#                     bundle's templates/ is compared with the commit's — the
+#                     gate that keeps the plugin's third resolution route from
+#                     serving templates nobody reviewed.
+#
+# `*.*.*` matches `templates-0.8.0` as well (`templates-0` `.` `8` `.` `0`), so
+# the pattern is not what tells the two apart; the jobs' `if:` conditions are.
+# Both are listed anyway, so the trigger names the two shapes the repository
+# actually cuts.
+#
+# The order matters and it is the reason the repository can never reference an
+# asset that does not exist: the pin lands in a commit *after* the bundle is
+# published, so a templates tag whose lane fails publishes nothing, gets no pin
+# bump, and leaves `Package.swift` pointing at the last asset that did publish.
+#
+# specs/001-plugin-source-discovery/followup-xcode-lane.md §15, F8.
 on:
   push:
-    tags: ['*.*.*']
+    tags:
+      - '*.*.*'
+      - 'templates-*.*.*'
 
 permissions:
   contents: write
@@ -18,8 +39,10 @@ env:
   XCODE_VERSION: '26.3'
 
 jobs:
-  release:
-    name: Assemble and publish the release assets
+  # ── The bundle a pin can name ────────────────────────────────────
+  templates:
+    name: Publish the artifact bundle a pin can name
+    if: startsWith(github.ref_name, 'templates-')
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
@@ -27,6 +50,64 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Assemble release assets
+        # The version is the tag with its prefix removed, so the asset keeps the
+        # name every other release gives it and only the tag it hangs from says
+        # what this one is for.
+        run: Scripts/assemble-release.sh "${GITHUB_REF_NAME#templates-}"
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#templates-}"
+          ASSETS=.build/release-assets
+          BUNDLE_ZIP="swift-sourcery-templates-$VERSION.artifactbundle.zip"
+          BUNDLE_SHA="$(cut -d' ' -f1 "$ASSETS/$BUNDLE_ZIP.sha256")"
+          URL="${{ github.server_url }}/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/$BUNDLE_ZIP"
+          {
+            echo "The artifact bundle \`Package.swift\`'s \`sourcery\` binaryTarget pins."
+            echo "It carries the engine, this commit's \`templates/\` and the CLI."
+            echo ""
+            echo "This is not the release to install — that is the bare \`$VERSION\` tag."
+            echo "Land this pin, then tag the release at the commit that lands it:"
+            echo ""
+            echo '```swift'
+            echo '.binaryTarget('
+            echo '  name: "sourcery",'
+            echo "  url: \"$URL\","
+            echo "  checksum: \"$BUNDLE_SHA\""
+            echo ')'
+            echo '```'
+            echo ""
+            cat "$ASSETS/notes.md"
+          } > "$ASSETS/templates-notes.md"
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --prerelease \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "$ASSETS/templates-notes.md" \
+            "$ASSETS"/*.zip \
+            "$ASSETS"/*.sha256
+
+  # ── The release ──────────────────────────────────────────────────
+  release:
+    name: Assemble and publish the release assets
+    if: ${{ !startsWith(github.ref_name, 'templates-') }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: The pinned bundle's templates are this commit's
+        # Runs before the assembly, so a mismatch costs seconds rather than a
+        # universal build. Nothing is published if it fails.
+        run: Scripts/check-pinned-templates.sh
 
       - name: Assemble release assets
         # The tag name is the version — tags are bare semver (e.g. 0.6.0).

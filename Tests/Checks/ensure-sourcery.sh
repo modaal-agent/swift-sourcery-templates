@@ -4,17 +4,16 @@
 #
 # Set SOURCERY=/path/to/sourcery to use your own build instead.
 
-# Keep in step with Package.swift's binary target.
-SOURCERY_VERSION="2.3.0"
-SOURCERY_URL="https://github.com/krzysztofzablocki/Sourcery/releases/download/${SOURCERY_VERSION}/sourcery-${SOURCERY_VERSION}.artifactbundle.zip"
+# The pin is Scripts/engine-pin.sh, which Scripts/assemble-release.sh reads too.
+. "$GIT_ROOT/Scripts/engine-pin.sh"
 
 if [ -z "$SOURCERY" ]; then
-  BUNDLE_DIR="$GIT_ROOT/.build/sourcery-${SOURCERY_VERSION}"
-  SOURCERY="$BUNDLE_DIR/sourcery-${SOURCERY_VERSION}.artifactbundle/sourcery/bin/sourcery"
+  BUNDLE_DIR="$GIT_ROOT/.build/sourcery-${SOURCERY_ENGINE_VERSION}"
+  SOURCERY="$BUNDLE_DIR/sourcery-${SOURCERY_ENGINE_VERSION}.artifactbundle/sourcery/bin/sourcery"
   if [ ! -x "$SOURCERY" ]; then
-    echo "Downloading Sourcery ${SOURCERY_VERSION}..."
+    echo "Downloading Sourcery ${SOURCERY_ENGINE_VERSION}..."
     mkdir -p "$BUNDLE_DIR"
-    curl -sSL -o "$BUNDLE_DIR/sourcery.zip" "$SOURCERY_URL"
+    curl -sSL -o "$BUNDLE_DIR/sourcery.zip" "$SOURCERY_ENGINE_URL"
     unzip -q -o "$BUNDLE_DIR/sourcery.zip" -d "$BUNDLE_DIR"
     # Some releases nest the executable one level deeper.
     [ -x "$SOURCERY" ] || SOURCERY="$(find "$BUNDLE_DIR" -type f -name sourcery -perm +111 | head -1)"

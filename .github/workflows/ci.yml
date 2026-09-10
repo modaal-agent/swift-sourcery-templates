@@ -54,7 +54,7 @@ jobs:
 
   # ── Change filter ────────────────────────────────────────────────
   # Reports whether the push touched anything a build can read. Markdown cannot
-  # break a Swift build, so a docs-only push skips the four macOS lanes rather
+  # break a Swift build, so a docs-only push skips the five macOS lanes rather
   # than spending about six minutes and a simulator boot to confirm a README is
   # still a README. The `rules` job is deliberately not gated on this: it reads
   # markdown, which is exactly what a docs-only push changes.
@@ -104,7 +104,7 @@ jobs:
             printf '%s\n' "$code_files" | sed 's/^/  /'
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
-            echo "markdown only — skipping the four macOS lanes"
+            echo "markdown only — skipping the five macOS lanes"
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -196,6 +196,40 @@ jobs:
 
       - name: Run plugin checks
         run: Tests/Checks/run-plugin-checks.sh
+
+  # ── Xcode lane ───────────────────────────────────────────────────
+  # The other half of the plugin. `plugin` above runs it through
+  # `PackagePlugin`; an Xcode project runs it through `XcodeBuildToolPlugin`,
+  # which is handed no package graph, no dependency edges and no shipped
+  # templates — so none of that lane's assertions carry over. Needs `xcodegen`,
+  # which generates the fixture project from a committed spec, and no simulator,
+  # so it runs beside `checks` rather than behind it.
+  xcode:
+    name: Xcode (XcodeBuildToolPlugin over a generated project)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache the fixtures' resolved packages
+        # Both projects here share one cloned-packages directory, so the pinned
+        # Sourcery artifact bundle and swift-argument-parser are fetched once.
+        uses: actions/cache@v5
+        with:
+          path: .build/xcode-checks/SourcePackages
+          key: xcode-checks-${{ runner.os }}-${{ env.SOURCERY_VERSION }}-${{ hashFiles('Package.swift') }}
+          restore-keys: xcode-checks-${{ runner.os }}-${{ env.SOURCERY_VERSION }}-
+
+      - name: Run Xcode checks
+        run: Tests/Checks/run-xcode-checks.sh
 
   # ── Full lane ────────────────────────────────────────────────────
   # Covers what the fast lane structurally cannot: the RxSwift smart defaults

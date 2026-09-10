@@ -1,0 +1,17 @@
+# The rule for an Xcode project: `${SOURCERY_SOURCES}` reaches this target's own
+# input directories and nothing else, so anything further is listed by hand as an
+# absolute path built from ${SOURCERY_PROJECT}.
+#
+# Every comment in this file is part of the passthrough gate — the synthesized
+# copy has to carry them through unchanged.
+sources:
+  - ${SOURCERY_SOURCES}
+  - ${SOURCERY_PROJECT}/Libraries/Kit/Sources
+templates:
+  # By path. An Xcode project has no package graph, so a bare name does not
+  # resolve; ${GIT_ROOT} is exported on the Xcode path as it is under SPM.
+  - ${GIT_ROOT}/templates/Mocks.swifttemplate
+args:
+  import:
+    - KitCore
+    - KitLeaf

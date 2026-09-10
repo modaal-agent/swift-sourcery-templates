@@ -1,0 +1,3 @@
+# Nothing unusual here. The target's dependency on Core is the whole gate.
+templates:
+  - ${GIT_ROOT}/templates/Mocks.swifttemplate

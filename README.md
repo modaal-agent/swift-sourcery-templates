@@ -227,6 +227,7 @@ the same helpers, so they cannot disagree about which member is `nonisolated`.
 | --- | --- | --- |
 | fast | `Tests/Checks/run-checks.sh` | snapshot of every template's generated output, both language modes, runtime behaviour. Mocks and Components are typechecked together, so the two cannot disagree about isolation. No simulator, no third-party packages, seconds |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | the SPM build-tool plugin, black-box over a fixture package: the derived source closure, the synthesized config, the defaults it supplies, and four red controls that must stay red. No simulator |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | the same plugin through `XcodeBuildToolPlugin`, over an Xcode project XcodeGen generates from a committed spec: config discovery, the one-directory expansion, a hand-listed `${SOURCERY_PROJECT}` entry, a target depending on a sibling target, and a bare template name that must fail. Needs `xcodegen`, no simulator |
 | full | `Tests/Examples/ExampleProjectSpm/test-ios.sh` | RxSwift smart defaults, RIBs external annotation, type erasure, the SPM plugin. Needs an iOS Simulator |
 
 All of them run on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), the fast lane
@@ -304,14 +305,16 @@ let package = Package(
 )
 ```
 
-The `SourcerySwiftCodegenPlugin` depends on the binary distribution of the Sourcery CLI.
-The first time it is invoked, Xcode/build system would ask for a permission to run the plugin.
+The `SourcerySwiftCodegenPlugin` depends on a binary artifact bundle — [the one this repository
+publishes](#the-released-artifact-bundle), which carries the Sourcery engine and the `templates/`
+tree together, so resolving the package gets both at one version. The first time it is invoked,
+Xcode/build system would ask for a permission to run the plugin.
 
 You might also get an unverified developer warning when the plugin tries to invoke Sourcery for the first time.
 To fix it, please use the [woraround](https://github.com/krzysztofzablocki/Sourcery/#issues) for removing Sourcery from quarantine:
 
 ```
-xattr -dr com.apple.quarantine <...Derived Data Folder>/SourcePackages/checkouts/swift-sourcery-templates/Plugins/Sourcery/sourcery.artifactbundle/sourcery/bin/sourcery
+xattr -dr com.apple.quarantine <...Derived Data Folder>/SourcePackages/artifacts/swift-sourcery-templates/sourcery/swift-sourcery-templates-<version>.artifactbundle/sourcery/bin/sourcery
 ```
 
 2. Configuring code generation
@@ -376,8 +379,7 @@ templates:
   - Mocks        # or Component, or TypeErase
 ```
 
-The plugin finds its own package in your dependency graph and resolves the name to the file. A name
-is resolved in this order, first match winning:
+A name is resolved in this order, first match winning:
 
 1. it contains `/` or starts with `$` — a path, left as written;
 2. a file of that exact name sits beside your config — yours wins, so a project with its own
@@ -385,8 +387,21 @@ is resolved in this order, first match winning:
 3. a template shipped by this package;
 4. neither — the plugin warns, lists the shipped templates, and Sourcery then fails on it.
 
-`SOURCERY_TEMPLATES` is exported too, pointing at the shipped `templates/` directory, for a config
-that would rather write the path itself.
+The shipped `templates/` directory in step 3 is whichever of these is a directory on disk, first one
+winning, and the build log names the one that answered:
+
+| | where it looks | works in |
+| --- | --- | --- |
+| 1 | this package in your dependency graph | a Swift package |
+| 2 | the plugin's own source file, three components up | a package or an Xcode project |
+| 3 | the artifact bundle `Package.swift` pins, beside the engine | a package or an Xcode project |
+
+Routes 2 and 3 read no package graph, which is why a bare template name works in an Xcode project
+too. At a released version all three name the same files: the bundle a tag pins was built from that
+tag's own `templates/`.
+
+`SOURCERY_TEMPLATES` is exported too, pointing at that directory, for a config that would rather
+write the path itself.
 
 #### Where to write
 
@@ -438,7 +453,7 @@ exactly what it meant.
 | variable | value |
 | --- | --- |
 | `SOURCERY_SOURCES` | *not a variable* — the placeholder the plugin expands to the source closure |
-| `SOURCERY_TEMPLATES` | the shipped `templates/` directory (SPM only) |
+| `SOURCERY_TEMPLATES` | the shipped `templates/` directory |
 | `SOURCERY_OUTPUT_DIR` | the directory this config's output is collected from |
 | `SOURCERY_PACKAGE` | the root package directory (`SOURCERY_PROJECT` in an Xcode project) |
 | `SOURCERY_TARGET_<target>` | that target's source directory |
@@ -450,20 +465,35 @@ exactly what it meant.
 The `_DEP_` variables are one level deep: they name a target's *direct* dependencies only. Reaching
 further is what `${SOURCERY_SOURCES}` is for.
 
+Every `SOURCERY_TARGET_*` variable is derived from the package graph, and an Xcode project has none —
+so in an Xcode project the exported set is `SOURCERY_PROJECT`, `GIT_ROOT`, `SOURCERY_OUTPUT_DIR` and
+`SOURCERY_TEMPLATES`, and nothing else. See [Xcode projects](#xcode-projects) below.
+
 > [!NOTE]
 > For the complete Sourcery config file reference, please refer to the [official documentation](https://krzysztofzablocki.github.io/Sourcery/).
 
 #### Xcode projects
 
 In an Xcode project (rather than a Swift package) the plugin runs through `XcodeBuildToolPlugin`,
-which is handed no package graph. Two features degrade there, and the build log says so:
+which is handed no package graph. One feature degrades there, and the build log says so:
 
-- `${SOURCERY_SOURCES}` expands to the target's own input-file directories plus the module directories
-  of its product dependencies — better than nothing, but not a closure;
-- `SOURCERY_TEMPLATES` is not exported and a bare template name does not resolve, so name templates by
-  path.
+- `${SOURCERY_SOURCES}` expands to the target's own input-file directories, and to nothing else. The
+  API reports no dependency edges to derive a closure from: `XcodeTarget.dependencies` was measured
+  empty on Xcode 26.5 for a package product dependency as well as for a dependency on a sibling
+  target in the same project. Name any other directory beside the placeholder, as an absolute path
+  built from `${SOURCERY_PROJECT}`:
 
-Everything else — the defaults, the `output:` check, the passthrough — works the same.
+  ```yaml
+  sources:
+    - ${SOURCERY_SOURCES}
+    - ${SOURCERY_PROJECT}/Libraries/Kit/Sources
+  ```
+
+Everything else works the same: the defaults, the `output:` check, the passthrough, and bare
+template names — `SOURCERY_TEMPLATES` is exported here, and routes 2 and 3 of
+[Naming a template](#naming-a-template) need no package graph, so `- Mocks` resolves as it does under
+SPM. `Tests/Checks/run-xcode-checks.sh` builds an Xcode project on every push and checks all of it,
+the degradation above included.
 
 3. Finding the generated files
 
@@ -576,6 +606,14 @@ The bundle is a SwiftPM artifact bundle whose `info.json` declares both executab
 published SHA-256 is the `checksum:` value such a target needs. `Scripts/assemble-release.sh`
 builds the assets; `.github/workflows/release.yml` runs it on every tag push and attaches them to
 the tag's GitHub release.
+
+**The plugin resolves this bundle too.** `Package.swift`'s `sourcery` binaryTarget names it rather
+than upstream Sourcery's, so a consumer of the prebuild plugin downloads the engine and
+`templates/` in the one zip, and the plugin reads its bare template names out of it when neither the
+package graph nor the plugin's own source location yields a `templates/` directory — which is the
+case for an Xcode project consuming this package from its URL. One consequence for a consumer
+driving the plugin with a `.ejs` template of their own: this bundle does not carry upstream's
+`bin/ejs.js`, because every template here is a `.swifttemplate`.
 
 ### Template arguments
 
