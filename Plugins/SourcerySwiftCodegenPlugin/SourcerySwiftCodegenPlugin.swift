@@ -25,17 +25,109 @@ let pluginPackageIdentity = "swift-sourcery-templates"
 /// instead of silently scanning less than intended.
 let sourcesPlaceholder = "${SOURCERY_SOURCES}"
 
+/// Which of the three routes of the follow-up spec's §12 supplied `templates/`.
+/// Logged with the directory, because a consumer cannot otherwise tell from a
+/// build which `templates/` their bare template names resolved against.
+enum TemplatesRoute {
+  /// The package graph. SwiftPM only, and the consumer's checkout.
+  case packageGraph
+  /// `#filePath`, up three components. Both APIs, and the consumer's checkout.
+  case pluginSource
+  /// The artifact bundle `Package.swift` pins. Both APIs, and as current as the
+  /// pin — on a branch of this repository it is a release behind, which is why
+  /// it is tried last.
+  case artifactBundle
+
+  var description: String {
+    switch self {
+    case .packageGraph: return "the package graph"
+    case .pluginSource: return "the plugin's own source location"
+    case .artifactBundle: return "the pinned artifact bundle"
+    }
+  }
+}
+
+struct ShippedTemplates {
+  let directory: PackagePlugin.Path
+  let route: TemplatesRoute
+}
+
+/// This file's own path, baked in when SwiftPM or Xcode compiles the plugin.
+/// Route 2 of §12: it is
+/// `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift` in
+/// whichever checkout the consumer resolved, so three components up is the
+/// package root. Measured in all four consumer shapes — SPM and Xcode, package
+/// referenced by path and by URL (§11.3).
+///
+/// It rests on two behaviours nothing documents: that the source path is part of
+/// SwiftPM's plugin-compilation input hash, so a relocated checkout recompiles
+/// the plugin rather than reusing one with a stale path baked in, and that no
+/// toolchain remaps paths when compiling a plugin. That is why it is not used
+/// alone — when either stops holding, the directory is not there and
+/// `templatesInArtifactBundle` answers instead (F6).
+private let pluginSourceFilePath = #filePath
+
+func templatesBesideThePluginSource() -> PackagePlugin.Path? {
+  let packageRoot = Path(pluginSourceFilePath)
+    .removingLastComponent()  // Plugins/SourcerySwiftCodegenPlugin
+    .removingLastComponent()  // Plugins
+    .removingLastComponent()  // the package root
+  let templates = packageRoot.appending("templates")
+  return templates.isDirectory ? templates : nil
+}
+
+/// Route 3 of §12: walk up from the engine's path to the directory holding
+/// `info.json` — an artifact bundle's root — and take `templates` under it.
+/// SwiftPM extracts a bundle whole and prunes nothing, so whatever
+/// `Scripts/assemble-release.sh` put beside the executable is on disk at a fixed
+/// offset from it (§11.1, §11.2).
+///
+/// Not "three components up". That count is true of the layout the release
+/// script writes today (`sourcery/bin/sourcery`) and would be silently wrong the
+/// day a variant path in `info.json` gains or loses a component. Searching for
+/// the file that defines a bundle root costs the same and says what it means
+/// (F7).
+func templatesInArtifactBundle(containing toolPath: PackagePlugin.Path) -> PackagePlugin.Path? {
+  var directory = toolPath.removingLastComponent()
+  while true {
+    if directory.appending("info.json").fileExists {
+      let templates = directory.appending("templates")
+      return templates.isDirectory ? templates : nil
+    }
+    let parent = directory.removingLastComponent()
+    guard !parent.string.isEmpty, parent.string != directory.string else { return nil }
+    directory = parent
+  }
+}
+
 protocol CodegenPluginContext {
   var rootDirectory: PackagePlugin.Path { get }
   var pluginWorkDirectory: PackagePlugin.Path { get }
   func tool(named name: String) throws -> PackagePlugin.PluginContext.Tool
   var environmentVars: [String: String] { get }
 
-  /// The `templates/` directory of the package shipping this plugin, when the
-  /// graph can be walked for it (§4.5). `nil` in Xcode projects, where
-  /// `XcodePluginContext` exposes no package graph — a bare template name then
-  /// stays unresolved and warns.
-  var shippedTemplatesDirectory: PackagePlugin.Path? { get }
+  /// The `templates/` directory this package ships, and which of §12's routes
+  /// supplied it. `nil` only when no route yields a directory that is there — a
+  /// bare template name then stays unresolved and warns.
+  var shippedTemplates: ShippedTemplates? { get }
+}
+
+extension CodegenPluginContext {
+  /// Routes 2 and 3, in that order. Neither reads a package graph, so both
+  /// plugin APIs share this: what an Xcode project can find is what a package
+  /// can. Each mechanism returns a directory only when it is one on disk, which
+  /// is what lets the order fall through to the next route rather than return a
+  /// path that is wrong (F6).
+  var graphFreeShippedTemplates: ShippedTemplates? {
+    if let directory = templatesBesideThePluginSource() {
+      return ShippedTemplates(directory: directory, route: .pluginSource)
+    }
+    if let toolPath = try? tool(named: "sourcery").path,
+       let directory = templatesInArtifactBundle(containing: toolPath) {
+      return ShippedTemplates(directory: directory, route: .artifactBundle)
+    }
+    return nil
+  }
 }
 
 protocol CodegenPluginTarget {
@@ -513,7 +605,7 @@ struct SourceryConfigSynthesizer {
     // 4. Neither. Sourcery then fails on it, which is the right outcome for a typo.
     let shipped = shippedTemplatesDirectory.map { listShippedTemplates($0) } ?? []
     let available = shipped.isEmpty
-      ? "no shipped templates are reachable from here — an Xcode project has no package graph to find them in, so name the template by path"
+      ? "no shipped templates directory was found — none of the package graph, the plugin's own source location or the pinned artifact bundle holds one, so name the template by path"
       : "the shipped templates are \(shipped.joined(separator: ", "))"
     return TemplateResolution(
       path: nil,
@@ -695,8 +787,10 @@ struct SourcerySwiftCodegenPlugin {
     try FileManager.default.createDirectory(atPath: synthesizedConfigsDir.string, withIntermediateDirectories: true)
 
     var sharedEnvironmentVars = context.environmentVars
-    if let templatesDirectory = context.shippedTemplatesDirectory {
-      sharedEnvironmentVars["SOURCERY_TEMPLATES"] = templatesDirectory.string
+    let shippedTemplates = context.shippedTemplates
+    if let shipped = shippedTemplates {
+      sharedEnvironmentVars["SOURCERY_TEMPLATES"] = shipped.directory.string
+      Diagnostics.remark("Target \"\(target.name)\": shipped templates come from \(shipped.route.description), \(shipped.directory.string).")
     }
 
     let sourceRoots = target.derivedSourceRoots
@@ -759,7 +853,7 @@ struct SourcerySwiftCodegenPlugin {
       let synthesizer = SourceryConfigSynthesizer(
         configPath: configFilePath,
         sourceRoots: sourceRoots,
-        shippedTemplatesDirectory: context.shippedTemplatesDirectory,
+        shippedTemplatesDirectory: shippedTemplates?.directory,
         generatedFilesDir: outputDir,
         testableDefault: target.testableDefault,
         environmentVars: environmentVars)
@@ -885,10 +979,12 @@ func wrap(_ target: PackagePlugin.Target, in package: PackagePlugin.Package) -> 
 extension PackagePlugin.PluginContext: CodegenPluginContext {
   var rootDirectory: PackagePlugin.Path { `package`.directory }
 
-  /// The `templates/` directory of whichever package in the graph is this one
-  /// (§4.5). Breadth-first and deduplicated by package id, because a consumer may
-  /// reach this package through a shared first-party one rather than declaring it
-  /// directly.
+  /// Route 1 of §12: the `templates/` directory of whichever package in the graph
+  /// is this one (§4.5). Breadth-first and deduplicated by package id, because a
+  /// consumer may reach this package through a shared first-party one rather than
+  /// declaring it directly. Routes 2 and 3 are behind it — the graph is the one
+  /// route that uses a documented API, and the one that cannot name a directory
+  /// belonging to some other checkout.
   ///
   /// The spec proposed matching on the plugin *target's* name. That is not
   /// available: `Package.targets` exposes source-module, binary-artifact and
@@ -899,7 +995,7 @@ extension PackagePlugin.PluginContext: CodegenPluginContext {
   /// directory name changes the identity and leaves the match intact. The
   /// `templates/` directory has to be there too, so a consumer package that
   /// happens to share the name cannot be mistaken for this one.
-  var shippedTemplatesDirectory: PackagePlugin.Path? {
+  var shippedTemplates: ShippedTemplates? {
     var seen = Set<Package.ID>()
     var queue: [Package] = [`package`]
     while !queue.isEmpty {
@@ -907,11 +1003,13 @@ extension PackagePlugin.PluginContext: CodegenPluginContext {
       guard seen.insert(current.id).inserted else { continue }
       if current.displayName == pluginPackageName || current.id == pluginPackageIdentity {
         let templates = current.directory.appending("templates")
-        if templates.isDirectory { return templates }
+        if templates.isDirectory {
+          return ShippedTemplates(directory: templates, route: .packageGraph)
+        }
       }
       queue.append(contentsOf: current.dependencies.map { $0.package })
     }
-    return nil
+    return graphFreeShippedTemplates
   }
 
   var environmentVars: [String : String] {
@@ -1018,10 +1116,12 @@ import XcodeProjectPlugin
 extension XcodeProjectPlugin.XcodePluginContext: CodegenPluginContext {
   var rootDirectory: PackagePlugin.Path { xcodeProject.directory }
 
-  /// §3.4, §4.5: `XcodePluginContext` exposes no package graph, so there is
-  /// nothing to find the shipped templates in. A bare template name warns and
-  /// fails; Xcode consumers keep naming templates by path.
-  var shippedTemplatesDirectory: PackagePlugin.Path? { nil }
+  /// `XcodePluginContext` exposes no package graph, so route 1 of §12 does not
+  /// exist here. Routes 2 and 3 need none, and they are the whole answer: a bare
+  /// template name resolves in an Xcode project exactly as it does in a package,
+  /// and `SOURCERY_TEMPLATES` is exported here too. This replaces the `nil` that
+  /// 001 §4.5 documented as a degradation.
+  var shippedTemplates: ShippedTemplates? { graphFreeShippedTemplates }
 
   var environmentVars: [String : String] {
     let environmentVars =

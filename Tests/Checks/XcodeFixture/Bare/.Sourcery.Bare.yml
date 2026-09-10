@@ -1,0 +1,10 @@
+# A template named without a path. Under SPM the plugin finds its own package in
+# the graph and resolves the name against the `templates/` directory there; an
+# Xcode project has no graph, and the name resolves all the same — through the
+# plugin's own source location, and failing that through the artifact bundle
+# `Package.swift` pins (followup-xcode-lane.md §12, routes 2 and 3).
+#
+# On a branch of this repository route 2 is what answers, so the path this
+# resolves to is this checkout's, and the lane asserts exactly that.
+templates:
+  - Mocks

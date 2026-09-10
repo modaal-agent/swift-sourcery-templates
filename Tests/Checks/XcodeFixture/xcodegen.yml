@@ -41,6 +41,17 @@ targets:
       - plugin: SourcerySwiftCodegenPlugin
         package: SwiftSourceryTemplates
 
+  # The bare-name gate: a config naming a template without a path. It resolves
+  # here through the plugin's own source location, which needs no package graph.
+  Bare:
+    type: framework
+    platform: macOS
+    deploymentTarget: '13.0'
+    sources: [Bare]
+    buildToolPlugins:
+      - plugin: SourcerySwiftCodegenPlugin
+        package: SwiftSourceryTemplates
+
   # Carries no plugin. It exists to be depended on.
   Core:
     type: framework
@@ -74,3 +85,6 @@ schemes:
   Dependent:
     build:
       targets: {Dependent: all}
+  Bare:
+    build:
+      targets: {Bare: all}
