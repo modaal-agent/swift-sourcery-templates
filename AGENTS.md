@@ -16,6 +16,7 @@ in each and the copies drifted.
 | what changed in a release and what it breaks | [CHANGELOG.md](CHANGELOG.md) |
 | which fixture covers which construct | [Tests/Checks/README.md](Tests/Checks/README.md) |
 | what an adopting repository's agent is told to do | [skills/swift-sourcery-mocks/SKILL.md](skills/swift-sourcery-mocks/SKILL.md) |
+| how that skill is measured against a session without it | [Tests/Evals/README.md](Tests/Evals/README.md) |
 | the plan for a change too big to carry in a commit message | [specs/](specs/) |
 
 Run from the repository root:
@@ -169,6 +170,12 @@ templates. `Tests/Checks/run-skill-checks.sh` gates every rule below that a scri
   cross-agent CLI parsing the file at all.
 - **`SKILL.md` stays under 400 lines and each `references/*.md` under 250.** The body is resident
   for every turn after the skill is invoked; a reference costs nothing until the agent opens it.
+- **The skill's behavioural gate is `Tests/Evals/`, and it does not live under `skills/`** — the
+  runner refuses a case directory inside a plugin's component directory, so
+  `.claude-plugin/plugin.json` names the suite in `experimental.evals`. Each of the five prompts is
+  run once with the plugin loaded and once without, in fresh sessions, and the two answers compared.
+  A with-arm answer that is wrong is a defect in the skill's text: edit the skill and run that case
+  again. It spends model calls and no CI job runs it; SC13 only checks that each case would parse.
 
 ## Do not tag without measuring the consumer
 

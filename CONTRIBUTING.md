@@ -43,6 +43,7 @@ Tests/                              # everything that verifies the product — s
   Examples/
     ExampleProjectSpm/              # full lane — RxSwift, RIBs, type erasure, the plugin
     ExampleProjectXcode/            # the adopter's shape, by URL at a tag — not a lane
+  Evals/                            # the skill's behavioural gate — five prompts, run with it and without
 Scripts/
   assemble-release.sh               # builds the release assets — see Cutting a release
   engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
@@ -198,6 +199,10 @@ silence.
 6. The frontmatter carries only the Agent Skills standard's six keys, so the directory uploads to
    claude.ai unedited — and its values are quoted or free of `: `, which the cross-agent CLI's YAML
    parser refuses in a plain scalar
+7. `Tests/Evals/` holds the suite that measures whether the skill changes what an agent does. It
+   cannot live under `skills/`: that is the plugin's skill component directory, and the runner
+   refuses a case directory inside one. `.claude-plugin/plugin.json` names it in
+   `experimental.evals`, and `Tests/Evals/README.md` gives the two ways to run it
 
 ## Design rules already decided
 
@@ -317,6 +322,13 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
+`Tests/Evals/` is not a lane. It is the skill's behavioural gate: each of five prompts run once with
+the plugin loaded and once without, and the two answers compared — `claude plugin eval . --ablation
+with-without`, or the pair of `claude -p` invocations in `Tests/Evals/README.md`. It spends model
+calls and a few minutes, the runner is in early access, and no CI job runs it. Run it when the
+skill's text changes. What runs on every push is `run-skill-checks.sh` SC13, which only checks that
+each case would parse.
+
 `Tests/Examples/ExampleProjectXcode/build.sh` is not a *branch* lane. It resolves this package from
 its published URL at a version, so making it one would put every push at the mercy of the last
 published artifact. `.github/workflows/published-example.yml` runs it where a published artifact is
@@ -382,7 +394,7 @@ external-annotation pattern, type erasure, and the plugin itself.
 | fast | `Tests/Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
 | annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
-| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11). `--self-test` is its red control: one seeded violation per check |
+| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11); every eval case under the directory `experimental.evals` names carrying a prompt and at least one grader the runner would accept (SC13). `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match |
 | plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
