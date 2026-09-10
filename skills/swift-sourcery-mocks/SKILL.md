@@ -222,6 +222,29 @@ The generated file compiles at zero diagnostics under `-swift-version 5
 -strict-concurrency=complete` and under `-swift-version 6`: the protocol's global actor lands on the
 mock class, `nonisolated` is carried through, and a `Sendable` protocol gets `@unchecked Sendable`.
 
+The emitted Swift for each shape — the argument tuple, what an unset handler returns, the
+initializer-seeded bag, the overload names — is
+[references/generated-api.md](references/generated-api.md).
+
+## Publishers are subject-backed
+
+An `AnyPublisher` requirement, on a property or a method, is generated with a subject the test sends
+into, named `<var>Subject` or `<method>Subject`:
+
+```swift
+let repo = MemoryRepositoryMock()
+var received: [[MemoryDrop]] = []
+let token = repo.ownMemories.sink { received.append($0) }   // subscribe first
+repo.ownMemoriesSubject.send([drop])                        // then send
+```
+
+The default is a `PassthroughSubject`, which delivers nothing to a subscriber that arrives after the
+value was sent — a test that seeds in `setUp` and subscribes in the test body sees nothing and waits.
+Two ways to make the member replay: annotate the requirement `subject = "CurrentValue"`, which backs
+it with a `CurrentValueSubject` seeded with the `Output`'s default value, or return a publisher of
+your own from `<var>GetHandler`. A test that collects to the end also has to finish the stream —
+`send(completion: .finished)`.
+
 ## When it goes wrong
 
 | symptom | cause | action |
@@ -246,3 +269,5 @@ Each of these in full, with the diagnostic text to match against, is in
 - [references/writing-testable-protocols.md](references/writing-testable-protocols.md) — what to
   annotate, and how to shape a protocol so its mock is usable.
 - [references/troubleshooting.md](references/troubleshooting.md) — one section per symptom.
+- [references/generated-api.md](references/generated-api.md) — the emitted Swift, shape by shape,
+  and the member map to the Kotlin twin.
