@@ -95,10 +95,18 @@ Habits to avoid (common LLM-isms):
 - Branch when the work starts. If code is ready and the checkout is `master`, ask which branch.
 - Pushing, opening a PR and merging one each need their own go-ahead.
 
-## Specs are a read-only decision ledger
+## Specs are an append-only decision ledger
 
-- **A merged spec is never edited** — not to fix a path a later change moved, not to correct a
-  decision since superseded, not to tidy. Editing it destroys the record.
+- **A spec is amended by addition, never by revision.** While the feature is being worked on, add
+  what was measured, what a phase actually landed and what the plan became — as new lines, new
+  paragraphs or new sections. Do not rewrite or delete a line that is already there, not to fix a
+  path a later change moved, not to correct a decision since superseded, not to tidy. Revising in
+  place destroys the record of what was decided and when.
+- **An addition that supersedes an existing claim names it**, by section, and the superseded section
+  takes a line pointing forward to the addition. Both then read as one document.
+- **A closed spec may take a follow-up file beside it** instead of an appended section —
+  `specs/001-plugin-source-discovery/followup-xcode-lane.md` is one. The rule inside it is the same:
+  additions only, and it names by section what it supersedes.
 - **A new spec names what it obsoletes**, by number and section ("obsoletes 001 §4.6").
 - **Writing a spec is not authorization to implement it.** When the task is a spec, produce only the
   spec document — no code, config, template or workflow edit, not even the one line that looks
