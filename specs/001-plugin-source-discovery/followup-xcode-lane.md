@@ -1,6 +1,8 @@
-# 001 follow-up — The Xcode path: what it derives, the discovery bug, and a check lane built with XcodeGen
+# 001 follow-up — The Xcode path: what it derives, the discovery bug, a check lane built with
+XcodeGen, and where templates come from
 
-**Status:** Proposed, not implemented. Written 2026-09-10.
+**Status:** Part I (§1–§9) is implemented — see §7 for what landed. Part II (§10–§20) is proposed
+and not implemented. Written 2026-09-10.
 
 **Measurements:** every number and quoted string in §1 was produced on 2026-09-10 against `master` at
 `39a56d9`, with Xcode 26.5 (build 17F42), XcodeGen 2.44.1 and Sourcery 2.3.0, using a throwaway
@@ -377,3 +379,446 @@ Step 1 is worth landing alone: it is the first coverage `XcodeBuildToolPlugin` h
 3. **Does an Xcode-authored project report dependencies the same way?** §1.3's caveat. Everything
    here was measured against an XcodeGen-generated `project.pbxproj`. If a UI-authored project does
    report edges, F2 is the decision that changes, and the **closure** gate is where it would show.
+
+---
+
+# Part II — Where the templates come from
+
+**Status:** Proposed, not implemented. Written 2026-09-10, after Part I's §7 landed as `37d7773`
+(the lane), `a662e5a` (the §3 fix) and `fa07498` (the docs).
+
+**Measurements:** every number and quoted path in §11 was produced on 2026-09-10 with Xcode 26.5
+(build 17F42) and the SwiftPM in the same toolchain, using throwaway packages and Xcode projects in a
+scratch directory outside this repository. Nothing in the repository was changed to take them.
+
+**Scope:** `Package.swift`, `Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift`,
+`Scripts/assemble-release.sh`, `.github/workflows/release.yml`, `Tests/Checks/`, `Tests/Examples/`,
+`README.md`, `CONTRIBUTING.md`. No template change.
+
+**Obsoletes:** §6.3 and §9 question 2. Both framed `SOURCERY_TEMPLATES` in Xcode as reachable only
+through the DerivedData layout, split between URL- and path-referenced consumers. §11.1 and §11.2
+measure a route that does not read that layout at all and does not care how the package was
+referenced.
+
+---
+
+## 10. What this part is for
+
+A bare template name does not resolve in an Xcode project.
+`XcodeProjectPlugin.XcodePluginContext.shippedTemplatesDirectory` returns `nil`
+(`SourcerySwiftCodegenPlugin.swift:1024`) because there is no package graph to walk, so
+`resolveTemplate` falls through to the warning at `:516` and Sourcery then fails on a path that names
+nothing. `Tests/Checks/XcodeFixtureRed/BareName` is that failure, held as a red control since
+`37d7773`.
+
+The fix is two routes to a `templates/` directory that need no package graph, tried in the order §12
+sets: the plugin's own source location, and the artifact bundle that ships the engine. The second
+means pinning this repository's bundle rather than Sourcery's upstream one, which
+`Package.swift:17-21` pins today. §11.5 measures what each carries and §14 is the accounting; the
+download changes by 57 KB, so size decides nothing here.
+
+---
+
+## 11. Measured
+
+### 11.1 A binary target's bundle is extracted whole, and the executable's siblings survive
+
+Upstream Sourcery's own bundle proves this without any change here. Extracted by an Xcode build into
+`<DD>/SourcePackages/artifacts/swift-sourcery-templates/sourcery/sourcery-2.3.0.artifactbundle/`, it
+holds, beside `sourcery/bin/sourcery`:
+
+| path in the bundle | size |
+| --- | --- |
+| `sourcery/bin/sourcery` | 56 MB |
+| `sourcery/Sourcery.docset` | 2.0 MB |
+| `sourcery/Resources` | 668 KB |
+| `sourcery/Templates` | 72 KB |
+| `sourcery/CHANGELOG.md` | 52 KB |
+| `sourcery/bin/ejs.js` | 44 KB |
+| `sourcery/README.md` | 16 KB |
+| `sourcery/LICENSE`, `info.json`, empty `bin/` | 5 KB |
+| **total** | **59 MB** |
+
+SwiftPM unzips the bundle and prunes nothing: an artifact bundle can carry arbitrary files, and they
+are on disk at a fixed offset from the executable when the plugin runs.
+
+### 11.2 One bundle can declare several executables, and each resolves by artifact name
+
+A throwaway bundle declaring two artifacts (`engine` → `engine/bin/engine`, `helper` →
+`helper/bin/helper`) with a `templates/` directory at its root, in a package a consumer referenced by
+URL. `context.tool(named:)` resolved both, on both plugin APIs:
+
+```
+SPM     tool(engine)=<scratch>/checkouts/bundleprobe/Fake.artifactbundle/engine/bin/engine
+        upThree=<scratch>/checkouts/bundleprobe/Fake.artifactbundle
+        templatesExists=true contents=["Marker.swifttemplate"]
+Xcode   tool(helper)=<DD>/SourcePackages/checkouts/bundleprobe/Fake.artifactbundle/helper/bin/helper
+        upThree=<DD>/SourcePackages/checkouts/bundleprobe/Fake.artifactbundle
+        templatesExists=true contents=["Marker.swifttemplate"]
+```
+
+The artifact name must equal the binary target's name, so a package pins one artifact per
+`.binaryTarget`, but one published zip can serve several of them.
+
+The probe's bundle was declared with `path:`, so it sat in the checkout beside `Package.swift`;
+§11.1's upstream bundle is the `url:` shape and lands under
+`artifacts/<package>/<target>/<bundle>.artifactbundle/`. The two together cover both forms, and in
+both the bundle root is the directory holding `info.json` — which is what §13 keys on rather than
+on either path shape. A `url:` binary target declaring two artifacts was not separately measured.
+
+This is the whole mechanism. It reads no package graph, so it behaves identically under
+`PackagePlugin` and `XcodeProjectPlugin`; it reads no DerivedData layout, so §6.3's URL-versus-path
+split does not arise; and the layout it depends on is written by
+`Scripts/assemble-release.sh:88-96` in this repository and pinned by checksum in `Package.swift`.
+
+### 11.3 `#filePath` also works, and is rejected
+
+`#filePath` in the plugin's source expands at plugin-compile time to the absolute path of that file in
+the consumer's checkout, from which `templates/` is a fixed offset. Measured in all four consumer
+shapes:
+
+| consumer | `#filePath` at run time | `<up 3>/templates` |
+| --- | --- | --- |
+| SPM, package by path | `<pkg>/Plugins/PathProbe/PathProbe.swift` | found |
+| SPM, package by URL | `<scratch>/checkouts/tmplprobe/Plugins/…` | found |
+| Xcode, package by path | `<pkg>/Plugins/…` | found |
+| Xcode, package by URL | `<DD>/SourcePackages/checkouts/tmplprobe/Plugins/…` | found |
+
+No path remapping is applied to plugin compilation, and the baked path does not go stale: rebuilding
+with the checkout relocated (`-clonedSourcePackagesDirPath` moved, same DerivedData, so the cached
+plugin executable was a candidate for reuse) recompiled the plugin — the compilation-input hash went
+from `1843100…` to `0fca2c0…` — and the path tracked the move.
+
+Its correctness rests on two behaviours nothing documents: that the source path is part of SwiftPM's
+plugin-compilation input hash, and that no future toolchain remaps paths when compiling a plugin. If
+either changes, the plugin reads templates from a path that is not there, or from a stale checkout.
+That is why it is not used alone. It is used *first*, ahead of §11.2's bundle, and the bundle is what
+catches it when it fails — a directory that is not there is a condition the plugin tests, so the
+failure falls through rather than propagating. §12 is the order and F6 is the decision.
+
+### 11.4 `DEBUG` is not defined when a plugin is compiled
+
+Both plugin APIs, measured with `#if DEBUG` in the probe:
+
+```
+SPM     PROBE   DEBUG=not-defined
+Xcode   PROBE   DEBUG=not-defined
+```
+
+A `#if DEBUG` fallback would therefore be compiled out everywhere, this repository's own check lanes
+included — the lanes it was meant to serve. §16 keeps them honest without a compile-time gate.
+
+### 11.5 What an adopter downloads today
+
+Of the 59 MB in §11.1's table, the plugin runs `sourcery/bin/sourcery` and reads nothing else. The
+docset, `Resources`, upstream's `Templates`, `ejs.js`, the README and the CHANGELOG are about 2.8 MB
+that no build here touches. `Scripts/assemble-release.sh:25-28` already records that `ejs.js` is not
+vendored into this repository's own bundle and why.
+
+This repository's `templates/` is 124 KB. A release build of `mock-templates` is 1,774,976 bytes for
+one architecture; the shipped binary is universal, so roughly twice that.
+
+Those are extracted sizes. What a resolution actually downloads is the zip, and §14 compares those:
+22,613,709 bytes for Sourcery's, 22,672,041 for this repository's 0.7.0.
+
+### 11.6 Who consumes the published assets today
+
+Surveyed 2026-09-10 across `~/Projects/modaal-*` and `~/Modaal-Projects`, because §14 first proposed
+dropping an asset and the repositories on this machine say who reads it.
+
+`modaal-agent-duet-tools/Sources/duet/Mocks.swift:229-274` provisions both assets, and which one it
+takes depends on the verb:
+
+- `duet mocks` (regenerate) fetches `swift-sourcery-templates-<tag>.artifactbundle.zip` and takes
+  **all three pieces out of it** — `mock-templates/bin/mock-templates`, `sourcery/bin/sourcery` and
+  `templates/` — at fixed offsets from the bundle root, which is the same layout contract §13
+  proposes for the plugin. `duet-tools/contracts/manifest.md:114-118` documents the manifest's
+  `mocks.bundle:` pin as "the bundle carries engine, templates and the `mock-templates` CLI together,
+  so this one pin replaces an engine/templates version pair".
+- `duet mocks --check` (validate) fetches `mock-templates-<tag>-macos.zip` when no full bundle is
+  already cached — `validate` reads the fingerprint block and the sources and runs neither the engine
+  nor a template, so kilobytes are all it needs. That path runs in CI:
+  `modaal-wikimemory-dgra0/.github/workflows/parity.yml:68` and
+  `modaal-onesec-py38p/.github/workflows/parity.yml:318`, plus
+  `modaal-wikimemory-dgra0/scripts/run_tests.sh:164`.
+
+Both consumers pin `bundle: 0.6.2` in `parity/manifest.yaml`, as do nine tutorial trees under
+`modaal-agent-duet-tutorials`.
+
+`modaal-firebase-wrappers/scripts/generate-mocks.sh` uses neither asset: it clones the templates repo
+by tag and calls a Homebrew `sourcery` directly, never `mock-templates`. `modaal-foundation-core` and
+`modaal-foundation-spritekit` reference this repository nowhere at all.
+
+So both published assets are live, and the artifact bundle's internal layout is already a contract a
+downstream tool depends on.
+
+---
+
+## 12. The rule after this part
+
+A template named without a path resolves in an Xcode project exactly as it does in a package, and
+`SOURCERY_TEMPLATES` is exported on both. `shippedTemplatesDirectory` is the first of these that is a
+directory on disk:
+
+| | route | available on | version it yields |
+| --- | --- | --- | --- |
+| 1 | the package graph — the walk at `SourcerySwiftCodegenPlugin.swift:902-915` | SwiftPM only | the consumer's checkout |
+| 2 | `#filePath`, up three components from the plugin source | both APIs | the consumer's checkout |
+| 3 | the pinned artifact bundle, §13's walk | both APIs | the bundle `Package.swift` names |
+
+Under the release scheme in §15 all three name templates of the same version for a consumer at a tag,
+because the bundle a tag pins was built from that tag's own `templates/`. The order is what makes the
+routes independent rather than what picks between versions: route 1 uses a documented API and needs a
+graph, route 2 needs neither but rests on the undocumented behaviours in §11.3, route 3 needs neither
+a graph nor a compiler behaviour but is only as current as the pin. Each covers the others' failure,
+and no route is load-bearing alone.
+
+Where the order matters is inside this repository: on a branch, `Package.swift` still pins the last
+published bundle, so route 3 is a release behind while routes 1 and 2 are the working tree. §16 is
+what that buys.
+
+The plugin logs which route supplied the directory, beside the remarks it already emits for every
+resolved template. Without that a consumer cannot tell from a build which `templates/` they got.
+
+Where no route yields a directory, the behaviour is today's: the warning at `:516`, then Sourcery
+fails on the name.
+
+---
+
+## 13. The two mechanisms
+
+**Route 2, `#filePath`.** Three components up from the plugin's own source file is the package root —
+`Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift` — and `templates` under it.
+Measured in all four consumer shapes in §11.3.
+
+**Route 3, the bundle.** Given the tool path, walk up until a directory containing `info.json` is
+found — that is the artifact bundle root — then take `templates` under it if it is a directory.
+
+Both check that the directory exists before returning it, which is what lets §12's order work: a
+route that cannot answer returns nothing and the next one is tried, rather than returning a path that
+is wrong.
+
+Not "three components up". That number is true of the layout
+`Scripts/assemble-release.sh:88-96` writes today (`sourcery/bin/sourcery`), and it would be silently
+wrong the day a variant path in `info.json` gains or loses a component. Searching for the file that
+defines a bundle root is the same cost and says what it means. Recorded as decision F7.
+
+The plugin already walks a tool path this way: `locateSourceryExecutable` (`:99-112`) probes
+`<tool>/bin/sourcery` for the case where the bundle is zipped one level too deep.
+
+---
+
+## 14. What the bundle carries, and what this costs
+
+The published assets do not change. `Scripts/assemble-release.sh` keeps building one artifact bundle
+holding the engine, `templates/` and the `mock-templates` CLI, and keeps publishing the CLI's own
+`mock-templates-<version>-macos.zip` beside it. §11.6 is why: `duet mocks` reads all three pieces out
+of the bundle, `duet mocks --check` reads the standalone CLI zip in two CI lanes, and a downstream
+contract documents the bundle as carrying all three. Removing either asset breaks a shipping
+pipeline in exchange for a smaller download, so neither is removed. Recorded as decision F11.
+
+The accounting is on the zips, which is what a resolution downloads — §11.1's table is what the
+extracted bundle occupies on disk, and the two differ by more than half:
+
+| asset an adopter downloads | bytes |
+| --- | --- |
+| `sourcery-2.3.0.artifactbundle.zip`, pinned today | 22,613,709 |
+| `swift-sourcery-templates-0.7.0.artifactbundle.zip`, pinned after | 22,672,041 |
+| **difference** | **+58,332** |
+
+57 KB more per resolution, cached by SwiftPM and paid once per version. The 2.8 MB of upstream
+material the plugin never reads and this repository's `templates/` plus universal CLI compress to
+within a rounding error of each other, so the size question does not decide anything here in either
+direction.
+
+One thing an adopter loses: the resolved bundle no longer carries upstream's `bin/ejs.js`, so a
+consumer driving the plugin with a `.ejs` template of their own loses the runtime that serves it.
+`Scripts/assemble-release.sh:25-28` records why this repository's bundle omits it and the smoke test
+that keeps our own templates free of it. §20 question 2 is whether anyone is affected.
+
+What improves is that the bundle a consumer resolves for the plugin is the same artifact `duet`
+already resolves for `duet mocks`, pinned by the same tag — one download and one version for both,
+where today a repo using both pins Sourcery's bundle through the plugin and this repository's bundle
+through the manifest.
+
+---
+
+## 15. Releasing without skew
+
+A `binaryTarget` pins a URL and a checksum, so the zip must exist before the commit that references
+it. Cutting `X.Y.Z` from a commit whose `Package.swift` points at the previous release ships a plugin
+whose templates are one release old, and nothing in the build says so. That is worse than the
+degradation Part I documented, because a consumer cannot see it.
+
+The scheme, in order:
+
+1. Tag `templates-X.Y.Z` at commit `C`. A release lane builds the artifact bundle from `C`'s
+   `templates/` and publishes it, with its SHA-256.
+2. Commit `C'`, which changes `Package.swift` and nothing else: the binary target's `url` and
+   `checksum` become that asset's.
+3. Tag `X.Y.Z` at `C'`. `C'`'s `templates/` is `C`'s `templates/`, so the bundle a consumer resolves
+   at `X.Y.Z` carries exactly the templates in the commit `X.Y.Z` names.
+
+Two changes this needs:
+
+`.github/workflows/release.yml:9-11` triggers on `tags: ['*.*.*']`, and `templates-0.8.0` matches
+that glob — `templates-0` `.` `8` `.` `0`. Left alone, step 1 would publish a full release. The
+trigger has to distinguish the two tag shapes and route each to its own job.
+
+And step 3 needs a gate, because the invariant it rests on — that `C'` changed only `Package.swift` —
+rests on a person having done so. In `release.yml`, on an `X.Y.Z` tag, before anything is published:
+download the bundle `Package.swift` pins and refuse to publish unless its `templates/` is
+byte-identical to the commit's `templates/`. The comparison is mechanical and it catches every way
+the promise can break, including a template edited between the two tags. Recorded as decision F8.
+
+**The bundle a tag pins may be older than the tag, and that is fine.** A release that changes only
+the plugin, the CLI or the docs needs no new `templates-X.Y.Z`: step 2 is skipped, `Package.swift`
+keeps the pin it has, and F8's comparison passes because `templates/` did not move. What the scheme
+guarantees is not that the two tags advance together but that the pinned bundle's `templates/` is the
+tag's `templates/`.
+
+**The order also means `master` can never name an asset that does not exist.** The pin lands in a
+commit *after* the asset is published, so a `templates-X.Y.Z` whose lane fails publishes nothing and
+gets no pin bump — `Package.swift` keeps pointing at the last asset that did publish, and resolution
+keeps working. There is no state in which the repository references a zip that was never uploaded.
+
+**Bootstrapping needs no new tag.** `swift-sourcery-templates-0.7.0.artifactbundle.zip` is already
+published, 22,672,041 bytes, and carries `templates/` — `duet` reads it from the 0.6.2 bundle the
+same way (§11.6). The first pin can name it, and the two-tag order starts at the next release.
+
+---
+
+## 16. What the order buys this repository's own lanes
+
+On a branch, `Package.swift` pins the last published bundle, so route 3 is a release behind. Routes 1
+and 2 are the working tree, and both come first, so both lanes keep gating the templates being
+edited.
+
+**The plugin lane** is covered by route 1 alone. `Tests/Checks/PluginFixture` reaches this repository
+by path, so the graph walk at `SourcerySwiftCodegenPlugin.swift:902-915` finds the working tree, as
+it does today. Nothing about that lane changes.
+
+**The Xcode lane** has no graph, and route 2 is why it is still honest: `#filePath` resolves to the
+plugin source in this checkout, so `Tests/Checks/XcodeFixture` generates from the working tree's
+templates. That is what makes the bare-name gate a real gate rather than an assertion about a
+published artifact — it can assert generated content, the same way the plugin lane does.
+
+`Tests/Checks/XcodeFixtureRed/BareName` therefore moves out of the red project and into
+`XcodeFixture` as a green gate: a bare `- Mocks` resolves, the log names route 2 as what supplied the
+directory, and the generated mock carries the requirements the fixture declares. §6.3 said the red
+control existed so that a later commit adding derivation would have a gate to turn from red to green;
+steps 4 and 5 of §18 are that change.
+
+Route 3 is then exercised by nothing in CI, which §17 is the answer to.
+
+---
+
+## 17. The example that documents the consumer's shape
+
+Every fixture here reaches this repository by path, because that is what a fixture in this repository
+can do. Two things therefore go unchecked by any lane: the package resolved from a published URL at a
+tag, which is what an adopter writes, and route 3 as the source of `templates/` — §16 is exactly the
+argument that routes 1 and 2 win on every branch, so nothing in CI ever falls through to the bundle.
+
+`Tests/Examples/ExampleProjectXcode/` is that shape — an XcodeGen spec referencing
+`https://github.com/modaal-agent/swift-sourcery-templates` at a released version, with a config
+naming a template by bare name. It is documentation, not a gate: it necessarily lags one release, and
+wiring it into `ci.yml` would make every branch depend on the last published artifact, which §16 is
+written to avoid.
+
+Something has to say when to look at it, or it stops building and nobody finds out. It goes in
+CONTRIBUTING's release procedure as a step: after a release publishes, regenerate and build it, and
+record that it built. Recorded as decision F9; §20 question 3 is whether that is enough.
+
+---
+
+## 18. Phasing
+
+Each step is a commit that stands on its own and leaves `master` green.
+
+1. **Give the upstream engine pin a home of its own.** `Scripts/assemble-release.sh:46-48` finds the
+   engine to vendor by taking the *first* `artifactbundle.zip` URL in `Package.swift` and parsing the
+   version out of its path. The moment `Package.swift` names a second bundle, that picks by position
+   — it would vendor this repository's own previous release as "the engine", with a version parsed
+   from the wrong URL, and the smoke test would still pass. `Tests/Checks/ensure-sourcery.sh:8-9`
+   duplicates the same version under "Keep in step with Package.swift's binary target", which stops
+   being followable for the same reason. Both read an unambiguous pin instead. No behaviour change,
+   and it has to land before step 3. Recorded as decision F12.
+2. **Teach the release lane the two tag shapes.** `release.yml` routes `templates-X.Y.Z` to an
+   assemble-and-publish job and `X.Y.Z` to the existing one, and the `X.Y.Z` job gains F8's
+   templates-match gate. `Scripts/assemble-release.sh` is otherwise unchanged — it already builds the
+   bundle §14 keeps.
+3. **Pin this repository's bundle.** `Package.swift`'s `sourcery` binary target moves from Sourcery's
+   zip to `swift-sourcery-templates-0.7.0.artifactbundle.zip`, which is already published (§15). The
+   artifact name in that bundle's `info.json` is `sourcery`, so the target keeps its name and
+   `context.tool(named: "sourcery")` is untouched. Nothing resolves templates from it yet; the gate
+   is that all five lanes still build and the engine still reports 2.3.0.
+4. **Resolve the templates.** §12's order and §13's two mechanisms:
+   `shippedTemplatesDirectory` in the Xcode extension stops returning `nil`, the SwiftPM
+   implementation gains routes 2 and 3 behind its graph walk, and the plugin logs which route
+   supplied the directory. `SOURCERY_TEMPLATES` is exported on both paths.
+5. **Move the bare-name gate.** §16: out of `XcodeFixtureRed/` and into `XcodeFixture/` as a green
+   gate that asserts resolution, the route named in the log, and the generated content.
+   `XcodeFixtureRed/` keeps its shape for the next red control.
+6. **The example.** §17, plus its step in CONTRIBUTING's release procedure.
+7. **Docs.** README §"Xcode projects" loses the second degradation and the exported-variables note
+   loses `SOURCERY_TEMPLATES`; README's artifact-bundle section says the bundle is what the plugin
+   itself resolves; CONTRIBUTING's release procedure gains the two-tag order; a CHANGELOG entry
+   records that a bare template name now works in an Xcode project, that the engine an adopter
+   downloads is this repository's bundle rather than Sourcery's, and that `bin/ejs.js` is not in it.
+
+Steps 1 and 2 carry no consumer-visible change and could land in either order. Step 3 is where
+`master` starts depending on an asset this repository published, and §15 is why that cannot leave the
+repository unresolvable.
+
+---
+
+## 19. Decisions
+
+- **F6 — Both mechanisms, checkout before bundle.** §12, §13. `#filePath` and the bundle both work
+  in all four consumer shapes (§11.2, §11.3) and each fails where the other does not: `#filePath`
+  rests on two undocumented behaviours — the source path being part of the plugin's
+  compilation-input hash, and no toolchain remapping paths during plugin compilation — while the
+  bundle rests on a layout this repository writes and pins by checksum but is only as current as the
+  pin. Every route tests that the directory exists before returning it, so a route that cannot answer
+  falls through instead of returning a wrong path. Neither is load-bearing alone, and the plugin logs
+  which one answered.
+- **F12 — The upstream engine pin is read by name, not by position.** §18 step 1.
+  `Scripts/assemble-release.sh:46-48` currently takes the first `artifactbundle.zip` URL in
+  `Package.swift`; once a second one is there, that silently vendors the wrong zip and parses a
+  version out of the wrong path. This has to land before the pin moves.
+- **F7 — Find the bundle root by looking for `info.json`, not by counting components.** §13. The
+  count is true of today's layout and would be wrong, with no diagnostic, if a variant path in
+  `info.json` changed shape. Both conditions are checked at run time; failing them produces the
+  existing warning.
+- **F8 — A release refuses to publish if the pinned bundle's templates differ from the commit's.**
+  §15. The two-tag scheme's correctness rests on a human having changed only `Package.swift` between
+  the tags. The gate is a byte comparison and it catches every way that promise can break.
+- **F9 — The by-tag example is documentation with a named maintenance step, not a lane.** §17. Making
+  it a lane would make every branch depend on the last published artifact, which is the coupling §16
+  exists to avoid; leaving it with no owner means it rots.
+- **F11 — No published asset is removed or repackaged.** §14, measured in §11.6. The bundle keeps
+  the CLI and the standalone CLI zip stays. Dropping either to save about 3.5 MB per resolution would
+  break `duet mocks` and `duet mocks --check` respectively, the second of which is a CI gate in two
+  repositories. The change costs adopters about 600 KB and buys §12's rule.
+- **F10 — `#if DEBUG` is not available as a gate anywhere in this plugin.** §11.4, measured on both
+  APIs: the symbol is undefined when SwiftPM and Xcode compile a plugin, so a `#if DEBUG` branch is
+  compiled out of every build, including this repository's own lanes.
+
+---
+
+## 20. Open questions
+
+1. **Should `duet`'s bundle pin and the plugin's become one pin?** §11.6, §14. After this, a repo
+   using both resolves the same zip twice under two version numbers: `mocks.bundle:` in
+   `parity/manifest.yaml` and whatever tag its `Package.swift` names for this package. They can
+   disagree. Unmeasured: whether `duet` could read the plugin's pin, or whether the two are
+   deliberately independent.
+2. **Does anything still consume upstream Sourcery's `bin/ejs.js` through this package?** §14. After
+   the pin moves, the resolved bundle no longer carries it, so a consumer driving the plugin with
+   their own `.ejs` template loses the runtime that serves it. `Scripts/assemble-release.sh:25-28`
+   records that this repository's own templates are all `.swifttemplate` and that a smoke test keeps
+   them that way; nobody has checked whether a consumer's are.
+3. **Is a release-procedure step enough to keep §17's example alive?** F9. The alternative is a
+   scheduled lane that builds it against the latest tag — which is a gate on a published artifact,
+   but on a schedule rather than on every branch, so it fails the release rather than the branch.
