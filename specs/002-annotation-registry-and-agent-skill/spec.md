@@ -891,6 +891,10 @@ B2's "filter edit" is no edit: `run-skill-checks.sh` reads markdown, so its job 
 `changes` filter beside `annotations` and `rules`, which is where an ungated job already sits
 (§11.3).
 
+**Amended 2026-09-10 — §13.1, §13.2.** B4 has landed. Its row's path is superseded: the runner reads
+one case per directory, has no `evals.json`, and refuses an eval directory inside `skills/`, so the
+suite is `Tests/Evals/` and `.claude-plugin/plugin.json` names it. §13.2 carries the measurement.
+
 ### 7.1 The baseline comparison
 
 Per §3.4: each prompt run twice in a fresh session, once with the skill installed and once with it
@@ -912,6 +916,11 @@ single correct lane and two with a single correct diagnosis:
 
 A prompt whose with-skill run is wrong is a defect in the skill's text: edit the skill, then re-run
 that prompt in a fresh session.
+
+**Amended 2026-09-10 — §13.3, §13.4.** All five prompts have been run, both arms each. §13.3 names
+the three conditions an arm has to be run under, each of them measured on a first pass that got them
+wrong, and §13.4 carries what the ten runs answered. No with-skill answer was wrong, so no edit to
+the skill followed.
 
 ---
 
@@ -1350,4 +1359,131 @@ installed into this repository or into the user's own settings.
 - **Phase B4** — `skills/swift-sourcery-mocks/evals/evals.json` and §7.1's baseline comparison.
   Separable, and not taken here. §7.1's five prompts are the specification for it, and each has to
   be run in a fresh session for the reason §3.4 gives.
+
+  **Amended 2026-09-10 — §13.** Taken. The path is not the one this line names (§13.2), and the
+  comparison ran by hand rather than through the runner (§13.3).
+- **Phase A5** — §10.4, unchanged by anything here.
+
+---
+
+## 13. Amendment — what phase B4 landed
+
+Written 2026-09-10, after B1–B3 (§12) and before any commit of this phase.
+
+### 13.1 What B4 added
+
+| path | what it is |
+| --- | --- |
+| `Tests/Evals/<case>/prompt.md`, `Tests/Evals/<case>/graders/*.md` | the five cases of §7.1, one directory each |
+| `Tests/Evals/README.md` | the case table, the two ways to run the suite, and the three run conditions of §13.3 |
+| `.claude-plugin/plugin.json` | `"experimental": {"evals": "Tests/Evals"}` |
+| `Tests/Checks/run-skill-checks.sh` | check SC13 and its red control; `seed()` copies `Tests/Evals` into each self-test root |
+| `.gitignore` | `Tests/Evals/results/`, which a run writes |
+| `CONTRIBUTING.md`, `AGENTS.md`, `CLAUDE.md` | the layout entry, the rule, the Testing paragraph and the SC13 clause |
+
+No workflow edit. Every file of the suite ends in `.md`, so the `changes` filter of §6.2's item 3
+already excludes it: a push touching only the suite runs `rules`, `annotations` and `skills` and
+skips the five macOS lanes.
+
+### 13.2 The suite is `Tests/Evals/`, not `skills/swift-sourcery-mocks/evals/evals.json`
+
+Supersedes the path in §7's B4 row and in §12.5. Read from the Claude Code binary at 2.1.263 —
+`claude plugin eval --help`, and the runner's own schema and validation strings. Re-read at 2.1.267:
+the key sets, the six grader types, the eight component directory names, the `schema_version` major
+and the defaults for `runs` and `max_turns` are byte-identical, and the only differences in the
+runner's code are minified identifier names.
+
+- **A case is a directory, and there is no `evals.json`.** The runner reads `<eval dir>/**/case.yaml`,
+  or `prompt.md` plus `graders/*.md` in the same directory. The directory form is what the cases use:
+  `prompt.md`'s frontmatter carries `schema_version`, `name`, `description`, `tags`, `plugins`,
+  `runs` and `expected_outcome`, plus the execution keys `model`, `max_turns`, `timeout_seconds`,
+  `allowed_tools`, `artifact_publish`, `growthbook_overrides`, `append_system_prompt` and `env`; its
+  body is the user prompt. Each `graders/<name>.md` is one grader, the file name is its name, the
+  frontmatter's `type` is one of `regex`, `tool_order`, `tool_used`, `file_exists`, `llm` and
+  `baseline`, and the body is the `criteria` of an `llm` grader or the `pattern` of a `regex` one.
+- **The eval directory may not be inside a component directory.** It is a relative path below the
+  plugin root, at most 200 characters and 8 segments, and its first segment may not be one of
+  `commands`, `skills`, `agents`, `hooks`, `themes`, `output-styles`, `monitors` or `workflows`. The
+  path §7's B4 row names begins with `skills`, and the runner refuses it: *must not be inside the
+  plugin's skills/ directory (a loaded component directory)*. The plugin root here is the repository
+  root (§4.5, `source: "./"`), so the refusal is not avoidable by moving the case directory deeper.
+- **Where it went instead.** `Tests/Evals`, named in `experimental.evals` so a bare
+  `claude plugin eval .` finds it, beside `Tests/Checks` where every other check of this repository
+  lives. `claude plugin validate .` accepts the manifest with that key; its one warning is the
+  absent `version`, which §4.2 records as deliberate.
+- **What the change does not touch.** §11.3's correction and §12.3 use
+  `skills/swift-sourcery-mocks/evals/evals.json` as the example of a path the `changes` filter
+  excludes. The pattern they measured is unchanged and the conclusion still holds for the suite that
+  shipped, by the `\.md$` alternative rather than by `^skills/`.
+
+### 13.3 The runner is in early access, so §7.1's comparison ran without it
+
+`claude plugin eval` answers "`plugin eval` is currently in early access" and runs nothing on
+this account at 2.1.263, and again at 2.1.267 — `init` included, so the cases were written against
+the schema read from the binary rather than from a scaffold. §7.1 does not need the runner: `--plugin-dir <repo>` loads the
+plugin for one session, and the same command without that flag is the other arm.
+
+```bash
+claude -p --restricted --strict-mcp-config --allowedTools "Read,Glob,Grep,Skill" \
+  --permission-prompts none [--plugin-dir <repo>] "<the prompt.md body>"
+```
+
+Three conditions, each fixed after a first pass measured wrong:
+
+1. **The run directory's path must not name this repository.** The file tools take absolute paths. A
+   first pass ran the arms under the session scratchpad, whose path carries the repository name; the
+   without-arm of `does-not-conform` cited `templates/Mocks/MockVar.swift:18` and the without-arm of
+   `commit-generated-mocks` said it had read `references/cli-lane.md` and the changelog. Both were
+   answering from the skill's material by another route, and both are discarded. The runs of §13.4
+   are from `mktemp -d`.
+2. **`--restricted` confines the file tools to the run directory**, which is what makes the first
+   condition hold. It also removes Bash, so an answer cannot resolve the newest tag with
+   `git ls-remote` and says so instead.
+3. **Under `--restricted` the with-arm cannot open `references/*.md` either.** They are outside the
+   run directory, and the two Read calls that tried were refused. So the answers of §13.4 are what
+   `SKILL.md` alone produces — stage 2 of §3.1's three, with stage 3 unread. A case meant to
+   exercise a reference file needs `--add-dir <repo>/skills/swift-sourcery-mocks` on the with-arm.
+
+### 13.4 What the ten runs answered
+
+Ten runs, five prompts × two arms, one session each, 2026-09-10, $2.46 in total. The `Skill` tool
+fired in all five with-arms, which is the `with-only` indicator every case carries. Every `regex`
+grader passed in the with-arm — 8 of 8 — and one passed in the without-arm.
+
+| case | without the skill | with the skill |
+| --- | --- | --- |
+| `plugin-lane-setup` | recommends the `Mockable` macro package and a `MOCKING` compilation condition | the plugin on the test target only, the three-line config, `output:` left out |
+| `commit-generated-mocks` | vendors upstream Sourcery's `AutoMockable.stencil` under a root `.sourcery.yml` and writes its own generate script | `mock-templates generate` into a `PaymentsMocks` target, `validate` as the CI gate, `@testable import` named |
+| `cross-module-protocol` | asks for the checkout, then proposes editing the plugin's `createBuildCommands` to walk `recursiveTargetDependencies` | `${SOURCERY_SOURCES}` in `sources:`, a second `--sources` on the CLI lane, and the annotated empty extension |
+| `does-not-conform` | the mechanism is right — the generator flattens and never parsed `Refunding` — and is named against Mockolo and AutoMockable, with no fix in this repository's terms | the same mechanism, plus the fix per lane and the `sources:`-without-the-placeholder trap |
+| `publisher-hangs` | the mechanism is right — a `PassthroughSubject` does not replay — and the fix is a hand-written mock class | `stateSubject`, `stateGetHandler` and `subject = "CurrentValue"`, all three fixes |
+
+No with-arm answer was wrong against its case's `llm` criteria, so §7.1's "edit the skill, then
+re-run that prompt" did not fire. Two claims a with-arm made were checked against the source rather
+than taken: `--args` is repeatable (`Sources/mock-templates/Commands.swift:27`, `[String]`), and
+`args: { testable: Payments }` as a scalar is read by `_header.swifttemplate:18-25`, which accepts a
+`String` or a `[String]`.
+
+The two diagnostic prompts are where the skill adds least: without it, both answers name the cause
+correctly from general Swift knowledge and miss only this repository's vocabulary — the member names
+in one, the lane-specific `sources:` fix in the other. The three setup prompts are where it decides
+the outcome: without it, all three answers set up a different tool.
+
+### 13.5 SC13, and why not SC12
+
+§6.1 assigned SC12 to a check for D9's fallback, which was not taken (§12.3), so the eval-case check
+takes SC13 and SC12 stays unused. SC13 reads `experimental.evals`, refuses an eval directory whose
+first segment is a component directory, and checks that every case carries a prompt body and at
+least one grader whose `type` the runner would accept. It is a parse check, not a run: the suite
+costs model calls and no CI job runs it.
+
+### 13.6 Still open
+
+- **Running the suite through `claude plugin eval`.** The cases are written for it, and nothing has
+  executed them: the ten runs of §13.4 are the manual form. The first run through the runner is what
+  would confirm the `llm` graders' criteria are gradable as written, and the `--ablation
+  with-without` score the same comparison the table above makes by hand.
+- **No case has a fixture.** `context.scaffold_script` and `context.add_dirs` are unused and each
+  prompt carries the package's shape in its text, because a scaffold does not run without
+  `--scaffold` and a case that needs one grades against an empty directory by default.
 - **Phase A5** — §10.4, unchanged by anything here.
