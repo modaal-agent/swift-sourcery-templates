@@ -695,6 +695,10 @@ skills/
 With `source: "./"` the plugin root is the marketplace root, its default `skills/` is the tree the
 other three channels read, and no file is duplicated.
 
+**Verified 2026-09-10 in phase B1 — §12.2.** `source: "./"` loads: the plugin installs from a local
+checkout and its skill resolves out of the marketplace root's own `skills/`. D9's fallback is
+dropped.
+
 **This is the one arrangement in this spec that is not verified.** The documentation states that `.`
 and `./` denote the plugin root and that a marketplace may hold plugins in subdirectories; it does
 not show a plugin whose source is the marketplace root itself, and
@@ -821,6 +825,10 @@ Reads markdown and JSON. No Swift toolchain, no Sourcery, no network — so it r
 
 The annotation table inside the skill is check AC6's, not this script's.
 
+**Amended 2026-09-10 in phase B2 — §12.3.** SC1 also refuses an unquoted value carrying `: `, which
+the cross-agent CLI's YAML parser rejects and Claude Code's loader accepts. SC12 is not implemented,
+because D9's fallback was not taken.
+
 SC6 and SC7 extract two sets of names with `grep -o` and compare them, so rewording a sentence on
 either side leaves them green.
 
@@ -867,6 +875,10 @@ written until `Scripts/render-annotations.sh` exists. Each phase is one reviewab
 **A4 is required, not separable** (§8, D3): until it lands the registry carries `matching:` and the
 rendered tables carry a footnote naming the five exact-match verbs, so the vocabulary is documented as
 irregular because it is. Phase B4 may be dropped without affecting the rest.
+
+**Amended 2026-09-10 — §12.1.** B1–B3 have landed, one commit each; §12.1 names them. B1's row
+does not name the two files outside the skill tree that it has to edit, and B3's does not say that
+§2.3's `AGENTS.md` rule landed in A4 (§11.5) — what B3 adds is §5.5's (§12.3).
 
 A4 is the only phase that changes what an existing consumer's sources generate, and it narrows: a
 verb that matched any casing now matches one. That is why it ships with the near-miss scan in the
@@ -1083,10 +1095,18 @@ which is what `anthropics/claude-plugins-official` does for every third-party pl
 **10.1 — Does a plugin rooted at the marketplace root load?** §4.5. Answered by phase B1, with D9's
 fallback written down.
 
+**Answered 2026-09-10 in phase B1 — §12.2.** It loads. `claude plugin install
+swift-sourcery-mocks@swift-sourcery-templates` from a local checkout reports one skill, resolved
+from the plugin root's default `skills/`.
+
 **10.2 — Does `npx skills add` need `skills/` at the root, or does it find `SKILL.md` anywhere?** The
 CLI's documentation states no layout requirement, and `--list` is the cheap way to find out. The
 answer does not change the plan — D11 puts the tree at the root either way — but it decides whether
 `README.md` can promise the manual-copy path works from an arbitrary checkout depth.
+
+**Answered 2026-09-10 in phase B1 — §12.2.** It finds a `SKILL.md` at any depth: a copy at
+`docs/agent/swift-sourcery-mocks/SKILL.md` listed identically. The manual-copy path does not depend
+on the depth of the checkout.
 
 **10.3 — Can a Sourcery 2.3.0 Swift template write to stderr?** §2.5 puts the option-level near-miss
 message there because stdout is the generated file (`_header.swifttemplate:15`). Whether Sourcery
@@ -1233,3 +1253,101 @@ does not see them there.
 - **Whether `references/spm-plugin.md` documents `SOURCERY_TARGET_*` at all.** They exist only on the
   SwiftPM path, and `${SOURCERY_SOURCES}` reaches further than the one level they name
   (`README.md:465-466`). Decide it when B1 writes that file.
+
+  **Decided 2026-09-10 in phase B1 — §12.3.** It documents all four shapes, and states that
+  `${SOURCERY_SOURCES}` is what reaches beyond one level while a `SOURCERY_TARGET_*` variable names
+  a subdirectory the closure does not cover.
+
+---
+
+## 12. Amendment — what phases B1–B3 landed
+
+Added 2026-09-10, measured on this checkout. Nothing above is rewritten; §4.5, §6.1, §7, §10.1,
+§10.2 and §11.6 each carry a line pointing here.
+
+### 12.1 The commits
+
+| phase | commit | gate, run locally |
+| --- | --- | --- |
+| B1 — the skill tree and the two manifests | `8cc50b0` | `run-annotation-checks.sh` and `--self-test`; `claude plugin install`; `npx skills add ./ --list` |
+| B2 — `run-skill-checks.sh`, the `skills` job, the filter edit | `0c47eaf` | `run-skill-checks.sh` and `--self-test`, eleven checks, eleven red controls |
+| B3 — README, CONTRIBUTING, `AGENTS.md` | `71cf143` | both check scripts, both red-control runs, `cmp AGENTS.md CLAUDE.md` |
+| the body trimmed under the compaction floor | `2a7fd05` | `claude plugin details` |
+
+Not pushed at the time of writing, so no CI run number stands beside them.
+
+### 12.2 The four channels, measured
+
+Run against a copy of `skills/` and `.claude-plugin/` in a temporary directory, so nothing was
+installed into this repository or into the user's own settings.
+
+- **§10.1 is answered: a plugin rooted at the marketplace root loads.** `claude plugin marketplace
+  add ./ --scope local`, then `claude plugin install swift-sourcery-mocks@swift-sourcery-templates`,
+  then `claude plugin details swift-sourcery-mocks` — one skill in the inventory, resolved from the
+  plugin root's default `skills/`. D9's subdirectory fallback with its `diff -r` and SC12 is not
+  needed and is not implemented.
+- **§10.2 is answered: the `skills` CLI finds a `SKILL.md` at any depth.** A copy at
+  `docs/agent/swift-sourcery-mocks/SKILL.md` listed identically to the one at
+  `skills/swift-sourcery-mocks/`. So `skills/` at the repository root is the plugin loader's
+  requirement (D11), not the cross-agent CLI's, and README's manual-copy line does not depend on the
+  depth of the checkout.
+- **The two loaders do not parse the frontmatter the same way.** The first `npx skills add ./
+  --list` run skipped the file: "YAML parse error: Nested mappings are not allowed in compact
+  mappings at line 2, column 14". The description's second sentence used a colon, and a plain YAML
+  scalar cannot carry `: `. Claude Code's own loader had accepted the same file. The sentence was
+  rewritten with a dash, and SC1 was widened to refuse the shape (§12.3).
+- **The token cost, from `claude plugin details`:** ~290 tokens always-on, which is the
+  description, and ~5k on invoke for the body. §3.1's compaction floor is 5,000 tokens per loaded
+  skill, and the first measurement was ~5.1k, so `2a7fd05` compressed seven passages of prose — 258
+  lines to 249 — without removing an instruction or a table row.
+
+### 12.3 Where Part B departed from §6.1 and §7
+
+- **SC1 checks more than §6.1 assigns it.** "Frontmatter opens at line 1 and parses" is implemented
+  as: `---` on line 1, one `key: value` per line, a closing `---`, and no unquoted value carrying
+  `: `. The last clause is the defect §12.2 measured, and neither loader's own behaviour is a
+  substitute for it — Claude Code accepts the file the cross-agent CLI refuses.
+- **SC12 is not implemented**, because D9's fallback was not taken. The script's checks are SC1–SC11
+  as §6.1 lists them.
+- **§6.2's item 3 is implemented as §11.3's correction states it**, not as §11.3's first paragraph
+  did: `code_files` grows `^\.claude-plugin/|^skills/`. Measured on the pattern: a push touching
+  `skills/swift-sourcery-mocks/SKILL.md`, `.claude-plugin/plugin.json` or
+  `skills/swift-sourcery-mocks/evals/evals.json` sets `code=false`; one touching
+  `Tests/Checks/run-skill-checks.sh` or `templates/Annotations/AnnotationRegistry.swift` sets
+  `code=true`.
+- **B1 edited two files outside the skill tree**, which §7's row does not name.
+  `Scripts/render-annotations.sh` gains the two skill targets — §11.5 anticipated this — and
+  `Tests/Checks/run-annotation-checks.sh` gains the same two paths in `RENDER_TARGETS`, which is
+  what puts them under AC8, plus a `cp -R skills` in `seed()` so each self-test root holds the
+  targets AC6 renders into.
+- **The lane count is seven**, not six: `annotations`, `skill`, fast, CLI, plugin, xcode, full,
+  beside the `rules` job and the `changes` filter. README's §Tests table still lists the four macOS
+  lanes only, which is what a consumer reads it for; CONTRIBUTING and `AGENTS.md` carry the seven.
+- **§11.6's third question is decided: `references/spm-plugin.md` documents `SOURCERY_TARGET_*` in
+  full**, as a table row per shape, with the rule that `${SOURCERY_SOURCES}` is what reaches beyond
+  one level and a `SOURCERY_TARGET_*` variable is for naming a subdirectory the closure does not
+  cover — an annotations directory. Leaving them out would have made the Xcode column of §11.2's
+  table unreadable: what differs there is precisely that these do not exist.
+- **SC6 compares by prefix as well as literally.** The plugin builds two names by interpolation
+  (`SOURCERY_TARGET_\(t.name)`), so the set read from its source carries the bare prefix
+  `SOURCERY_TARGET_`, and a name the skill writes matches either literally or under one of those
+  prefixes.
+- **`--self-test` found a defect in its own script.** `SC8="$SC8 $file→$target"` made bash read the
+  multibyte arrow as part of the variable name, so the one line SC8 executes when it fails was an
+  unbound-variable error. A check that has never gone red is a check that has not been run.
+
+### 12.4 What this amendment answers
+
+| section | what it left open | what is true now |
+| --- | --- | --- |
+| §4.5, §10.1 | whether a plugin rooted at the marketplace root loads | it loads; `source: "./"` shipped and D9's fallback is dropped |
+| §10.2 | whether `npx skills add` needs `skills/` at the root | it does not; it finds a `SKILL.md` at any depth |
+| §6.1, SC1 | "frontmatter opens at line 1 and parses" | plus the plain-scalar rule of §12.3 |
+| §11.6 | whether `references/spm-plugin.md` documents `SOURCERY_TARGET_*` | it documents all four shapes, with the rule for when to reach for one |
+
+### 12.5 Still open
+
+- **Phase B4** — `skills/swift-sourcery-mocks/evals/evals.json` and §7.1's baseline comparison.
+  Separable, and not taken here. §7.1's five prompts are the specification for it, and each has to
+  be run in a fresh session for the reason §3.4 gives.
+- **Phase A5** — §10.4, unchanged by anything here.
