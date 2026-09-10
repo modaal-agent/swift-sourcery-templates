@@ -109,6 +109,10 @@ Everything an adopter needs is in `README.md`, written for a person reading top 
 Those fourteen ranges are 16,545 bytes of the file's 32,542. An agent asked to "generate mocks for
 this package" either reads all of it or greps and guesses.
 
+**Amended 2026-09-10 — §11.2.** Every range above is as measured at the baseline `39a56d9`; 0.8.0's
+README edits moved them. The row that changes in substance rather than position is the Xcode one: it
+is now `README.md:475-497`, and it documents one degradation rather than a degraded path.
+
 Two things the README does not say anywhere, because a person reading it already knows which
 situation they are in:
 
@@ -712,6 +716,12 @@ a second copy of the tree, kept in step by a `diff -r` in `run-skill-checks.sh` 
 | mocks committed to the repository, so a consumer or a cold CI job runs no Sourcery | `mock-templates generate`, with `mock-templates validate` as the CI gate |
 | a library that ships mocks as a product to downstream packages | `mock-templates generate`, committed; generated mocks are `internal`, so the consumer writes `@testable import` (CONTRIBUTING §Open items) |
 
+**Amended 2026-09-10 — §11.2.** Row 2 is superseded. At 0.8.0 a bare template name resolves in an
+Xcode project and `SOURCERY_TEMPLATES` is exported there, so the row's lane becomes the plugin. What
+remains of the degradation is `${SOURCERY_SOURCES}`, which reaches the target's own input-file
+directories and no further; the author names every other directory in `sources:` as an absolute path
+built from `${SOURCERY_PROJECT}`. §11.2 carries the four differences the skill has to teach.
+
 ### 5.2 `SKILL.md` — the resident part
 
 ```yaml
@@ -861,6 +871,13 @@ irregular because it is. Phase B4 may be dropped without affecting the rest.
 A4 is the only phase that changes what an existing consumer's sources generate, and it narrows: a
 verb that matched any casing now matches one. That is why it ships with the near-miss scan in the
 same commit — the scan is what turns the narrowing from silence into a message.
+
+**Amended 2026-09-10 — §11.1, §11.3.** A1–A4 have landed, one commit each, every push green;
+§11.1 names the commits and the runs. Two rows read differently now. A4's gate was written before
+§10.3 was measured, and the mechanism it chose is the comment line, not the stderr path (§11.5).
+B2's "filter edit" is no edit: `run-skill-checks.sh` reads markdown, so its job belongs outside the
+`changes` filter beside `annotations` and `rules`, which is where an ungated job already sits
+(§11.3).
 
 ### 7.1 The baseline comparison
 
@@ -1017,6 +1034,12 @@ CLI lane, and `references/spm-plugin.md` carries one paragraph naming the two de
 pointing at `README.md:456-477` for anyone who wants the plugin anyway. **A spec that closes the
 Xcode gap changes this row**, and names D14 when it does.
 
+**Amended 2026-09-10 — §11.2, §11.4.** 001 §11.2 is closed. `XcodeBuildToolPlugin` resolves bare
+template names through routes 2 and 3 and exports `SOURCERY_TEMPLATES`, and `run-xcode-checks.sh`
+gates it on every push. D14 said a spec closing the Xcode gap changes §5.1's row and names D14: this
+amendment does both. One of D14's two degradations survives — the source closure — and it is a
+paragraph in `references/spm-plugin.md` rather than a lane decision.
+
 **D15 — One repository, and it is this one.** The skill could live in a
 `swift-sourcery-templates-skills` repository of its own, and one repository can publish any number of
 skills through every channel in §4 — `skills/<a>/` and `skills/<b>/` side by side, `npx skills add
@@ -1073,8 +1096,130 @@ the generated file, which is visible but moves the snapshot and so has to be rec
 option near-misses to the same `throw` selectors get, accepting the false positives D3 and §2.5
 describe. Measured in phase A4 before the mechanism is chosen.
 
+**Answered 2026-09-10 in phase A4 — §11.5.** A Swift template cannot write to stderr: Sourcery 2.3.0
+turns the write into `error: <template>: <text>`, exits 3 and writes no output file. The first
+fallback is what shipped — a `//` comment line in the generated file.
+
 **10.4 — Which release does phase A5 land in?** That A5 lands is decided (§8, D13). Which release is
 not: it turns on when both reference consumers are next regenerated, since retiring `CreateMock`,
 `TypeErase` and `ObjcProtocol` fails generation for any source still spelling them, and CONTRIBUTING
 §"Cutting a release" already puts a `modaal-firebase-wrappers` regenerate in the release path. The
 earliest candidate is the release after the one carrying phases A1–A4 and B1–B3.
+
+---
+
+## 11. Amendment — the lanes and the Xcode path after 0.8.0
+
+Added 2026-09-10, measured against `f89052a`, the commit that merged `master` at 0.8.0 (`34635ed`)
+into `spec/002-annotation-registry-and-agent-skill`. Nothing above this section is rewritten; §1.1,
+§5.1, §7, §8 D14 and §10.3 each carry a line pointing here. Part B is written against this section
+where it and an earlier one disagree.
+
+### 11.1 Where Part A stands
+
+| phase | commit | CI run |
+| --- | --- | --- |
+| A1 — the registry and `AnnotationAccess` | `f55a1c2` | 34414406801 |
+| A2 — `Scripts/render-annotations.sh` and the README block | `8a125ec` | 34415144793, which covers A2 and A3: they were pushed together |
+| A3 — `Tests/Checks/run-annotation-checks.sh` and the `annotations` job | `1eadcc8` | |
+| A4 — exact matching, `rejectNearMisses`, the vocabulary fixtures | `8a7a319`, with `9f51353` and `4ddb717` after it | 34418399829, 34418726971, 34455827639 |
+| the merge of 0.8.0 | `f89052a` | 34475105629, eight jobs |
+
+Every one of those runs concluded `success`.
+
+A5 has not been taken: `templates/Annotations/AnnotationRegistry.swift:274` still reads
+`static let retired: [RetiredAnnotation] = []`, and `CreateMock`, `TypeErase` and `ObjcProtocol` are
+still aliases of the three selectors. Part B has not started: there is no `skills/` directory.
+
+### 11.2 The Xcode path is the same plugin, with four differences
+
+001 §11.2 is closed. Both entry points call one body — `_createBuildCommands`, reached from
+`Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift:1104` for SwiftPM and `:1215`
+for Xcode — so the config copy, the line-level rewrite, the appended defaults, the `output:` check,
+passthrough, determinism and template-name resolution are one implementation. A bare `- Mocks`
+resolves in an Xcode project through routes 2 and 3 of `README.md:391-400` (`:1124`), and
+`SOURCERY_TEMPLATES` is exported there (`:792`), which is what §5.1's row 2 and D14 said did not
+happen. `Tests/Checks/run-xcode-checks.sh` builds an Xcode project on every push and gates all of it.
+
+Four things differ, each a consequence of `XcodePluginContext` exposing no package graph:
+
+| | SwiftPM (`BuildToolPlugin`) | Xcode (`XcodeBuildToolPlugin`) |
+| --- | --- | --- |
+| `${SOURCERY_SOURCES}` expands to | the target's own sources plus the recursive closure of its dependencies, one directory per module (`:1072`) | the target's own input-file directories, and nothing else (`:1195`) |
+| a config is looked for in | the target's own directory (`:1062`) | every first-level directory under the project root that holds one of the target's input files (`:1167`) |
+| exported variables | `SOURCERY_PACKAGE`, `SOURCERY_TARGET_<target>` and three `_DEP_` shapes, `GIT_ROOT` (`:1015`) | `SOURCERY_PROJECT` and `GIT_ROOT` only, plus `SOURCERY_TEMPLATES` and `SOURCERY_OUTPUT_DIR` from the shared body (`:1126`, `:792`, `:851`) |
+| `args.testable` | inserted for a test target with exactly one root-package non-test target dependency; an ambiguous set is warned (`:1086`) | never inserted — `testableDefault` is `.notApplicable` (`:1204`) |
+
+`XcodeTarget.dependencies` was measured empty on Xcode 26.5 for a package product dependency and for
+a dependency on a sibling target in the same project, which is why row 1 cannot be closed and why no
+`SOURCERY_TARGET_*` variable exists to name. So an author names every further directory themselves,
+as an absolute path built from `${SOURCERY_PROJECT}`:
+
+```yaml
+sources:
+  - ${SOURCERY_SOURCES}
+  - ${SOURCERY_PROJECT}/Libraries/Kit/Sources
+```
+
+`README.md:475-497` documents this; `run-xcode-checks.sh`'s **closure** gate holds row 1 to what it
+says, and its **hand-listed** gate builds the shape above.
+
+### 11.3 The lane inventory Part B writes against
+
+Six lanes run from `.github/workflows/ci.yml`, plus the `rules` job and the `changes` filter:
+
+| lane | script | runner | gated on `changes` |
+| --- | --- | --- | --- |
+| annotations | `Tests/Checks/run-annotation-checks.sh` | ubuntu | no |
+| fast | `Tests/Checks/run-checks.sh` | macOS | yes |
+| CLI | `Tests/Checks/run-cli-checks.sh` | macOS | yes |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | macOS | yes |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | macOS | yes |
+| full | `Tests/Examples/ExampleProjectSpm/test-ios.sh` | macOS | yes |
+
+The filter is the `changes` job's `code_files` line: a push whose every path ends in `.md` sets
+`code=false` and skips the five macOS lanes. §6.2 and §7's B2 row call for a filter edit; none is
+needed, because `run-skill-checks.sh` reads markdown and its job belongs outside the filter, where
+`annotations` and `rules` already are.
+
+Two things 0.8.0 added that B1's `references/cli-lane.md` describes: `Scripts/engine-pin.sh` is the
+upstream Sourcery pin of record, and `Package.swift`'s `sourcery` binaryTarget is this repository's
+own artifact bundle, which carries the engine, `templates/` and the `mock-templates` CLI at one
+version. The install snippet an adopter copies is `README.md:282`, at
+`github.com/modaal-agent/swift-sourcery-templates` from 0.8.0.
+
+### 11.4 What this amendment supersedes
+
+| section | what it says | what is true at `f89052a` |
+| --- | --- | --- |
+| §5.1, row 2 | an Xcode project goes to the CLI lane, because `${SOURCERY_SOURCES}` derives no closure and bare template names do not resolve | bare names resolve and `SOURCERY_TEMPLATES` is exported; the row sends an Xcode project to the plugin lane and names §11.2's hand-listed `sources:` as the one thing the author writes |
+| §8, D14 | the row above, held until 001 §11.2 closes, and: "A spec that closes the Xcode gap changes this row, and names D14 when it does" | §11.2 names it. What survives of D14 is the source closure, one paragraph of `references/spm-plugin.md` rather than a lane decision |
+| §1.1, the range table | `README.md:456-477`, "the degraded Xcode path", 1,056 B | the section is `README.md:475-497`, and it documents one degradation, not a degraded path |
+| §5.3 | `references/spm-plugin.md` carries "the Xcode degradation" | it carries §11.2's four-row table; the Xcode column is what an agent needs to write a working config |
+| §6.2, §7's B2 row | "the `skills` job and the filter edit" | the job, and no filter edit — §11.3 |
+
+### 11.5 What phase A4 measured, and where Part A departed from the plan
+
+Recorded in the commit messages named below, and collected here because a reader of this directory
+does not see them there.
+
+- **§10.3 is answered, against its assumption.** A Swift template's stdout is the generated file, and
+  Sourcery 2.3.0 turns any write to the template's stderr into `error: <template>: <text>`, exit 3,
+  no output file. The option near-miss message is a `//` comment line in the generated file — the
+  first fallback §10.3 names. Measured in `8a7a319`.
+- **The near-miss error is its own type, not `MockError`.** `TypeErase.swifttemplate` includes
+  nothing that declares `MockError`, and all three entry points call the scan (`4ddb717`).
+- **The `AGENTS.md` rule landed in A4**, not B3 as §7 assigns it (`8a7a319`).
+- **`Scripts/render-annotations.sh` has one target, not three.** §2.6's two skill files are created
+  by B1, which adds them to `TARGETS` (`8a125ec`).
+- **Sourcery propagates a declaration's annotations onto everything nested in it**, so a key on a
+  protocol reappears on each method and each parameter. `rejectNearMisses` subtracts the parent's
+  keys before reporting, or one misspelling is reported once per member (`8a7a319`).
+
+### 11.6 Still open
+
+- **Which release A5 lands in** — §10.4, unchanged by anything here.
+- **Whether a plugin rooted at the marketplace root loads** — §10.1, answered by B1.
+- **Whether `references/spm-plugin.md` documents `SOURCERY_TARGET_*` at all.** They exist only on the
+  SwiftPM path, and `${SOURCERY_SOURCES}` reaches further than the one level they name
+  (`README.md:465-466`). Decide it when B1 writes that file.
