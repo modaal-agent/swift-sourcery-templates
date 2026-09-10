@@ -277,9 +277,17 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
-`Tests/Examples/ExampleProjectXcode/build.sh` is not a lane. It resolves this package from its
-published URL at a tag, so it lags one release and belongs to the release procedure, not to a
-branch; see step 7 of Cutting a release.
+`Tests/Examples/ExampleProjectXcode/build.sh` is not a *branch* lane. It resolves this package from
+its published URL at a version, so making it one would put every push at the mercy of the last
+published artifact. `.github/workflows/published-example.yml` runs it where a published artifact is
+the right dependency: called by `release.yml` after a release publishes, weekly on a schedule, and
+on demand. `EXPECT_VERSION=<version>` makes it require a particular resolved version, which is what
+the release-time run passes.
+
+It resolves the package into a full source checkout that carries `templates/`, so the plugin's
+`#filePath` route answers and the artifact-bundle route does not — measured 2026-09-10 against
+0.8.0, correcting what `followup-xcode-lane.md` §17 expected of this project. That route is reached
+only where `#filePath` fails, which is what it was built for, and nothing here exercises it.
 
 Both check lanes provision Sourcery through `Tests/Checks/ensure-sourcery.sh`, which reads the pin
 from `Scripts/engine-pin.sh`; `SOURCERY=/path/to/sourcery` overrides it in either lane.
@@ -344,6 +352,12 @@ been measured to hold on Swift 6.3.3 (Xcode 26.6) and Swift 6.4 (Xcode 27 beta 4
 reproducibility rather than fragility. Bumping it means re-running the lanes locally on the new
 version first.
 
+`.github/workflows/published-example.yml` builds the by-URL example. `release.yml` calls it after a
+release publishes, a weekly `schedule:` runs it as a canary — `Package.swift` names an asset on the
+`templates-X.Y.Z` prerelease, so deleting that prerelease breaks resolution for every consumer at
+that version while every branch stays green — and `workflow_dispatch` runs it on demand. It caches
+nothing: resolving from the network is the thing under test.
+
 `.github/workflows/release.yml` runs on tag pushes only (which ci.yml deliberately skips), and
 routes two tag shapes to two jobs. A `templates-X.Y.Z` tag publishes the artifact bundle a
 `Package.swift` pin can name, as a prerelease. A bare `X.Y.Z` tag runs
@@ -380,13 +394,12 @@ the assets to the tag's GitHub release.
    `swift-sourcery-templates-<tag>.artifactbundle.zip`, `mock-templates-<tag>-macos.zip`, a
    `.sha256` beside each, and the release-notes body. Rehearse it locally with
    `Scripts/assemble-release.sh <version>` — everything lands in `.build/release-assets/`
-7. Build `Tests/Examples/ExampleProjectXcode` and record the version it printed. It is the only
-   thing here that resolves this package from its published URL at a tag, and the only thing that
-   reads `templates/` out of the pinned artifact bundle — every lane reaches this repository by
-   path, so neither is checked on a branch. It is not a CI lane on purpose: a lane over it would
-   make every branch depend on the last published artifact. One command,
-   `Tests/Examples/ExampleProjectXcode/build.sh`, which prints
-   `BUILT against swift-sourcery-templates <version>` on success
+7. Check the release run's **The by-URL example** job. It resolves the tag just published, from its
+   URL, and builds `Tests/Examples/ExampleProjectXcode` against it — the only check that an adopter
+   can resolve this package at all, since every lane reaches the repository by path. It runs after
+   the publish, because nothing can resolve an asset that is not there yet, so a failure means the
+   published release does not work and the fix is another release. Reproduce it locally with
+   `EXPECT_VERSION=<tag> Tests/Examples/ExampleProjectXcode/build.sh`
 
 ## Dependencies
 

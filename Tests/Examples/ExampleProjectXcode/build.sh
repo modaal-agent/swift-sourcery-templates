@@ -5,16 +5,23 @@
 # names this step (specs/001-plugin-source-discovery/followup-xcode-lane.md,
 # F9) — and record the version it prints in the release's notes.
 #
-# It is not a CI lane on purpose: it resolves the package from its published URL
+# Not a branch lane on purpose: it resolves the package from its published URL
 # at a tag, so wiring it into ci.yml would make every branch depend on the last
 # published artifact. Everything under Tests/Checks reaches this repository by
 # path instead, and that is what keeps a branch's lanes gating the working tree.
+# `.github/workflows/published-example.yml` runs it where a published artifact
+# is the right thing to depend on: after a release publishes, and weekly.
 #
 # Needs Xcode, `xcodegen` (`brew install xcodegen`) and the network. No
 # simulator. The `.xcodeproj` is generated and not committed.
 #
+# Set EXPECT_VERSION to require a particular resolved version — the release
+# workflow sets it to the tag it just published. Unset, any version `from:`
+# resolves is accepted.
+#
 # Usage:
 #   Tests/Examples/ExampleProjectXcode/build.sh
+#   EXPECT_VERSION=0.8.0 Tests/Examples/ExampleProjectXcode/build.sh
 
 set -eo pipefail
 
@@ -63,6 +70,14 @@ for pin in state.get("pins", []):
         print(pin["state"].get("version") or pin["state"].get("revision", "?"))
         break
 ' "$RESOLVED" 2>/dev/null || echo "?")"
+
+if [ -n "${EXPECT_VERSION:-}" ] && [ "$VERSION" != "$EXPECT_VERSION" ]; then
+  echo "FAIL: expected swift-sourcery-templates $EXPECT_VERSION, resolved $VERSION"
+  echo "      The spec pins with 'from:', so it takes the newest published"
+  echo "      version. A mismatch means that tag published no release, or a"
+  echo "      newer one exists."
+  exit 1
+fi
 
 MOCK="$(find "$DD/Build/Intermediates.noindex/BuildToolPluginIntermediates" \
   -path "*/Example/*/.generatedFiles/*/Mocks.generated.swift" -type f 2>/dev/null | head -1)"
