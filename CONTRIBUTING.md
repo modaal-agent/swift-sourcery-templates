@@ -34,6 +34,7 @@ Tests/                              # everything that verifies the product — s
   Checks/                           # fast lane + CLI lane + plugin lane + Xcode lane
     PluginFixture/                  # the plugin lane's green package: one target per config shape
     PluginFixtureRed/               # four packages that must FAIL, one per red control
+    PluginFixtureBundleRoute/       # the only fixture that runs the artifact-bundle template route
     XcodeFixture/                   # the Xcode lane's green project — an xcodegen.yml, no .xcodeproj
     XcodeFixtureRed/                # one project per red control — each must FAIL
   Examples/
@@ -286,8 +287,9 @@ the release-time run passes.
 
 It resolves the package into a full source checkout that carries `templates/`, so the plugin's
 `#filePath` route answers and the artifact-bundle route does not — measured 2026-09-10 against
-0.8.0, correcting what `followup-xcode-lane.md` §17 expected of this project. That route is reached
-only where `#filePath` fails, which is what it was built for, and nothing here exercises it.
+0.8.0, correcting what `followup-xcode-lane.md` §17 expected of this project. The bundle route is
+reached only where `#filePath` fails, which is what it was built for;
+`Tests/Checks/PluginFixtureBundleRoute` is what runs it.
 
 Both check lanes provision Sourcery through `Tests/Checks/ensure-sourcery.sh`, which reads the pin
 from `Scripts/engine-pin.sh`; `SOURCERY=/path/to/sourcery` overrides it in either lane.
@@ -308,6 +310,12 @@ configs, the generated code, and the build's own outcome. Its four red controls 
 `Tests/Checks/PluginFixtureRed/`, one package each, because build planning runs *every* target's
 plugin: a plan-time error in one target fails the build for all of them, so no `--target` can
 isolate a red control that shares a package with a green one. See `Tests/Checks/README.md`.
+
+`Tests/Checks/PluginFixtureBundleRoute` is the one fixture that runs the third template-resolution
+route, the artifact bundle. Every other fixture reaches this repository directly, so the plugin's
+own source file sits beside a `templates/` directory and `#filePath` answers first; this one depends
+on a generated copy of the repository with `templates/` left out, so the two routes ahead of the
+bundle cannot answer.
 
 The Xcode lane covers the other half of the same plugin. `XcodeBuildToolPlugin` is handed no package
 graph, no dependency edges and no shipped templates, so almost nothing the plugin lane asserts
@@ -334,6 +342,7 @@ external-annotation pattern, type erasure, and the plugin itself.
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
 | plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and four red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone |
+| plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
 | xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |

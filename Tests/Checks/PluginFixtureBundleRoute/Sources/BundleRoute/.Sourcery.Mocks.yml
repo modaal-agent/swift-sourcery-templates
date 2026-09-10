@@ -1,0 +1,5 @@
+# A bare template name, with nothing in the checkout to resolve it against. It
+# has to come out of the pinned artifact bundle, and the lane asserts that the
+# path it resolved to is inside the bundle rather than in this working tree.
+templates:
+  - Mocks

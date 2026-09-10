@@ -26,8 +26,9 @@ name: Published example
 #
 # What it does not check: the plugin resolving templates out of the artifact
 # bundle. A URL-resolved package is a full source checkout carrying
-# `templates/`, so `#filePath` answers first — measured 2026-09-10, see
-# CONTRIBUTING's note beside the example.
+# `templates/`, so `#filePath` answers first — measured 2026-09-10.
+# Tests/Checks/PluginFixtureBundleRoute is what runs that route, on every push,
+# by depending on a copy of this repository with `templates/` left out.
 #
 # GitHub disables a scheduled workflow after 60 days with no repository
 # activity, and re-enabling it is a button in the Actions tab.
