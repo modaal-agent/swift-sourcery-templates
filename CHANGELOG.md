@@ -18,7 +18,7 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
-## Unreleased — the plugin derives its own sources
+## 0.8.0 — 2026-09-10
 
 **Generated output:** unchanged for any config that does not opt in. The templates did not move a
 byte; the only way this changes what a consumer generates is by scanning more sources, which happens
@@ -152,6 +152,18 @@ their own loses the runtime that serves it — name the engine yourself if that 
 
 **Adopting:** nothing to do. A config naming templates by path keeps working unchanged; a bare name
 is new capability, not a change to an existing one.
+
+**Measured on the reference consumer.** `modaal-firebase-wrappers` regenerated against this release
+with its own `scripts/generate-mocks.sh` and Sourcery 2.3.0 — 34 mocks across 7 modules — produces
+output **byte-identical** to what 0.7.0's templates produce, in all seven files. The only template
+change since 0.7.0 is a doc comment inside `templates/Mocks/MockMethod.swift`, which is template
+source and not emitted. Bumping from 0.7.0 and regenerating gives an empty diff.
+
+That repository is pinned at 0.2.15, so its own diff on bumping is larger and spans five releases:
+7 files, 218 insertions, no deletions and no modifications. Every added line is the recorded-argument
+feature — one `var <name>Args` per method and one `<name>Args.append(...)` inside it. Existing
+`<name>CallCount` and `<name>Handler` members are untouched, so tests written against them keep
+compiling.
 
 Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md)
 and, for the Xcode path,
