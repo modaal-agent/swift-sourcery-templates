@@ -1,6 +1,6 @@
 # swift-sourcery-templates
 
-[![CI](https://github.com/ivanmisuno/swift-sourcery-templates/actions/workflows/ci.yml/badge.svg)](https://github.com/ivanmisuno/swift-sourcery-templates/actions/workflows/ci.yml)
+[![CI](https://github.com/modaal-agent/swift-sourcery-templates/actions/workflows/ci.yml/badge.svg)](https://github.com/modaal-agent/swift-sourcery-templates/actions/workflows/ci.yml)
 
 Advanced Protocol Mock, Type Erasure and dependency-forwarding Code-generation templates for Swift (using [Sourcery](https://github.com/krzysztofzablocki/Sourcery)).
 
@@ -279,7 +279,7 @@ let package = Package(
   ],
   dependencies: [
     // ...
-    .package(url: "https://github.com/ivanmisuno/swift-sourcery-templates.git", from: "0.2.2"),
+    .package(url: "https://github.com/modaal-agent/swift-sourcery-templates.git", from: "0.8.0"),
   ],
   targets: [
     .target(
