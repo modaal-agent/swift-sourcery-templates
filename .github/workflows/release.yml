@@ -12,7 +12,8 @@ name: Release
 #   X.Y.Z             the release. Before anything is published, the pinned
 #                     bundle's templates/ is compared with the commit's — the
 #                     gate that keeps the plugin's third resolution route from
-#                     serving templates nobody reviewed.
+#                     serving templates nobody reviewed. After it publishes,
+#                     the by-URL example is built against the tag just cut.
 #
 # `*.*.*` matches `templates-0.8.0` as well (`templates-0` `.` `8` `.` `0`), so
 # the pattern is not what tells the two apart; the jobs' `if:` conditions are.
@@ -123,3 +124,17 @@ jobs:
             --notes-file .build/release-assets/notes.md \
             .build/release-assets/*.zip \
             .build/release-assets/*.sha256
+
+  # ── What an adopter gets ─────────────────────────────────────────
+  # Resolves the tag just published, from its URL, and builds against it. It
+  # runs after the publish because nothing can resolve an asset that is not
+  # there yet, so it reports on the release rather than gating it — a failure
+  # here means the published release does not work for an adopter, and the fix
+  # is another release, not a retry.
+  example:
+    name: The by-URL example, against what was just published
+    needs: release
+    if: ${{ !startsWith(github.ref_name, 'templates-') }}
+    uses: ./.github/workflows/published-example.yml
+    with:
+      expect-version: ${{ github.ref_name }}

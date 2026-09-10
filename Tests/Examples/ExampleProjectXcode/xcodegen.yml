@@ -1,26 +1,31 @@
 # The adopter's shape, as documentation rather than as a gate.
 #
 # Every fixture in Tests/Checks reaches this repository by path, because that is
-# what a fixture in this repository can do. Two things therefore go unchecked by
-# any lane, and this project is both of them: SwiftPM resolving this package
-# from its published URL at a version, which is what an adopter writes, and the
-# plugin reading `templates/` out of the artifact bundle `Package.swift` pins —
-# route 3 of specs/001-plugin-source-discovery/followup-xcode-lane.md §12, which
-# routes 1 and 2 win over on every branch of this repository.
+# what a fixture in this repository can do. This project is the one thing that
+# resolves the package from its published URL at a version, which is what an
+# adopter writes, and it is the only check that resolution works at all.
 #
-# Not wired into ci.yml (F9): a lane over this project would make every branch
-# depend on the last published artifact, which is the coupling §16 exists to
-# avoid. CONTRIBUTING's release procedure names the step that builds it after a
-# release publishes, and `build.sh` beside this file is that step.
+# It does NOT exercise route 3 of
+# specs/001-plugin-source-discovery/followup-xcode-lane.md §12, which that
+# spec's §17 expected it to. Measured 2026-09-10 against 0.8.0: a URL-resolved
+# package is a full source checkout that carries `templates/`, so `#filePath`
+# answers and the log reads "shipped templates come from the plugin's own source
+# location, .../SourcePackages/checkouts/swift-sourcery-templates/templates".
+# Route 3 answers only where route 2 fails, which is what F6 built it for.
 #
-# It needs the first release after 0.7.0, and lags by one until that publishes —
-# which is the state §17 records rather than a fault in the project. Measured
-# against 0.7.0 on 2026-09-10: that plugin does not synthesize a config at all,
-# so it runs `Sources/.Sourcery.Mocks.yml` as written and Sourcery rejects it —
-# "Invalid sources. 'sources', 'project' or 'package' key are missing." A config
-# this short needs the plugin to supply `sources:` and `output:`, and a bare
-# `- Mocks` needs the two template routes that read no package graph. Both land
-# in the same release.
+# Not a lane in ci.yml (F9): a branch lane here would make every push depend on
+# the last published artifact, which is the coupling §16 exists to avoid.
+# `.github/workflows/published-example.yml` runs `build.sh` where a published
+# artifact is the right thing to depend on — after a release, and weekly.
+#
+# `from:` rather than an exact version, so the project follows releases without
+# an edit; 0.8.0 is the first that builds it, and it printed
+# "BUILT against swift-sourcery-templates 0.8.0" on 2026-09-10. Against 0.7.0 it
+# failed, and the earliest reason was not the bare template name: that plugin
+# does not synthesize a config at all, so it ran `Sources/.Sourcery.Mocks.yml`
+# as written and Sourcery rejected it — "Invalid sources. 'sources', 'project'
+# or 'package' key are missing." A config this short needs the plugin to supply
+# `sources:` and `output:` as well.
 name: ExampleProjectXcode
 options:
   createIntermediateGroups: true
