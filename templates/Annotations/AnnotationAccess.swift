@@ -202,6 +202,23 @@ struct AnnotationNearMiss {
     }
 }
 
+/// Its own error type rather than `MockError.internalError`, which is the idiom
+/// every other refusal in these templates uses.
+///
+/// `MockError` is declared in `Mocks/MockGenerator.swift`, and
+/// `TypeErase.swifttemplate` includes neither that file nor anything that
+/// declares it — its includes are `_header`, this directory and `Utility/`. So
+/// `MockError` is not in scope in that template's compilation unit, and a scan
+/// all three entry points call cannot throw it. Adding `Mocks/MockGenerator` to
+/// `TypeErase.swifttemplate`'s includes to reach one enum case would pull the
+/// whole mock generator into a template that emits no mocks.
+///
+/// It carries the same three conformances `MockError` does. A Swift template is
+/// compiled into a program whose top level throws, and the runtime prints
+/// `Fatal error: Error raised at top level:` followed by the error's
+/// description — read from the build log of
+/// `Tests/Checks/PluginFixtureRed/NearMiss`. `errorDescription` is where the
+/// sentence lives and the other two delegate to it.
 enum AnnotationError: Error {
     case unrecognizedNames([String])
 }
