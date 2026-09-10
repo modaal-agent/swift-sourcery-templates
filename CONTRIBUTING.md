@@ -36,7 +36,9 @@ Tests/                              # everything that verifies the product — s
     PluginFixtureRed/               # four packages that must FAIL, one per red control
     XcodeFixture/                   # the Xcode lane's green project — an xcodegen.yml, no .xcodeproj
     XcodeFixtureRed/                # one project per red control — each must FAIL
-  Examples/ExampleProjectSpm/       # full lane — RxSwift, RIBs, type erasure, the plugin
+  Examples/
+    ExampleProjectSpm/              # full lane — RxSwift, RIBs, type erasure, the plugin
+    ExampleProjectXcode/            # the adopter's shape, by URL at a tag — not a lane
 Scripts/
   assemble-release.sh               # builds the release assets — see Cutting a release
   engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
@@ -275,6 +277,10 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
+`Tests/Examples/ExampleProjectXcode/build.sh` is not a lane. It resolves this package from its
+published URL at a tag, so it lags one release and belongs to the release procedure, not to a
+branch; see step 6 of Cutting a release.
+
 Both check lanes provision Sourcery through `Tests/Checks/ensure-sourcery.sh`, which reads the pin
 from `Scripts/engine-pin.sh`; `SOURCERY=/path/to/sourcery` overrides it in either lane.
 
@@ -362,6 +368,13 @@ the assets to the tag's GitHub release.
    `swift-sourcery-templates-<tag>.artifactbundle.zip`, `mock-templates-<tag>-macos.zip`, a
    `.sha256` beside each, and the release-notes body. Rehearse it locally with
    `Scripts/assemble-release.sh <version>` — everything lands in `.build/release-assets/`
+6. Build `Tests/Examples/ExampleProjectXcode` and record the version it printed. It is the only
+   thing here that resolves this package from its published URL at a tag, and the only thing that
+   reads `templates/` out of the pinned artifact bundle — every lane reaches this repository by
+   path, so neither is checked on a branch. It is not a CI lane on purpose: a lane over it would
+   make every branch depend on the last published artifact. One command,
+   `Tests/Examples/ExampleProjectXcode/build.sh`, which prints
+   `BUILT against swift-sourcery-templates <version>` on success
 
 ## Dependencies
 

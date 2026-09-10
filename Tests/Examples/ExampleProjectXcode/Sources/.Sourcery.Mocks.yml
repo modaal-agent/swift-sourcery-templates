@@ -1,0 +1,6 @@
+# The whole config an adopter writes. `sources:` and `output:` are the plugin's,
+# and `Mocks` is a bare template name: no path, no `${GIT_ROOT}`, nothing that
+# assumes this project sits inside a checkout of the templates repository. It
+# resolves out of the artifact bundle the resolved package pins.
+templates:
+  - Mocks

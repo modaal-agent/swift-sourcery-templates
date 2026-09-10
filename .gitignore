@@ -16,3 +16,5 @@ Tests/Checks/PluginFixtureRed/*/Package.resolved
 # project.pbxproj it produces is generated identifiers.
 Tests/Checks/XcodeFixture/*.xcodeproj
 Tests/Checks/XcodeFixtureRed/*/*.xcodeproj
+# The by-URL example is generated the same way, by its own build.sh.
+Tests/Examples/ExampleProjectXcode/*.xcodeproj
