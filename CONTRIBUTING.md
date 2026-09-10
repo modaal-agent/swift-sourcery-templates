@@ -37,7 +37,9 @@ Tests/                              # everything that verifies the product — s
     XcodeFixture/                   # the Xcode lane's green project — an xcodegen.yml, no .xcodeproj
     XcodeFixtureRed/                # one project per red control — each must FAIL
   Examples/ExampleProjectSpm/       # full lane — RxSwift, RIBs, type erasure, the plugin
-Scripts/assemble-release.sh         # builds the release assets — see Cutting a release
+Scripts/
+  assemble-release.sh               # builds the release assets — see Cutting a release
+  engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
 specs/                              # design specs, NNN-slug/spec.md — see What goes in which document
 ```
 
@@ -273,8 +275,8 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
-Both check lanes provision the pinned Sourcery through `Tests/Checks/ensure-sourcery.sh` — the pin
-and the download path live once; `SOURCERY=/path/to/sourcery` overrides it in either lane.
+Both check lanes provision Sourcery through `Tests/Checks/ensure-sourcery.sh`, which reads the pin
+from `Scripts/engine-pin.sh`; `SOURCERY=/path/to/sourcery` overrides it in either lane.
 
 The fast lane runs every template in its `TEMPLATES` list over `Tests/Checks/Fixtures`, diffs each
 output against `Tests/Checks/Snapshots/`, typechecks the fixtures **and all generated files
@@ -350,9 +352,9 @@ version first.
 4. Tag `master`. There is no release branch
 5. The tag push runs `.github/workflows/release.yml`, which publishes the release assets:
    `Scripts/assemble-release.sh <tag>` builds the `mock-templates` CLI universal
-   (arm64 + x86_64), vendors the Sourcery engine at the `sourcery` binaryTarget pin in
-   `Package.swift` (the manifest is the only pin; the download is checksum-verified against it),
-   smoke-runs `generate` + `validate` from the assembled layout, and emits
+   (arm64 + x86_64), vendors the Sourcery engine at the `Scripts/engine-pin.sh` pin (the download
+   is checksum-verified against it), smoke-runs `generate` + `validate` from the assembled layout,
+   and emits
    `swift-sourcery-templates-<tag>.artifactbundle.zip`, `mock-templates-<tag>-macos.zip`, a
    `.sha256` beside each, and the release-notes body. Rehearse it locally with
    `Scripts/assemble-release.sh <version>` — everything lands in `.build/release-assets/`
@@ -361,7 +363,7 @@ version first.
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is the `sourcery` binaryTarget in `Package.swift` — `Scripts/assemble-release.sh` parses it when vendoring the engine into the release bundle; `Tests/Checks/ensure-sourcery.sh` keeps a copy for the check lanes |
+| Sourcery | 2.3.0 | code generation engine (binary artifact); the pin of record is `Scripts/engine-pin.sh`, read by name by `Scripts/assemble-release.sh` when vendoring the engine into the release bundle and by `Tests/Checks/ensure-sourcery.sh` when provisioning it for the check lanes |
 | swift-argument-parser | 1.3.0+ | the `mock-templates` CLI's command-line surface |
 | XcodeGen | 2.44.1 | generates the Xcode lane's fixture projects from their committed specs — `brew install xcodegen`; contributors and CI only, never a consumer's dependency |
 | Quick | 7.3.0 | BDD test framework (full lane) |
