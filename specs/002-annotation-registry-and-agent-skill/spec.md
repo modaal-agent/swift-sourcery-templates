@@ -1182,6 +1182,13 @@ The filter is the `changes` job's `code_files` line: a push whose every path end
 needed, because `run-skill-checks.sh` reads markdown and its job belongs outside the filter, where
 `annotations` and `rules` already are.
 
+**Corrected 2026-09-10, the same day.** The paragraph above is wrong about §6.2. Its item 3 is a
+filter edit, it is still needed, and it is about the manifests rather than the job: `code_files`
+grows `^\.claude-plugin/|^skills/`, so a push touching `.claude-plugin/marketplace.json`,
+`plugin.json` or `skills/swift-sourcery-mocks/evals/evals.json` — none of which ends in `.md` —
+skips the five macOS lanes instead of running them. What holds is the narrower claim: the `skills`
+job is ungated, so it needs no filter change in order to run on a documentation-only push.
+
 Two things 0.8.0 added that B1's `references/cli-lane.md` describes: `Scripts/engine-pin.sh` is the
 upstream Sourcery pin of record, and `Package.swift`'s `sourcery` binaryTarget is this repository's
 own artifact bundle, which carries the engine, `templates/` and the `mock-templates` CLI at one
@@ -1197,6 +1204,9 @@ version. The install snippet an adopter copies is `README.md:282`, at
 | §1.1, the range table | `README.md:456-477`, "the degraded Xcode path", 1,056 B | the section is `README.md:475-497`, and it documents one degradation, not a degraded path |
 | §5.3 | `references/spm-plugin.md` carries "the Xcode degradation" | it carries §11.2's four-row table; the Xcode column is what an agent needs to write a working config |
 | §6.2, §7's B2 row | "the `skills` job and the filter edit" | the job, and no filter edit — §11.3 |
+
+**Corrected 2026-09-10, the same day.** The last row overstates. §6.2's filter edit stands, for the
+reason in §11.3's correction; what the row gets right is that the `skills` job itself runs ungated.
 
 ### 11.5 What phase A4 measured, and where Part A departed from the plan
 
