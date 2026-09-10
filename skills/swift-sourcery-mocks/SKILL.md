@@ -33,12 +33,8 @@ protocol DataService {
 }
 ```
 
-Several annotations on one declaration are comma-separated, and a value is written with `=`:
-
-```swift
-/// sourcery: ProtocolMock, DuetComponent
-/// sourcery: subject = "CurrentValue"
-```
+Several annotations on one declaration are comma-separated — `/// sourcery: ProtocolMock,
+DuetComponent` — and a value is written with `=`, as in `/// sourcery: subject = "CurrentValue"`.
 
 **A protocol you do not own** is annotated through an empty extension, in a directory of its own
 that the generation config also scans:
@@ -103,7 +99,7 @@ targets: [
 ```
 
 2. Put a `*.sourcery*.yml` config in the source directory of every target that generates. The
-   smallest one that works is three lines:
+   smallest config that works is three lines:
 
 ```yml
 # Sources/MyModuleTests/.Sourcery.Mocks.yml
@@ -114,8 +110,8 @@ templates:
 The plugin fills in the sources, the output directory the build collects from, and — for a test
 target with exactly one direct dependency on a module of the same package — `args.testable`.
 
-3. Build. The plugin writes what it derived to the build log: every exported variable, every default
-   it supplied, and the route that resolved each template name.
+3. Build. The plugin writes every exported variable, every default it supplied and every template
+   name it resolved to the build log.
 
 **Reading beyond the target.** `${SOURCERY_SOURCES}` expands to the target's own sources plus the
 recursive closure of its dependencies, one directory per module, which is what lets a mock carry the
@@ -140,12 +136,9 @@ directory it declared.
 `TypeErase`, `Component`. A file of that exact name beside the config wins over the shipped one. One
 config may name several templates, and Sourcery writes one `<Template>.generated.swift` per entry.
 
-Everything else in the config is carried through unread, including `args.import` and
-`args.excludedSwiftLintRules`. Every path a config writes must be absolute: the plugin runs a copy
-of the config from its own work directory.
-
-The full reference — the exported variables, the resolution order for a template name, the Xcode
-differences — is [references/spm-plugin.md](references/spm-plugin.md).
+Everything else in the config is carried through unread, and every path it writes must be absolute:
+the plugin runs a copy of the config from its own work directory. The full reference — exported
+variables, template-name resolution, Xcode — is [references/spm-plugin.md](references/spm-plugin.md).
 
 ## The CLI lane
 
@@ -196,8 +189,8 @@ mock-templates validate \
 
 `validate` fails on a changed input, a missing input, a `.swift` file present under `--sources` and
 absent from the block, a hand-edited body, and — with `--template` and `--args` — a config that no
-longer matches the one that generated the file. Every flag, `imprint`, and the script shape a
-reference consumer uses are in [references/cli-lane.md](references/cli-lane.md).
+longer matches the one that generated the file. Every flag and `imprint` are in
+[references/cli-lane.md](references/cli-lane.md).
 
 ## What the generated mock gives a test
 
@@ -226,9 +219,8 @@ Return values default without a handler: `Optional` gives `nil`, `Void` gives no
 give a usable empty value. Mock classes are `final` — set a handler rather than subclassing one.
 
 The generated file compiles at zero diagnostics under `-swift-version 5
--strict-concurrency=complete` and under `-swift-version 6`. A protocol's global actor lands on the
-mock class, a `nonisolated` requirement stays `nonisolated`, and a `Sendable` protocol gets
-`@unchecked Sendable`.
+-strict-concurrency=complete` and under `-swift-version 6`: the protocol's global actor lands on the
+mock class, `nonisolated` is carried through, and a `Sendable` protocol gets `@unchecked Sendable`.
 
 ## When it goes wrong
 
@@ -249,10 +241,8 @@ Each of these in full, with the diagnostic text to match against, is in
 
 ## References
 
-- [references/spm-plugin.md](references/spm-plugin.md) — the complete config reference for both
-  plugin paths: exported variables, template-name resolution, `args.testable`, Xcode.
-- [references/cli-lane.md](references/cli-lane.md) — every `mock-templates` flag, what `validate`
-  checks, `imprint`, and the artifact bundle.
+- [references/spm-plugin.md](references/spm-plugin.md) — the config reference, both plugin paths.
+- [references/cli-lane.md](references/cli-lane.md) — every `mock-templates` flag and the bundle.
 - [references/writing-testable-protocols.md](references/writing-testable-protocols.md) — what to
-  annotate, how to shape a protocol so its mock is usable, and the annotation table by kind.
+  annotate, and how to shape a protocol so its mock is usable.
 - [references/troubleshooting.md](references/troubleshooting.md) — one section per symptom.
