@@ -528,6 +528,34 @@ func checkPropertyCounting() {
   expectEqual(draftMock._draft, "reseeded", "and leaves the store alone")
 }
 
+/// An effectful property requirement generates the accessor it declares
+/// (`spec.md` §2.6). A stored property could not satisfy `{ get async throws }`
+/// at all, so this is the first time the mock template witnesses one.
+func checkEffectfulProperties() async {
+  let mock = PropertyEffectfulMock(loader: StubThemeProvider())
+
+  mock._token = "seeded"
+  let token = await mock.token
+  expectEqual(token, "seeded", "an `{ get async }` accessor suspends and returns the store")
+  expectEqual(mock.tokenGetCount, 1, "and counts the read")
+
+  struct Boom: Error {}
+  mock.configGetHandler = { throw Boom() }
+  var threw = false
+  do { _ = try await mock.config } catch { threw = true }
+  expect(threw, "a `{ get async throws }` handler propagates out of the accessor")
+  expectEqual(mock.configGetCount, 1, "the read that threw is still counted")
+
+  mock._secret = "quiet"
+  let secret = try? mock.secret
+  expectEqual(secret, "quiet", "a `{ get throws }` accessor returns the store when no handler throws")
+
+  // The store is assignable even though the requirement is get-only, which is
+  // how a test seeds a type with no synthesizable default.
+  mock._loader = StubThemeProvider()
+  expectEqual(mock.loaderGetCount, 0, "seeding the store of an effectful requirement counts no read")
+}
+
 // MARK: - Entry point
 
 @main
@@ -536,6 +564,7 @@ enum BehaviourChecks {
     print("behaviour checks")
     checkCallCountingAndHandlers()
     checkPropertyCounting()
+    await checkEffectfulProperties()
     await checkAsync()
     await checkNonisolatedMembers()
     checkCombineStreams()

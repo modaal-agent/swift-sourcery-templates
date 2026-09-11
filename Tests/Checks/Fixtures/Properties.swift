@@ -39,3 +39,25 @@ public protocol PropertyShaped: AnyObject {
   /// sourcery: handler
   var cursor: Int { get set }
 }
+
+/// Effectful property requirements. `var x: T { get async throws }` is parsed —
+/// `SourceryRuntime.Variable.isAsync` and `Variable.throws` — and the mock
+/// template ignored it until §2.6, emitting a plain stored property that did not
+/// satisfy the requirement. The only effectful requirement anywhere under
+/// `Tests/` before this file is `Forwarding.swift`'s, which is `DuetComponent`
+/// alone, so the mock template had never seen one.
+///
+/// Swift has no effectful setter, so each of these is get-only and none carries a
+/// `<var>SetCount`. A test seeds `_<var>`.
+///
+/// sourcery: ProtocolMock
+public protocol PropertyEffectful: AnyObject {
+  var config: String { get async throws }
+  var token: String { get async }
+  var secret: String { get throws }
+  var plain: String { get }
+
+  /// No synthesizable default, so the initializer seeds the store and the
+  /// accessor still suspends.
+  var loader: ThemeProviding { get async }
+}

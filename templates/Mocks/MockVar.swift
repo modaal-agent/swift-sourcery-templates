@@ -43,6 +43,28 @@ extension MockVar {
         return isNonisolated ? "nonisolated(unsafe) " : ""
     }
 
+    /// The effects the requirement declares, in the order Swift writes them.
+    /// `var x: T { get async throws }` is parsed — `Variable.isAsync` and
+    /// `Variable.throws` — and was ignored until §2.6, which emits the accessor
+    /// the requirement declares rather than a stored property that does not
+    /// satisfy it.
+    ///
+    /// Swift has no effectful setter, so an effectful requirement is get-only
+    /// and generates no `<var>SetCount`. `_<var>` stays assignable, which is how
+    /// a test seeds it.
+    fileprivate var effectsDecl: String {
+        return "\(variable.isAsync ? " async" : "")\(variable.`throws` ? " throws" : "")"
+    }
+
+    /// `try `/`await ` for the call into `<var>GetHandler`.
+    fileprivate var effectfulCallDecl: String {
+        return "\(variable.`throws` ? "try " : "")\(variable.isAsync ? "await " : "")"
+    }
+
+    fileprivate var hasEffects: Bool {
+        return variable.isAsync || variable.`throws`
+    }
+
     /// `nil` when this variable's type has no smart default *of a shape this
     /// branch handles* — an `AnyCancellable` or `Disposable` property, say, which
     /// falls through to plain storage below. An impossible `subject` annotation
@@ -61,23 +83,52 @@ extension MockVar {
         }
     }
 
+    /// The witness: a bare getter body where the requirement has no effects and
+    /// no setter, and explicit `get` / `set` blocks otherwise. A bare body
+    /// cannot carry `async` or `throws`.
+    private func accessor(getter: [SourceCode], setter: [SourceCode]?) -> SourceCode {
+        let declaration = "\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)"
+        if let setter = setter {
+            return SourceCode(declaration) {[
+                SourceCode("get", nested: getter),
+                SourceCode("set", nested: setter)
+            ]}
+        }
+        if hasEffects {
+            return SourceCode(declaration) {[
+                SourceCode("get\(effectsDecl)", nested: getter)
+            ]}
+        }
+        return SourceCode(declaration, nested: getter)
+    }
+
     func mockImpl() throws -> [SourceCode] {
         let mockedVariableImplementation: SourceCode
         let mockedVariableHandlers = TopScope()
+
+        // A typed throw reaches the template as `Variable.throwsTypeName` and
+        // has no emission here: bare `throws` does not satisfy `throws(E)`.
+        if let throwsTypeName = variable.throwsTypeName {
+            throw MockError.typedThrowsUnsupported(
+                typeName: type.name,
+                member: variable.name,
+                errorTypeName: throwsTypeName.name)
+        }
 
         if !variable.isMutable,
             variable.typeName.hasComplexTypeWithSmartDefaultValue(isProperty: true),
             let smartDefaultValueImplementation = try smartDefaultValueImplementation() {
 
-            mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)") {[
+            let getterImplementation: [SourceCode] = [
                 SourceCode("\(MockNaming.getCount(mockedVariableName)) += 1"),
                 SourceCode("if let handler = \(MockNaming.getHandler(mockedVariableName))") {[
-                    SourceCode("return handler()")
+                    SourceCode("return \(effectfulCallDecl)handler()")
                 ]},
                 smartDefaultValueImplementation.getterImplementation
-            ]}
+            ]
+            mockedVariableImplementation = accessor(getter: getterImplementation, setter: nil)
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getCount(mockedVariableName)): Int = 0"
-            mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (() -> \(variable.typeName.declaredName))? = nil"
+            mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (()\(effectsDecl) -> \(variable.typeName.declaredName))? = nil"
             mockedVariableHandlers += smartDefaultValueImplementation.mockedVariableHandlers.isolated(storageIsolationDecl)
         } else {
             // Every property requirement is a computed accessor that counts the
@@ -88,7 +139,7 @@ extension MockVar {
             let getterImplementation: [SourceCode] = [
                 SourceCode("\(MockNaming.getCount(mockedVariableName)) += 1"),
                 SourceCode("if let handler = \(MockNaming.getHandler(mockedVariableName))") {[
-                    SourceCode("return handler()")
+                    SourceCode("return \(effectfulCallDecl)handler()")
                 ]},
                 variable.isAnnotatedHandler
                     ? SourceCode("fatalError(\"\(MockNaming.getHandlerExpectedMessage(prefix: mockedVariableName))\")")
@@ -104,7 +155,9 @@ extension MockVar {
             // `<var>SetCount` counts a write to a `{ get set }` requirement, and
             // only that (§2.3): a re-seed of a read-only requirement was
             // uncounted before this change and stays uncounted.
-            let hasSetter = variable.isMutable || !(variable.isAnnotatedConst || variable.isAnnotatedHandler)
+            // An effectful requirement is get-only: Swift has no effectful
+            // setter, so there is nothing for a mutable form to witness.
+            let hasSetter = !hasEffects && (variable.isMutable || !(variable.isAnnotatedConst || variable.isAnnotatedHandler))
             var setterImplementation: [SourceCode] = []
             if variable.isMutable {
                 // `didSet` on a stored property was the old shape, and a stored
@@ -115,18 +168,13 @@ extension MockVar {
                 setterImplementation += [SourceCode("\(MockNaming.store(mockedVariableName)) = newValue")]
             }
 
-            if hasSetter {
-                mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)") {[
-                    SourceCode("get", nested: getterImplementation),
-                    SourceCode("set", nested: setterImplementation)
-                ]}
-            } else {
-                mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)", nested: getterImplementation)
-            }
+            mockedVariableImplementation = accessor(
+                getter: getterImplementation,
+                setter: hasSetter ? setterImplementation : nil)
 
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getCount(mockedVariableName)): Int = 0"
-            mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (() -> \(variable.typeName.declaredName))? = nil"
-            if variable.isMutable {
+            mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (()\(effectsDecl) -> \(variable.typeName.declaredName))? = nil"
+            if variable.isMutable && hasSetter {
                 mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.setCount(mockedVariableName)): Int = 0"
             }
             if !variable.isAnnotatedHandler {

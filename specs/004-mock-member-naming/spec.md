@@ -1280,3 +1280,58 @@ Gates: `run-checks.sh`, diff read, then `--record`; both language modes clean; b
 pass; `Tests/Examples/ExampleProjectSpm/test-ios.sh` 19 tests, 0 failures, including
 `UploadProgressingMock, progressGetCount == 0`, which reads a publisher property's counter this
 phase leaves to P7.
+
+### P6 — an effectful property requirement generates the accessor it declares
+
+`MockVar` reads `variable.isAsync` and `variable.throws` into `effectsDecl` (` async`, ` throws`,
+` async throws`) and `effectfulCallDecl` (`try `, `await `), and writes both into the accessor, into
+`<var>GetHandler`'s type and into the call that consults it. `PropertyEffectfulMock.config` emits
+`get async throws`, `configGetHandler: (() async throws -> String)?` and
+`return try await handler()`.
+
+A new `accessor(getter:setter:)` builds the witness in one place: a bare getter body where there are
+no effects and no setter, `get` / `set` blocks where there is a setter, and a `get\(effectsDecl)`
+block where there are effects — a bare body cannot carry `async` or `throws`. It serves the
+smart-default branch too, so an effectful publisher property would carry its effects through the
+same code, though no fixture declares one.
+
+An effectful requirement is get-only: Swift has no effectful setter, so `hasSetter` is false
+whenever `hasEffects` is true, and no `<var>SetCount` is emitted. `_<var>` stays assignable, which is
+how `PropertyEffectfulMock(loader:)`'s value is re-seeded.
+
+**Typed throws are refused on both paths, which §2.6 chose and P6's plan mentioned only for the
+property.** `MockVar.mockImpl` throws `MockError.typedThrowsUnsupported` when
+`variable.throwsTypeName` is non-nil, and `MockMethod.from` does the same over
+`method.throwsTypeName` — the method path writes bare `throws` at `MockMethod.throwingDecl` and had
+the identical defect. The message names the protocol, the member, the error type and the fix.
+
+Measured on Sourcery 2.3.0, which is what `Scripts/engine-pin.sh` pins, over a probe declaring all
+five shapes:
+
+| declaration | `isAsync` | `throws` | `throwsTypeName` |
+| --- | --- | --- | --- |
+| `var plain: Int { get }` | false | false | nil |
+| `var a: Int { get async }` | true | false | nil |
+| `var t: Int { get throws }` | false | true | nil |
+| `var at: Int { get async throws }` | true | true | nil |
+| `var typed: Int { get throws(ProbeError) }` | false | true | `ProbeError` |
+| `func mTyped() throws(ProbeError) -> Int` | — | true | `ProbeError` |
+
+So `throws` alone cannot distinguish a typed throw from an untyped one, and `throwsTypeName` is what
+both refusals test.
+
+`Tests/Checks/Fixtures/Properties.swift` gains `PropertyEffectful`: `{ get async throws }`,
+`{ get async }`, `{ get throws }`, a plain sibling, and one `{ get async }` requirement with no
+synthesizable default so the initializer seeds an effectful member's store.
+`Tests/Checks/Behaviour/Main.swift` gains `checkEffectfulProperties`, 6 assertions: an `{ get async }`
+accessor suspends and returns the store and counts the read, an `{ get async throws }` handler's
+error propagates out of the accessor while the read that threw is still counted, a `{ get throws }`
+accessor returns the store, and seeding an effectful requirement's store counts no read.
+
+The `collision` gate is renamed **`refusal`** and gains the two typed-throws cases — the gate is
+every construct the templates refuse to emit, not only colliding names. Six cases.
+
+Gates: `run-checks.sh`, diff read, then `--record` — 74 added lines, no deleted line; both language
+modes clean; behaviour checks pass; `Tests/Examples/ExampleProjectSpm/test-ios.sh` 19 tests, 0
+failures. P8 deletes `CONTRIBUTING.md` §"Open items"'s effectful-property entry, which this phase
+closes, and adds typed throws in its place.

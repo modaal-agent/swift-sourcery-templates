@@ -11,9 +11,10 @@
 #   3. near-miss  a misspelled selector fails generation naming the canonical
 #                 spelling; a misspelled option still generates and writes one
 #                 comment line
-#   4. collision  two members that would carry one name fail generation naming
+#   4. refusal    a construct the templates cannot emit fails generation naming
 #                 the protocol and the member, instead of writing a file the
-#                 consumer's compiler rejects
+#                 consumer's compiler rejects: two members that would carry one
+#                 name, and a requirement declaring `throws(E)`
 #   5. typecheck  they compile clean together under Swift 5 + complete
 #                 concurrency checking, and under the Swift 6 language mode —
 #                 zero warnings, zero errors
@@ -215,15 +216,16 @@ else
   fi
 fi
 
-# ── 4. Collision ──────────────────────────────────────────────────
+# ── 4. Refusal ────────────────────────────────────────────────────
 # Each case here fails generation on purpose, so none of it can live in
 # Fixtures/ — one fixture that fails takes the whole lane's generation with it,
 # the way the near-miss selector case does. What is checked is that the failure
-# names the protocol and the member, rather than the template emitting a file
-# whose two identical declarations the consumer's compiler reports instead.
+# names the protocol and the member, rather than the template emitting a file the
+# consumer's compiler rejects: two identical declarations, or a witness that
+# throws `any Error` against a requirement that throws `E`.
 echo ""
-echo "── collision ──"
-COLLISION_DIR="$WORK_DIR/collision"
+echo "── refusal ──"
+COLLISION_DIR="$WORK_DIR/refusal"
 rm -rf "$COLLISION_DIR"
 
 # <case>:<protocol>:<member named in the message>
@@ -232,6 +234,8 @@ COLLISION_CASES=(
   "readcount:CollidingReadCount:draftGetCount"
   "store:CollidingStore:_draft"
   "overload:CollidingOverload:sendToVoidCallCount"
+  "typedthrowsvar:TypedThrowingProperty:secret"
+  "typedthrowsfunc:TypedThrowingMethod:load"
 )
 
 mkdir -p "$COLLISION_DIR/bookkeeping"
@@ -263,6 +267,27 @@ cat > "$COLLISION_DIR/store/Store.swift" <<'SWIFT'
 public protocol CollidingStore: AnyObject {
     var draft: String { get set }
     var _draft: String { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/typedthrowsvar"
+cat > "$COLLISION_DIR/typedthrowsvar/TypedThrowsVar.swift" <<'SWIFT'
+// A typed throw on a property requirement. The accessor writes bare `throws`,
+// which does not satisfy `throws(E)`.
+public enum LoadFailure: Error { case unavailable }
+/// sourcery: ProtocolMock
+public protocol TypedThrowingProperty: AnyObject {
+    var secret: String { get throws(LoadFailure) }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/typedthrowsfunc"
+cat > "$COLLISION_DIR/typedthrowsfunc/TypedThrowsFunc.swift" <<'SWIFT'
+// The same on a method. `MockMethod.throwingDecl` writes bare `throws` too.
+public enum LoadFailure: Error { case unavailable }
+/// sourcery: ProtocolMock
+public protocol TypedThrowingMethod: AnyObject {
+    func load() throws(LoadFailure) -> String
 }
 SWIFT
 

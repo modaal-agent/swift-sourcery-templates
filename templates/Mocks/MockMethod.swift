@@ -21,6 +21,15 @@ class MockMethod {
         let mockedMethods = allMethods
             .map { MockMethod(type: type, method: $0, genericTypePrefix: genericTypePrefix, useShortName: true) }
             .minimumNonConflictingPermutation
+        // The same refusal `MockVar` makes: `MockMethod.throwingDecl` writes
+        // bare `throws`, which does not satisfy `throws(E)`.
+        if let typedThrow = allMethods.lazy.compactMap({ method -> (String, String)? in
+            guard let throwsTypeName = method.throwsTypeName else { return nil }
+            return (method.name, throwsTypeName.name)
+        }).first {
+            throw MockError.typedThrowsUnsupported(typeName: type.name, member: typedThrow.0, errorTypeName: typedThrow.1)
+        }
+
         // §2.2 step 4: the long form and then the return-type discriminator
         // both left a collision. Two overloads share their labels, their
         // parameter count and their return type, and differ only in a parameter

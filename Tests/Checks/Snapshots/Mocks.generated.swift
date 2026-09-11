@@ -869,6 +869,80 @@ final class PlaybackRetainingMock: PlaybackRetaining {
     var retainHandler: ((_ player: FeedAudioPlayer) -> ())? = nil
 }
 
+// MARK: - PropertyEffectful
+final class PropertyEffectfulMock: PropertyEffectful {
+
+    // MARK: - Variables
+    var config: String {
+        get async throws {
+            configGetCount += 1
+            if let handler = configGetHandler {
+                return try await handler()
+            }
+            return _config
+        }
+    }
+    var configGetCount: Int = 0
+    var configGetHandler: (() async throws -> String)? = nil
+    var _config: String = ""
+    var loader: ThemeProviding {
+        get async {
+            loaderGetCount += 1
+            if let handler = loaderGetHandler {
+                return await handler()
+            }
+            return _loader
+        }
+    }
+    var loaderGetCount: Int = 0
+    var loaderGetHandler: (() async -> ThemeProviding)? = nil
+    var _loader: ThemeProviding
+    var plain: String {
+        get {
+            plainGetCount += 1
+            if let handler = plainGetHandler {
+                return handler()
+            }
+            return _plain
+        }
+        set {
+            _plain = newValue
+        }
+    }
+    var plainGetCount: Int = 0
+    var plainGetHandler: (() -> String)? = nil
+    var _plain: String = ""
+    var secret: String {
+        get throws {
+            secretGetCount += 1
+            if let handler = secretGetHandler {
+                return try handler()
+            }
+            return _secret
+        }
+    }
+    var secretGetCount: Int = 0
+    var secretGetHandler: (() throws -> String)? = nil
+    var _secret: String = ""
+    var token: String {
+        get async {
+            tokenGetCount += 1
+            if let handler = tokenGetHandler {
+                return await handler()
+            }
+            return _token
+        }
+    }
+    var tokenGetCount: Int = 0
+    var tokenGetHandler: (() async -> String)? = nil
+    var _token: String = ""
+
+    // MARK: - Initializer
+    init(loader: ThemeProviding) {
+        self._loader = loader
+    }
+}
+
 // MARK: - PropertyShaped
 final class PropertyShapedMock: PropertyShaped {
 

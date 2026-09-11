@@ -13,6 +13,11 @@ case duplicateGenericTypeName(context: String)
 /// would not compile, and before this case it did not — with nothing from
 /// the template saying which two members collided (`spec.md` D9).
 case collidingMemberNames(typeName: String, memberName: String)
+/// A requirement declaring `throws(E)`. The templates write bare `throws`,
+/// and a witness throwing `any Error` does not satisfy it — so the
+/// requirement is refused in generation rather than at the consumer's
+/// conformance (`spec.md` §2.6, §8 question 1).
+case typedThrowsUnsupported(typeName: String, member: String, errorTypeName: String)
 case internalError(message: String)
 }
 
@@ -160,6 +165,13 @@ extension MockError: LocalizedError {
                 `\(member)GetHandler` in the test to a stream that replays, or give the type a default value.
                 """
         case .duplicateGenericTypeName(let context): return "Duplicate generic type name found while generating mock implementation: \(context)"
+        case .typedThrowsUnsupported(let typeName, let member, let errorTypeName):
+            return """
+                `\(typeName).\(member)` is declared `throws(\(errorTypeName))`. The generated mock writes \
+                bare `throws`, and a witness that throws `any Error` does not satisfy a requirement \
+                that throws `\(errorTypeName)`. Declare the requirement `throws` on the protocol, or \
+                write this double by hand.
+                """
         case .collidingMemberNames(let typeName, let memberName):
             return """
                 `\(typeName)Mock` would declare `\(memberName)` twice. A requirement of \
