@@ -51,26 +51,16 @@ extension MockMethod {
         if let annotatedMethodName = annotatedMethodName {
             return annotatedMethodName
         }
-        var result: [String] = [method.callName]
-        if !useShortName {
-            result += method.parameters.map {
-                let argumentLabel = $0.argumentLabel == nil ? "" : $0.argumentLabel != $0.name ? $0.argumentLabel!.uppercasedFirstLetter() : ""
-                return "\(argumentLabel)\($0.name.uppercasedFirstLetter())"
-            }
-        }
-        if useReturnTypeInName {
-            result += [returnTypeDiscriminator]
-        }
-        return result.joined().swiftifiedMethodName
+        return MockNaming.methodPrefix(
+            callName: method.callName,
+            longFormComponents: useShortName ? [] : method.parameters.map {
+                MockNaming.overloadComponent(argumentLabel: $0.argumentLabel, parameterName: $0.name)
+            },
+            returnTypeDiscriminator: useReturnTypeInName ? returnTypeDiscriminator : nil)
     }
 
-    /// Suffix derived from the method's return type, used to disambiguate
-    /// overloads that share the same name *and* the same parameter list but
-    /// differ only by return type (e.g., a refining protocol overriding
-    /// `func data() -> [String: Any]?` with `func data() -> [String: Any]`).
-    /// Such overloads cannot be distinguished by parameter labels alone.
     fileprivate var returnTypeDiscriminator: String {
-        return method.returnTypeName.name.returnTypeDiscriminatorSuffix
+        return MockNaming.returnTypeDiscriminator(forTypeNamed: method.returnTypeName.name)
     }
 
     /// `nonisolated` is restated on the mock only when the mock class carries a
@@ -143,7 +133,7 @@ extension MockMethod {
                 methodImpl += SourceCode("return \(defaultValue)")
             } else {
                 // fatal
-                methodImpl += "fatalError(\"\(mockHandler.0) expected to be set.\")"
+                methodImpl += "fatalError(\"\(MockNaming.handlerExpectedMessage(handlerName: mockHandler.0))\")"
             }
         }
 
@@ -154,7 +144,7 @@ extension MockMethod {
     }
 
     private var mockedVarCallCountName: String {
-        return "\(mockedMethodName)CallCount"
+        return MockNaming.callCount(mockedMethodName)
     }
 
     private var mockCallCountImpl: (String, SourceCode) {
@@ -162,7 +152,7 @@ extension MockMethod {
     }
 
     private var mockedVarArgsName: String {
-        return "\(mockedMethodName)Args"
+        return MockNaming.args(mockedMethodName)
     }
 
     /// The parameters whose values every call appends to `<method>Args`, in
@@ -208,7 +198,7 @@ extension MockMethod {
     }
 
     private var mockMethodHandlerName: String {
-        return "\(mockedMethodName)Handler"
+        return MockNaming.handler(mockedMethodName)
     }
 
     private var mockMethodHandlerReturnType: String {
@@ -240,8 +230,9 @@ extension MockMethod {
         let invocationThrowing = method.`throws` ? "try " : method.`rethrows` ? "try! " : ""
         let invocationAwaiting = method.isAsync ? "await " : ""
         let handlerName = mockHandlerImpl.0
-        return SourceCode("if let __\(handlerName) = self.\(handlerName)") {[
-            SourceCode("\(returning)\(invocationThrowing)\(invocationAwaiting)__\(handlerName)(\(parameters))\(forceCastingToGenericReturnValue)")
+        let handlerLocal = MockNaming.handlerLocal(handlerName)
+        return SourceCode("if let \(handlerLocal) = self.\(handlerName)") {[
+            SourceCode("\(returning)\(invocationThrowing)\(invocationAwaiting)\(handlerLocal)(\(parameters))\(forceCastingToGenericReturnValue)")
         ]}
     }
 }
@@ -251,57 +242,14 @@ private struct Regex {
 }
 
 private extension String {
-    var swiftifiedMethodName: String {
-        return self
-            .replacingOccurrences(of: "(", with: "_")
-            .replacingOccurrences(of: ")", with: "")
-            .replacingOccurrences(of: ":", with: "_")
-            .replacingOccurrences(of: "`", with: "")
-            .camelCased()
-            .lowercasedFirstWord()
-    }
-
     func resolvingGenericPlaceholders(prefix genericTypePrefix: String) -> String {
         return replacingOccurrences(of: Regex.placeholderPattern, with: "\(genericTypePrefix)$1", options: .regularExpression)
-    }
-
-    /// Sanitizes a return-type string into a stable, readable suffix suitable
-    /// for inclusion in a mock variable name. Used as the last-resort
-    /// disambiguator for overloads that share name and parameter list.
-    ///
-    /// Examples:
-    /// - `[String: Any]?` → `StringAnyOptional`
-    /// - `[String: Any]`  → `StringAny`
-    /// - `String?`        → `StringOptional`
-    /// - `String`         → `String`
-    var returnTypeDiscriminatorSuffix: String {
-        var sanitized = self
-            .replacingOccurrences(of: "?", with: "_Optional")
-            .replacingOccurrences(of: "!", with: "_Forced")
-            .replacingOccurrences(of: "[", with: "_")
-            .replacingOccurrences(of: "]", with: "_")
-            .replacingOccurrences(of: "(", with: "_")
-            .replacingOccurrences(of: ")", with: "_")
-            .replacingOccurrences(of: "<", with: "_")
-            .replacingOccurrences(of: ">", with: "_")
-            .replacingOccurrences(of: ":", with: "_")
-            .replacingOccurrences(of: ",", with: "_")
-            .replacingOccurrences(of: ".", with: "_")
-            .replacingOccurrences(of: "&", with: "_")
-            .replacingOccurrences(of: "`", with: "")
-            .replacingOccurrences(of: " ", with: "_")
-        while sanitized.contains("__") {
-            sanitized = sanitized.replacingOccurrences(of: "__", with: "_")
-        }
-        sanitized = sanitized.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
-        // Force snake_case → CamelCase. `camelCased()` splits on `_`.
-        return sanitized.camelCased().uppercasedFirstLetter()
     }
 }
 
 private extension MockMethod {
     var shortNameKey: String {
-        return method.shortName.swiftifiedMethodName
+        return MockNaming.overloadGroupKey(shortName: method.shortName)
     }
 }
 

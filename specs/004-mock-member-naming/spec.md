@@ -1084,3 +1084,34 @@ committed generated files, and in whatever repository downstream imports that mo
 separate iteration in that repository. Until it lands, its stored-property branch emits `SetCount`
 alone (`MockRenderer.kt:127-140`) and the twin table in each repository names the row the other does
 not carry (P8).
+
+---
+
+## 9. What landed
+
+Appended as each phase of §4 completes, one entry per phase: what the phase changed, what gate it
+passed, and where it departed from the plan.
+
+### P1 — `MockNaming.swift` extracted, output unchanged
+
+`templates/Mocks/MockNaming.swift` (156 lines) now holds the prefix derivation, the overload
+component and group key, the return-type discriminator, every suffix, the handler local's spelling
+and the two `fatalError` strings. The rules moved verbatim, the §1.2 transform included, under the
+name `swiftifiedMemberName` — §2.1 deletes it in P2.
+
+The 32 sites of §1.8 are calls: `MockMethod.swift` routes `mockedMethodName`,
+`returnTypeDiscriminator`, `mockedVarCallCountName`, `mockedVarArgsName`, `mockMethodHandlerName`,
+`shortNameKey`, the handler local and the trap string; `MockVar.swift` routes `mockedVariableName`
+and its `GetCount` / `GetHandler` / `SetCount` / trap sites; `SourceryRuntimeExtensions.swift` routes
+`Subject`, `EventCallCount`, `EventHandler`, `CancelCallCount`, `CancelHandler`, `DisposeCallCount`
+and `DisposeHandler`. `Mocks.swifttemplate` and `Component.swifttemplate` both `includeFile` the new
+file before `Mocks/MockMethod` — the Component template compiles the same mock sources.
+
+Two names the module does **not** own, and why: the emitted property's own name (`var <var>:` in
+`MockVar.mockImpl`) is the protocol requirement's name and is what the conformance is checked
+against, not a bookkeeping name; and `<Protocol>Mock` itself, which `MockGenerator.swift:54` builds
+and §2.8 leaves unchanged.
+
+Gate: `Tests/Checks/run-checks.sh` passed with no `--record` — both snapshots byte-identical, both
+language modes clean, all behaviour checks green. `run-annotation-checks.sh` and
+`run-skill-checks.sh` pass.

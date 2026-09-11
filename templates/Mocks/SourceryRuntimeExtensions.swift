@@ -323,7 +323,7 @@ extension SourceryRuntime.TypeName {
             case "Single":
                 let getterImplementation = SourceCode("return Single.create { (observer: @escaping (SingleEvent<\(returnTypeName)>) -> ()) -> Disposable in") { [
                     SourceCode("""
-                        return self.\(mockVariablePrefix)Subject.subscribe { (event: Event<\(returnTypeName)>) in
+                        return self.\(MockNaming.subject(mockVariablePrefix)).subscribe { (event: Event<\(returnTypeName)>) in
                                         switch event {
                                         case .next(let element):
                                             observer(.success(element))
@@ -335,21 +335,21 @@ extension SourceryRuntime.TypeName {
                                     }
                         """)
                 ]}
-                let mockedVariableHandlers = [SourceCode("lazy var \(mockVariablePrefix)Subject = PublishSubject<\(returnTypeName)>()")]
+                let mockedVariableHandlers = [SourceCode("lazy var \(MockNaming.subject(mockVariablePrefix)) = PublishSubject<\(returnTypeName)>()")]
                 return (getterImplementation, mockedVariableHandlers)
             case "Observable":
                 let optionalMappingClauseForTupleTypes = generic.typeParameters[0].typeName.needsSubjectMapToReturnType ? ".map { $0 }" : ""
-                let getterImplementation = SourceCode("return \(mockVariablePrefix)Subject\(optionalMappingClauseForTupleTypes).as\(generic.name)()\(forceCasting)")
-                let mockedVariableHandlers = [SourceCode("lazy var \(mockVariablePrefix)Subject = PublishSubject<\(returnTypeName)>()")]
+                let getterImplementation = SourceCode("return \(MockNaming.subject(mockVariablePrefix))\(optionalMappingClauseForTupleTypes).as\(generic.name)()\(forceCasting)")
+                let mockedVariableHandlers = [SourceCode("lazy var \(MockNaming.subject(mockVariablePrefix)) = PublishSubject<\(returnTypeName)>()")]
                 return (getterImplementation, mockedVariableHandlers)
             case "AnyObserver":
                 let getterImplementation = SourceCode("return AnyObserver { [weak self] event in") { [
-                    SourceCode("self?.\(mockVariablePrefix)EventCallCount += 1"),
-                    SourceCode("self?.\(mockVariablePrefix)EventHandler?(event)"),
+                    SourceCode("self?.\(MockNaming.eventCallCount(mockVariablePrefix)) += 1"),
+                    SourceCode("self?.\(MockNaming.eventHandler(mockVariablePrefix))?(event)"),
                 ]}
                 let mockedVariableHandlers: [SourceCode] = [
-                    SourceCode("var \(mockVariablePrefix)EventCallCount: Int = 0"),
-                    SourceCode("var \(mockVariablePrefix)EventHandler: ((Event<\(returnTypeName)>) -> ())? = nil"),
+                    SourceCode("var \(MockNaming.eventCallCount(mockVariablePrefix)): Int = 0"),
+                    SourceCode("var \(MockNaming.eventHandler(mockVariablePrefix)): ((Event<\(returnTypeName)>) -> ())? = nil"),
                 ]
                 return (getterImplementation, mockedVariableHandlers)
             default:
@@ -402,8 +402,8 @@ extension SourceryRuntime.TypeName {
                 subjectDecl = "PassthroughSubject<\(outputType), \(failureType)>()"
             }
 
-            let getterImplementation = SourceCode("return \(mockVariablePrefix)Subject.eraseToAnyPublisher()\(forceCasting)")
-            let mockedVariableHandlers = [SourceCode("lazy var \(mockVariablePrefix)Subject = \(subjectDecl)")]
+            let getterImplementation = SourceCode("return \(MockNaming.subject(mockVariablePrefix)).eraseToAnyPublisher()\(forceCasting)")
+            let mockedVariableHandlers = [SourceCode("lazy var \(MockNaming.subject(mockVariablePrefix)) = \(subjectDecl)")]
             return (getterImplementation, mockedVariableHandlers)
         }
 
@@ -415,12 +415,12 @@ extension SourceryRuntime.TypeName {
             // handler.
             guard !isProperty else { throw MockError.noDefaultValue(typeName: self) } // Only functions with `AnyCancellable` return type are supported.
             let getterImplementation = SourceCode("return AnyCancellable { [weak self] in") { [
-                SourceCode("self?.\(mockVariablePrefix)CancelCallCount += 1"),
-                SourceCode("self?.\(mockVariablePrefix)CancelHandler?()"),
+                SourceCode("self?.\(MockNaming.cancelCallCount(mockVariablePrefix)) += 1"),
+                SourceCode("self?.\(MockNaming.cancelHandler(mockVariablePrefix))?()"),
             ]}
             let mockedVariableHandlers: [SourceCode] = [
-                SourceCode("var \(mockVariablePrefix)CancelCallCount: Int = 0"),
-                SourceCode("var \(mockVariablePrefix)CancelHandler: (() -> ())? = nil"),
+                SourceCode("var \(MockNaming.cancelCallCount(mockVariablePrefix)): Int = 0"),
+                SourceCode("var \(MockNaming.cancelHandler(mockVariablePrefix)): (() -> ())? = nil"),
             ]
             return (getterImplementation, mockedVariableHandlers)
         }
@@ -428,12 +428,12 @@ extension SourceryRuntime.TypeName {
         if unwrappedTypeName == "Disposable" {
             guard !isProperty else { throw MockError.noDefaultValue(typeName: self) } // Only functions with `Disposable` return type are supported.
             let getterImplementation = SourceCode("return Disposables.create { [weak self] in") { [
-                SourceCode("self?.\(mockVariablePrefix)DisposeCallCount += 1"),
-                SourceCode("self?.\(mockVariablePrefix)DisposeHandler?()"),
+                SourceCode("self?.\(MockNaming.disposeCallCount(mockVariablePrefix)) += 1"),
+                SourceCode("self?.\(MockNaming.disposeHandler(mockVariablePrefix))?()"),
             ]}
             let mockedVariableHandlers: [SourceCode] = [
-                SourceCode("var \(mockVariablePrefix)DisposeCallCount: Int = 0"),
-                SourceCode("var \(mockVariablePrefix)DisposeHandler: (() -> ())? = nil"),
+                SourceCode("var \(MockNaming.disposeCallCount(mockVariablePrefix)): Int = 0"),
+                SourceCode("var \(MockNaming.disposeHandler(mockVariablePrefix)): (() -> ())? = nil"),
             ]
             return (getterImplementation, mockedVariableHandlers)
         }
