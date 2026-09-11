@@ -1224,3 +1224,59 @@ is a document change, in P8.
 
 Gates: `run-checks.sh`, diff read, then `--record` — 39 added lines, no deleted line; both language
 modes clean; behaviour checks pass.
+
+### P5 — every property requirement counts its reads
+
+`MockVar.mockImpl`'s stored branch is gone. Every property requirement that is not
+`/// sourcery: handler` now emits the accessor pair over `_<var>`, and
+`MockGenerator.swift`'s initializer assigns `MockNaming.store($0.mockedVariableName)` while its
+parameter keeps the requirement's own name — so `Mock(themeProvider:)` is unchanged and construction
+moves no counter.
+
+**One rule §2.5 did not state, decided here against a measurement: the witness stays settable
+wherever it is settable today.** A read-only requirement backed by a `var` store was emitted as a
+settable stored property (`var recordPermission: RecordPermission`), and
+`skills/swift-sourcery-mocks/references/generated-api.md:139` documents that as the way a test
+re-seeds it. Making every read-only witness get-only broke three assignments in this repository's
+own `Tests/Checks/Behaviour/Main.swift` — `recordPermission` at `:45` and `installationId` at `:110`
+and `:422` — with `cannot assign to property: … is a get-only property`, which is what §5's claim
+that the property change is "additive: nothing that compiles against those mocks today stops
+compiling" would have cost. The emitted rule is therefore:
+
+| requirement | witness | `<var>SetCount` |
+| --- | --- | --- |
+| `{ get set }` | `get` + `set` | counted on write |
+| `{ get }` | `get` + `set` | not emitted — a re-seed was uncounted before and stays uncounted |
+| `{ get }`, `/// sourcery: const` | `get` only, `let _<var>` | not emitted |
+| `{ get }`, `/// sourcery: handler` | `get` only, no store | not emitted |
+| `{ get set }`, `/// sourcery: handler` | `get` + `set`, no store | counted on write |
+
+Isolation carries through unchanged: `nonisolated var installationId` on the accessors,
+`nonisolated(unsafe) var _installationId` on the store and the counters
+(`Snapshots/Mocks.generated.swift:225-238`).
+
+Recorded diff: 408 added lines, 46 deleted. 27 property members gained `GetCount` — the snapshot
+went from 8 to 35 — against §5's estimate of 21, the difference being the properties `Naming.swift`
+and `Properties.swift` added in P2 and P4.
+
+`Tests/Checks/Behaviour/Main.swift` gains `checkPropertyCounting`, 11 assertions: construction
+counts no read, two reads count two, a seed through `_<var>` counts none, a write to a `{ get set }`
+requirement counts a write and no read, the value written is the value read, a seed through the
+store counts no write, and `<var>GetHandler` wins over the store while leaving it alone.
+
+The collision gate gains the two cases this phase's new names create: a protocol declaring
+`draftGetCount` beside `draft`, which was not a collision before (`GetCount` reached only computed
+getters), and one declaring `_draft`, which is the name D9 chose. Four cases now.
+
+**`kotlin-ksp-mocks` adopting §2.5 is not a no-op, and `SetCount` is not what divides the two
+generators.** Re-read at `MockRenderer.kt:127-140`: its stored branch emits `SetCount` for a mutable
+property and nothing at all for a read-only one — no counter, no handler, no store — while its
+`GetCount` / `GetHandler` pair exists only on the `isReadOnlyFlow` branch (`:109-123`). Swift emitted
+`SetCount` for a mutable stored property before this spec and still does, so the two have always
+agreed there. What that processor would have to adopt is `GetCount`, `GetHandler` and the store on
+every property requirement. §8's closing note stands.
+
+Gates: `run-checks.sh`, diff read, then `--record`; both language modes clean; behaviour checks
+pass; `Tests/Examples/ExampleProjectSpm/test-ios.sh` 19 tests, 0 failures, including
+`UploadProgressingMock, progressGetCount == 0`, which reads a publisher property's counter this
+phase leaves to P7.

@@ -76,7 +76,10 @@ class MockGenerator {
                     return "\($0.mockedVariableName): \($0.variable.typeName.declaredName)\(defaultValue)"
                 }.joined(separator: ", ")
                 let initImpl = SourceCode("init(\(argumentList))")
-                initImpl += variablesToInit.map { "self.\($0.mockedVariableName) = \($0.mockedVariableName)" }
+                // The parameter keeps the requirement's own name and the
+                // assignment targets the store, so a consumer's `Mock(analytics:)`
+                // is unchanged and construction moves no counter (§2.5).
+                initImpl += variablesToInit.map { "self.\(MockNaming.store($0.mockedVariableName)) = \($0.mockedVariableName)" }
                 mock += Constants.NEWL
                 mock += "// MARK: - Initializer"
                 mock += initImpl

@@ -136,11 +136,25 @@ final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegisteri
 final class AudioSessionConfiguringMock: AudioSessionConfiguring {
 
     // MARK: - Variables
-    var recordPermission: RecordPermission
+    var recordPermission: RecordPermission {
+        get {
+            recordPermissionGetCount += 1
+            if let handler = recordPermissionGetHandler {
+                return handler()
+            }
+            return _recordPermission
+        }
+        set {
+            _recordPermission = newValue
+        }
+    }
+    var recordPermissionGetCount: Int = 0
+    var recordPermissionGetHandler: (() -> RecordPermission)? = nil
+    var _recordPermission: RecordPermission
 
     // MARK: - Initializer
     init(recordPermission: RecordPermission) {
-        self.recordPermission = recordPermission
+        self._recordPermission = recordPermission
     }
 
     // MARK: - Methods
@@ -175,20 +189,73 @@ final class AudioSessionConfiguringMock: AudioSessionConfiguring {
 final class CaptureDependencyMock: CaptureDependency {
 
     // MARK: - Variables
-    var analytics: AnalyticsTracking
-    var draft: String = "" {
-        didSet {
-            draftSetCount += 1
+    var analytics: AnalyticsTracking {
+        get {
+            analyticsGetCount += 1
+            if let handler = analyticsGetHandler {
+                return handler()
+            }
+            return _analytics
+        }
+        set {
+            _analytics = newValue
         }
     }
+    var analyticsGetCount: Int = 0
+    var analyticsGetHandler: (() -> AnalyticsTracking)? = nil
+    var _analytics: AnalyticsTracking
+    var draft: String {
+        get {
+            draftGetCount += 1
+            if let handler = draftGetHandler {
+                return handler()
+            }
+            return _draft
+        }
+        set {
+            draftSetCount += 1
+            _draft = newValue
+        }
+    }
+    var draftGetCount: Int = 0
+    var draftGetHandler: (() -> String)? = nil
     var draftSetCount: Int = 0
-    nonisolated(unsafe) var installationId: String = ""
-    var memoryRepository: MemoryRepositoryProtocol
+    var _draft: String = ""
+    nonisolated var installationId: String {
+        get {
+            installationIdGetCount += 1
+            if let handler = installationIdGetHandler {
+                return handler()
+            }
+            return _installationId
+        }
+        set {
+            _installationId = newValue
+        }
+    }
+    nonisolated(unsafe) var installationIdGetCount: Int = 0
+    nonisolated(unsafe) var installationIdGetHandler: (() -> String)? = nil
+    nonisolated(unsafe) var _installationId: String = ""
+    var memoryRepository: MemoryRepositoryProtocol {
+        get {
+            memoryRepositoryGetCount += 1
+            if let handler = memoryRepositoryGetHandler {
+                return handler()
+            }
+            return _memoryRepository
+        }
+        set {
+            _memoryRepository = newValue
+        }
+    }
+    var memoryRepositoryGetCount: Int = 0
+    var memoryRepositoryGetHandler: (() -> MemoryRepositoryProtocol)? = nil
+    var _memoryRepository: MemoryRepositoryProtocol
 
     // MARK: - Initializer
     init(analytics: AnalyticsTracking, memoryRepository: MemoryRepositoryProtocol) {
-        self.analytics = analytics
-        self.memoryRepository = memoryRepository
+        self._analytics = analytics
+        self._memoryRepository = memoryRepository
     }
 
     // MARK: - Methods
@@ -227,8 +294,36 @@ final class CaptureDependencyMock: CaptureDependency {
 final class DetailPresentingMock: DetailPresenting {
 
     // MARK: - Variables
-    var policy: (any DetailSheet & DetailPolicy)? = nil
-    var restoredSheet: (any DetailSheet)? = nil
+    var policy: (any DetailSheet & DetailPolicy)? {
+        get {
+            policyGetCount += 1
+            if let handler = policyGetHandler {
+                return handler()
+            }
+            return _policy
+        }
+        set {
+            _policy = newValue
+        }
+    }
+    var policyGetCount: Int = 0
+    var policyGetHandler: (() -> (any DetailSheet & DetailPolicy)?)? = nil
+    var _policy: (any DetailSheet & DetailPolicy)? = nil
+    var restoredSheet: (any DetailSheet)? {
+        get {
+            restoredSheetGetCount += 1
+            if let handler = restoredSheetGetHandler {
+                return handler()
+            }
+            return _restoredSheet
+        }
+        set {
+            _restoredSheet = newValue
+        }
+    }
+    var restoredSheetGetCount: Int = 0
+    var restoredSheetGetHandler: (() -> (any DetailSheet)?)? = nil
+    var _restoredSheet: (any DetailSheet)? = nil
 
     // MARK: - Methods
     func present(sheet: (any DetailSheet)?, onDismiss: @escaping ((any DetailSheet)?) -> Void) -> (any DetailSheet)? {
@@ -294,19 +389,89 @@ final class DiagnosticsReportingMock: DiagnosticsReporting {
 final class MainDependencyMock: MainDependency {
 
     // MARK: - Variables
-    var analytics: AnalyticsTracking
-    var memoryRepository: MemoryRepositoryProtocol
-    var pushNotificationRepository: PushNotificationRepositoryProtocol
-    var themeProvider: ThemeProviding
-    var userRepository: UserRepositoryProtocol
+    var analytics: AnalyticsTracking {
+        get {
+            analyticsGetCount += 1
+            if let handler = analyticsGetHandler {
+                return handler()
+            }
+            return _analytics
+        }
+        set {
+            _analytics = newValue
+        }
+    }
+    var analyticsGetCount: Int = 0
+    var analyticsGetHandler: (() -> AnalyticsTracking)? = nil
+    var _analytics: AnalyticsTracking
+    var memoryRepository: MemoryRepositoryProtocol {
+        get {
+            memoryRepositoryGetCount += 1
+            if let handler = memoryRepositoryGetHandler {
+                return handler()
+            }
+            return _memoryRepository
+        }
+        set {
+            _memoryRepository = newValue
+        }
+    }
+    var memoryRepositoryGetCount: Int = 0
+    var memoryRepositoryGetHandler: (() -> MemoryRepositoryProtocol)? = nil
+    var _memoryRepository: MemoryRepositoryProtocol
+    var pushNotificationRepository: PushNotificationRepositoryProtocol {
+        get {
+            pushNotificationRepositoryGetCount += 1
+            if let handler = pushNotificationRepositoryGetHandler {
+                return handler()
+            }
+            return _pushNotificationRepository
+        }
+        set {
+            _pushNotificationRepository = newValue
+        }
+    }
+    var pushNotificationRepositoryGetCount: Int = 0
+    var pushNotificationRepositoryGetHandler: (() -> PushNotificationRepositoryProtocol)? = nil
+    var _pushNotificationRepository: PushNotificationRepositoryProtocol
+    var themeProvider: ThemeProviding {
+        get {
+            themeProviderGetCount += 1
+            if let handler = themeProviderGetHandler {
+                return handler()
+            }
+            return _themeProvider
+        }
+        set {
+            _themeProvider = newValue
+        }
+    }
+    var themeProviderGetCount: Int = 0
+    var themeProviderGetHandler: (() -> ThemeProviding)? = nil
+    var _themeProvider: ThemeProviding
+    var userRepository: UserRepositoryProtocol {
+        get {
+            userRepositoryGetCount += 1
+            if let handler = userRepositoryGetHandler {
+                return handler()
+            }
+            return _userRepository
+        }
+        set {
+            _userRepository = newValue
+        }
+    }
+    var userRepositoryGetCount: Int = 0
+    var userRepositoryGetHandler: (() -> UserRepositoryProtocol)? = nil
+    var _userRepository: UserRepositoryProtocol
 
     // MARK: - Initializer
     init(analytics: AnalyticsTracking, memoryRepository: MemoryRepositoryProtocol, pushNotificationRepository: PushNotificationRepositoryProtocol, themeProvider: ThemeProviding, userRepository: UserRepositoryProtocol) {
-        self.analytics = analytics
-        self.memoryRepository = memoryRepository
-        self.pushNotificationRepository = pushNotificationRepository
-        self.themeProvider = themeProvider
-        self.userRepository = userRepository
+        self._analytics = analytics
+        self._memoryRepository = memoryRepository
+        self._pushNotificationRepository = pushNotificationRepository
+        self._themeProvider = themeProvider
+        self._userRepository = userRepository
     }
 }
 
@@ -450,12 +615,23 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
 final class NamingKeywordsMock: NamingKeywords {
 
     // MARK: - Variables
-    var `default`: Int = 0 {
-        didSet {
+    var `default`: Int {
+        get {
+            defaultGetCount += 1
+            if let handler = defaultGetHandler {
+                return handler()
+            }
+            return _default
+        }
+        set {
             defaultSetCount += 1
+            _default = newValue
         }
     }
+    var defaultGetCount: Int = 0
+    var defaultGetHandler: (() -> Int)? = nil
     var defaultSetCount: Int = 0
+    var _default: Int = 0
 
     // MARK: - Methods
     func `do`() {
@@ -558,12 +734,23 @@ final class NamingOverloadsMock: NamingOverloads {
 final class NamingUnderscoresMock: NamingUnderscores {
 
     // MARK: - Variables
-    var setting4_2: Int = 0 {
-        didSet {
+    var setting4_2: Int {
+        get {
+            setting4_2GetCount += 1
+            if let handler = setting4_2GetHandler {
+                return handler()
+            }
+            return _setting4_2
+        }
+        set {
             setting4_2SetCount += 1
+            _setting4_2 = newValue
         }
     }
+    var setting4_2GetCount: Int = 0
+    var setting4_2GetHandler: (() -> Int)? = nil
     var setting4_2SetCount: Int = 0
+    var _setting4_2: Int = 0
 
     // MARK: - Methods
     func perform1_0() {
@@ -686,7 +873,16 @@ final class PlaybackRetainingMock: PlaybackRetaining {
 final class PropertyShapedMock: PropertyShaped {
 
     // MARK: - Variables
-    let buildNumber: Int = 0
+    var buildNumber: Int {
+        buildNumberGetCount += 1
+        if let handler = buildNumberGetHandler {
+            return handler()
+        }
+        return _buildNumber
+    }
+    var buildNumberGetCount: Int = 0
+    var buildNumberGetHandler: (() -> Int)? = nil
+    let _buildNumber: Int = 0
     var cursor: Int {
         get {
             cursorGetCount += 1
@@ -702,13 +898,38 @@ final class PropertyShapedMock: PropertyShaped {
     var cursorGetCount: Int = 0
     var cursorGetHandler: (() -> Int)? = nil
     var cursorSetCount: Int = 0
-    var draft: String = "" {
-        didSet {
+    var draft: String {
+        get {
+            draftGetCount += 1
+            if let handler = draftGetHandler {
+                return handler()
+            }
+            return _draft
+        }
+        set {
             draftSetCount += 1
+            _draft = newValue
         }
     }
+    var draftGetCount: Int = 0
+    var draftGetHandler: (() -> String)? = nil
     var draftSetCount: Int = 0
-    var identifier: String = ""
+    var _draft: String = ""
+    var identifier: String {
+        get {
+            identifierGetCount += 1
+            if let handler = identifierGetHandler {
+                return handler()
+            }
+            return _identifier
+        }
+        set {
+            _identifier = newValue
+        }
+    }
+    var identifierGetCount: Int = 0
+    var identifierGetHandler: (() -> String)? = nil
+    var _identifier: String = ""
     var snapshot: [String: Int] {
         snapshotGetCount += 1
         if let handler = snapshotGetHandler {
@@ -718,11 +939,25 @@ final class PropertyShapedMock: PropertyShaped {
     }
     var snapshotGetCount: Int = 0
     var snapshotGetHandler: (() -> [String: Int])? = nil
-    var themeProvider: ThemeProviding
+    var themeProvider: ThemeProviding {
+        get {
+            themeProviderGetCount += 1
+            if let handler = themeProviderGetHandler {
+                return handler()
+            }
+            return _themeProvider
+        }
+        set {
+            _themeProvider = newValue
+        }
+    }
+    var themeProviderGetCount: Int = 0
+    var themeProviderGetHandler: (() -> ThemeProviding)? = nil
+    var _themeProvider: ThemeProviding
 
     // MARK: - Initializer
     init(themeProvider: ThemeProviding) {
-        self.themeProvider = themeProvider
+        self._themeProvider = themeProvider
     }
 }
 
@@ -731,13 +966,55 @@ final class PropertyShapedMock: PropertyShaped {
 final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryProtocol {
 
     // MARK: - Variables
-    var authorizationStatus: RecordPermission
-    nonisolated(unsafe) var installationId: String = ""
-    var isNotificationsEnabled: Bool = false
+    var authorizationStatus: RecordPermission {
+        get {
+            authorizationStatusGetCount += 1
+            if let handler = authorizationStatusGetHandler {
+                return handler()
+            }
+            return _authorizationStatus
+        }
+        set {
+            _authorizationStatus = newValue
+        }
+    }
+    var authorizationStatusGetCount: Int = 0
+    var authorizationStatusGetHandler: (() -> RecordPermission)? = nil
+    var _authorizationStatus: RecordPermission
+    nonisolated var installationId: String {
+        get {
+            installationIdGetCount += 1
+            if let handler = installationIdGetHandler {
+                return handler()
+            }
+            return _installationId
+        }
+        set {
+            _installationId = newValue
+        }
+    }
+    nonisolated(unsafe) var installationIdGetCount: Int = 0
+    nonisolated(unsafe) var installationIdGetHandler: (() -> String)? = nil
+    nonisolated(unsafe) var _installationId: String = ""
+    var isNotificationsEnabled: Bool {
+        get {
+            isNotificationsEnabledGetCount += 1
+            if let handler = isNotificationsEnabledGetHandler {
+                return handler()
+            }
+            return _isNotificationsEnabled
+        }
+        set {
+            _isNotificationsEnabled = newValue
+        }
+    }
+    var isNotificationsEnabledGetCount: Int = 0
+    var isNotificationsEnabledGetHandler: (() -> Bool)? = nil
+    var _isNotificationsEnabled: Bool = false
 
     // MARK: - Initializer
     init(authorizationStatus: RecordPermission) {
-        self.authorizationStatus = authorizationStatus
+        self._authorizationStatus = authorizationStatus
     }
 
     // MARK: - Methods
@@ -796,19 +1073,89 @@ final class TimelineBuildableMock: TimelineBuildable {
 final class TimelineDependencyMock: TimelineDependency {
 
     // MARK: - Variables
-    var analytics: AnalyticsTracking
-    var audioSessionConfigurer: AudioSessionConfiguring
-    var memoryRepository: MemoryRepositoryProtocol
-    var themeProvider: ThemeProviding
-    var userRepository: UserRepositoryProtocol
+    var analytics: AnalyticsTracking {
+        get {
+            analyticsGetCount += 1
+            if let handler = analyticsGetHandler {
+                return handler()
+            }
+            return _analytics
+        }
+        set {
+            _analytics = newValue
+        }
+    }
+    var analyticsGetCount: Int = 0
+    var analyticsGetHandler: (() -> AnalyticsTracking)? = nil
+    var _analytics: AnalyticsTracking
+    var audioSessionConfigurer: AudioSessionConfiguring {
+        get {
+            audioSessionConfigurerGetCount += 1
+            if let handler = audioSessionConfigurerGetHandler {
+                return handler()
+            }
+            return _audioSessionConfigurer
+        }
+        set {
+            _audioSessionConfigurer = newValue
+        }
+    }
+    var audioSessionConfigurerGetCount: Int = 0
+    var audioSessionConfigurerGetHandler: (() -> AudioSessionConfiguring)? = nil
+    var _audioSessionConfigurer: AudioSessionConfiguring
+    var memoryRepository: MemoryRepositoryProtocol {
+        get {
+            memoryRepositoryGetCount += 1
+            if let handler = memoryRepositoryGetHandler {
+                return handler()
+            }
+            return _memoryRepository
+        }
+        set {
+            _memoryRepository = newValue
+        }
+    }
+    var memoryRepositoryGetCount: Int = 0
+    var memoryRepositoryGetHandler: (() -> MemoryRepositoryProtocol)? = nil
+    var _memoryRepository: MemoryRepositoryProtocol
+    var themeProvider: ThemeProviding {
+        get {
+            themeProviderGetCount += 1
+            if let handler = themeProviderGetHandler {
+                return handler()
+            }
+            return _themeProvider
+        }
+        set {
+            _themeProvider = newValue
+        }
+    }
+    var themeProviderGetCount: Int = 0
+    var themeProviderGetHandler: (() -> ThemeProviding)? = nil
+    var _themeProvider: ThemeProviding
+    var userRepository: UserRepositoryProtocol {
+        get {
+            userRepositoryGetCount += 1
+            if let handler = userRepositoryGetHandler {
+                return handler()
+            }
+            return _userRepository
+        }
+        set {
+            _userRepository = newValue
+        }
+    }
+    var userRepositoryGetCount: Int = 0
+    var userRepositoryGetHandler: (() -> UserRepositoryProtocol)? = nil
+    var _userRepository: UserRepositoryProtocol
 
     // MARK: - Initializer
     init(analytics: AnalyticsTracking, audioSessionConfigurer: AudioSessionConfiguring, memoryRepository: MemoryRepositoryProtocol, themeProvider: ThemeProviding, userRepository: UserRepositoryProtocol) {
-        self.analytics = analytics
-        self.audioSessionConfigurer = audioSessionConfigurer
-        self.memoryRepository = memoryRepository
-        self.themeProvider = themeProvider
-        self.userRepository = userRepository
+        self._analytics = analytics
+        self._audioSessionConfigurer = audioSessionConfigurer
+        self._memoryRepository = memoryRepository
+        self._themeProvider = themeProvider
+        self._userRepository = userRepository
     }
 }
 
@@ -875,7 +1222,21 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
 final class VocabularyCanonicalMock: VocabularyCanonical {
 
     // MARK: - Variables
-    var identifier: String = ""
+    var identifier: String {
+        get {
+            identifierGetCount += 1
+            if let handler = identifierGetHandler {
+                return handler()
+            }
+            return _identifier
+        }
+        set {
+            _identifier = newValue
+        }
+    }
+    var identifierGetCount: Int = 0
+    var identifierGetHandler: (() -> String)? = nil
+    var _identifier: String = ""
 
     // MARK: - Methods
     func refresh() {

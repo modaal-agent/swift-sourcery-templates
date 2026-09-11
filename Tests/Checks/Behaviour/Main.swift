@@ -492,6 +492,42 @@ func checkSendableMock() {
   expect(sendable is AnalyticsTrackingMock, "a Sendable protocol produces a Sendable mock")
 }
 
+// MARK: - Property accessors
+
+/// Every property requirement generates `GetCount`, `GetHandler` and a `_<var>`
+/// store (`specs/004-mock-member-naming/spec.md` §2.5). What that has to get
+/// right is which access moves which counter.
+@MainActor
+func checkPropertyCounting() {
+  let mock = PropertyShapedMock(themeProvider: StubThemeProvider())
+
+  // Construction seeds the store, so it counts no write. This is what keeps
+  // `Mock(themeProvider:)` from arriving with `themeProviderSetCount == 1`.
+  expectEqual(mock.themeProviderGetCount, 0, "construction counts no read")
+
+  _ = mock.identifier
+  _ = mock.identifier
+  expectEqual(mock.identifierGetCount, 2, "a read of a stored requirement counts")
+
+  mock._identifier = "seeded"
+  expectEqual(mock.identifierGetCount, 2, "seeding through the store counts no read")
+  expectEqual(mock.identifier, "seeded", "the accessor returns what the store holds")
+
+  let draftMock = CaptureDependencyMock(analytics: AnalyticsTrackingMock(), memoryRepository: MemoryRepositoryProtocolMock())
+  draftMock.draft = "typed"
+  expectEqual(draftMock.draftSetCount, 1, "a write to a `{ get set }` requirement counts")
+  expectEqual(draftMock.draftGetCount, 0, "a write counts no read")
+  expectEqual(draftMock.draft, "typed", "the value written is the value read")
+  expectEqual(draftMock.draftGetCount, 1, "and that read counts")
+
+  draftMock._draft = "reseeded"
+  expectEqual(draftMock.draftSetCount, 1, "seeding through the store counts no write")
+
+  draftMock.draftGetHandler = { "from the handler" }
+  expectEqual(draftMock.draft, "from the handler", "the handler wins over the store")
+  expectEqual(draftMock._draft, "reseeded", "and leaves the store alone")
+}
+
 // MARK: - Entry point
 
 @main
@@ -499,6 +535,7 @@ enum BehaviourChecks {
   static func main() async {
     print("behaviour checks")
     checkCallCountingAndHandlers()
+    checkPropertyCounting()
     await checkAsync()
     await checkNonisolatedMembers()
     checkCombineStreams()

@@ -80,37 +80,66 @@ extension MockVar {
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (() -> \(variable.typeName.declaredName))? = nil"
             mockedVariableHandlers += smartDefaultValueImplementation.mockedVariableHandlers.isolated(storageIsolationDecl)
         } else {
-            let variableDecl = !variable.isMutable && variable.isAnnotatedConst ? "let" : "var"
-            if variable.isAnnotatedHandler {
-                // Value should be implemented with the `get` handler
-                var getterImplementation: [SourceCode] = [
-                    SourceCode("\(MockNaming.getCount(mockedVariableName)) += 1"),
-                    SourceCode("if let handler = \(MockNaming.getHandler(mockedVariableName))") {[
-                        SourceCode("return handler()")
-                    ]},
-                    SourceCode("fatalError(\"\(MockNaming.getHandlerExpectedMessage(prefix: mockedVariableName))\")")
-                ]
-                if variable.isMutable {
-                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)") {[
-                        SourceCode("get", nested: getterImplementation)
-                    ]}
-                } else {
-                    mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)", nested: getterImplementation)
-                }
-                mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getCount(mockedVariableName)): Int = 0"
-                mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (() -> \(variable.typeName.declaredName))? = nil"
-            } else if !variable.isAnnotatedInit, variable.typeName.hasDefaultValue, let defaultValue = try? variable.typeName.defaultValue() {
-                // Default value can be guessed.
-                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName.declaredName) = \(defaultValue)")
-            } else {
-                // No default value, the value must be provided to the mock class's initializer.
-                mockedVariableImplementation = SourceCode("\(storageIsolationDecl)\(variableDecl) \(variable.name): \(variable.typeName.declaredName)")
-            }
+            // Every property requirement is a computed accessor that counts the
+            // read (§2.5). What differs between the two branches below is where
+            // the value comes from: `/// sourcery: handler` has no storage and
+            // traps when the test has set no handler, everything else falls back
+            // to the store the accessors sit over.
+            let getterImplementation: [SourceCode] = [
+                SourceCode("\(MockNaming.getCount(mockedVariableName)) += 1"),
+                SourceCode("if let handler = \(MockNaming.getHandler(mockedVariableName))") {[
+                    SourceCode("return handler()")
+                ]},
+                variable.isAnnotatedHandler
+                    ? SourceCode("fatalError(\"\(MockNaming.getHandlerExpectedMessage(prefix: mockedVariableName))\")")
+                    : SourceCode("return \(MockNaming.store(mockedVariableName))")
+            ]
+
+            // The witness stays settable wherever it is settable today: a
+            // read-only requirement backed by a `var` store was emitted as a
+            // settable stored property, and a test re-seeds it by assignment.
+            // `const` and `handler` are the two that were not — the first has a
+            // `let`, the second has no storage at all.
+            //
+            // `<var>SetCount` counts a write to a `{ get set }` requirement, and
+            // only that (§2.3): a re-seed of a read-only requirement was
+            // uncounted before this change and stays uncounted.
+            let hasSetter = variable.isMutable || !(variable.isAnnotatedConst || variable.isAnnotatedHandler)
+            var setterImplementation: [SourceCode] = []
             if variable.isMutable {
-                mockedVariableImplementation += SourceCode(variable.isAnnotatedHandler ? "set" : "didSet") {[
-                    SourceCode("\(MockNaming.setCount(mockedVariableName)) += 1")
+                // `didSet` on a stored property was the old shape, and a stored
+                // property cannot count a read.
+                setterImplementation += [SourceCode("\(MockNaming.setCount(mockedVariableName)) += 1")]
+            }
+            if !variable.isAnnotatedHandler {
+                setterImplementation += [SourceCode("\(MockNaming.store(mockedVariableName)) = newValue")]
+            }
+
+            if hasSetter {
+                mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)") {[
+                    SourceCode("get", nested: getterImplementation),
+                    SourceCode("set", nested: setterImplementation)
                 ]}
+            } else {
+                mockedVariableImplementation = SourceCode("\(isolationDecl)var \(variable.name): \(variable.typeName.declaredName)", nested: getterImplementation)
+            }
+
+            mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getCount(mockedVariableName)): Int = 0"
+            mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (() -> \(variable.typeName.declaredName))? = nil"
+            if variable.isMutable {
                 mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.setCount(mockedVariableName)): Int = 0"
+            }
+            if !variable.isAnnotatedHandler {
+                // `/// sourcery: const` makes the store a `let`, so the value is
+                // fixed at construction and the accessor is get-only.
+                let storeDecl = !variable.isMutable && variable.isAnnotatedConst ? "let" : "var"
+                let storeName = MockNaming.store(mockedVariableName)
+                if !variable.isAnnotatedInit, variable.typeName.hasDefaultValue, let defaultValue = try? variable.typeName.defaultValue() {
+                    mockedVariableHandlers += "\(storageIsolationDecl)\(storeDecl) \(storeName): \(variable.typeName.declaredName) = \(defaultValue)"
+                } else {
+                    // No default value: the mock class's initializer seeds it.
+                    mockedVariableHandlers += "\(storageIsolationDecl)\(storeDecl) \(storeName): \(variable.typeName.declaredName)"
+                }
             }
         }
         var topScope = TopScope()

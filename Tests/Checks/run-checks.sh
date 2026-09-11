@@ -229,6 +229,8 @@ rm -rf "$COLLISION_DIR"
 # <case>:<protocol>:<member named in the message>
 COLLISION_CASES=(
   "bookkeeping:CollidingBookkeeping:draftSetCount"
+  "readcount:CollidingReadCount:draftGetCount"
+  "store:CollidingStore:_draft"
   "overload:CollidingOverload:sendToVoidCallCount"
 )
 
@@ -239,6 +241,28 @@ cat > "$COLLISION_DIR/bookkeeping/Bookkeeping.swift" <<'SWIFT'
 public protocol CollidingBookkeeping: AnyObject {
     var draft: String { get set }
     var draftSetCount: Int { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/readcount"
+cat > "$COLLISION_DIR/readcount/ReadCount.swift" <<'SWIFT'
+// `<var>GetCount` is emitted for every property requirement, so a protocol that
+// declares one of its own collides where it did not before.
+/// sourcery: ProtocolMock
+public protocol CollidingReadCount: AnyObject {
+    var draft: String { get set }
+    var draftGetCount: Int { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/store"
+cat > "$COLLISION_DIR/store/Store.swift" <<'SWIFT'
+// The backing store a property requirement's accessors sit over. A protocol may
+// declare `_draft` itself, and the mock cannot hold two.
+/// sourcery: ProtocolMock
+public protocol CollidingStore: AnyObject {
+    var draft: String { get set }
+    var _draft: String { get set }
 }
 SWIFT
 

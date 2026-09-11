@@ -119,6 +119,17 @@ enum MockNaming {
     static func getHandler(_ prefix: String) -> String { return "\(prefix)GetHandler" }
     static func setCount(_ prefix: String) -> String { return "\(prefix)SetCount" }
 
+    /// The stored value behind a property requirement's accessors (§2.5). A test
+    /// seeds and reads it without moving a counter, and the generated
+    /// initializer assigns it.
+    ///
+    /// The underscore is what the generator already uses for a name it owns —
+    /// `__<name>Handler` is the handler local inside every generated method — and
+    /// a protocol that declares `_draft` itself is caught by
+    /// `checkForCollisions` rather than emitting a file that does not compile
+    /// (D9).
+    static func store(_ prefix: String) -> String { return "_\(prefix)" }
+
     // MARK: - Stream members
 
     static func subject(_ prefix: String) -> String { return "\(prefix)Subject" }
