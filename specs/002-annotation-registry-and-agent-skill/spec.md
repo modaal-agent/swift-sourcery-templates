@@ -1313,6 +1313,8 @@ installed into this repository or into the user's own settings.
   description, and ~5k on invoke for the body. §3.1's compaction floor is 5,000 tokens per loaded
   skill, and the first measurement was ~5.1k, so `2a7fd05` compressed seven passages of prose — 258
   lines to 249 — without removing an instruction or a table row.
+  **Superseded by §15**: the body was re-measured at ~5.5k on 2026-09-11, over the floor, and
+  trimmed a second time to ~4.8k at 250 lines.
 
 ### 12.3 Where Part B departed from §6.1 and §7
 
@@ -1657,3 +1659,97 @@ push: a branch-creating push carries `before=00000000000000000000000000000000000
 filter's fallback — *no usable range (before='000…') — running every lane* — sets `code=true`
 before any path is examined. §6.2's path filter decides the second and later pushes of a branch,
 where a range exists; it never decides the first.
+
+## 15. Amendment — the token re-measurement of 2026-09-11 and the second trim
+
+`/Users/ivanmisuno/Projects/modaaldev-gtm-strategy/content/06-social/2026/09/devto-mock-generation-agent-era-plan.md`
+§14.6 re-measured both skill bodies on 2026-09-11 and reported this one at ~5.5k tokens on invoke,
+against the 5,000-token compaction floor of §3.1 — over by about 500 tokens. It offered two options:
+trim body prose, or move the plugin-lane or CLI-lane section into a reference. It recommended the
+first. This section records the first being taken.
+
+### 15.1 The baseline, reproduced
+
+Claude Code 2.1.186, the same tool and the same rounding that produced §12.2's ~5k:
+
+```
+claude plugin marketplace add ./
+claude plugin install swift-sourcery-mocks --scope local
+claude plugin details swift-sourcery-mocks
+```
+
+At 273 lines and 15,324 bytes: ~286 tokens plugin total always-on, ~290 per component, **~5.5k on
+invoke**. That matches §14.6 of the file above to the digit.
+
+**The installed plugin reads the working tree, not a copy taken at install time.** Truncating
+`SKILL.md` to its first 150 lines moved the reported figure to ~2.7k, and restoring the file moved
+it back, so a local-scope install measures edits as they are made. §12.2 ran against a copy in a
+temporary directory to keep the repository's own state clean; this run installed from the working
+tree and then uninstalled, removed the marketplace and deleted the `.claude/settings.local.json`
+the local install created. Plugin state before and after: no plugins installed, one marketplace
+(`claude-plugins-official`).
+
+### 15.2 What the trim did
+
+273 lines to 250, 15,324 bytes to 13,654, **~5.5k to ~4.8k on invoke**. Always-on is unchanged at
+~286 / ~290: the description was not touched, and stands at 740 characters against SC4's 1,024.
+
+Four passes. Prose compression in every section, on the pattern `2a7fd05` used, plus the four moves
+in §15.3. No table row was removed from any of the four tables, and the block between
+`<!-- annotations:start -->` and `<!-- annotations:end -->` was not touched — AC6 reports all three
+rendered blocks current.
+
+### 15.3 What now lives only in a reference
+
+Each of these moved material out of the body that a `references/` file already carried.
+
+1. **The artifact-bundle download block.** `references/cli-lane.md` §"Where the binaries come from"
+   carries the same six lines. The body's `generate` block now opens with `VERSION=<newest tag>` and
+   `BUNDLE="swift-sourcery-templates-$VERSION.artifactbundle"` so it stays runnable without them.
+2. **The trailing `## References` list.** Every one of the five files is now linked exactly once, at
+   the point where the body needs it: `writing-testable-protocols.md` from "Annotate the protocol",
+   `spm-plugin.md` from the plugin lane, `cli-lane.md` from the CLI lane, `generated-api.md` from
+   "What the generated mock gives a test", `troubleshooting.md` from "When it goes wrong". SC8
+   covers that all five resolve. `2a7fd05`'s commit message kept this list because compaction drops
+   the last section of a body over the floor; with a link at each point of need, the tail carries no
+   link that is not also reachable earlier.
+3. **"A file of that exact name beside the config wins over the shipped one."** Now only in
+   `references/spm-plugin.md` §"Naming a template", which the body points at for "the resolution
+   order for a template name".
+4. **Two of the six `validate` failure cases, by name.** The body now reads "an input that changed,
+   went missing or was added"; `references/cli-lane.md` §`validate` lists all six, including the
+   `--sources` set check and `--expect-bundle`.
+
+### 15.4 The rounding boundary, measured
+
+`claude plugin details` rounds to 0.1k, so "~4.8k" is 4,750–4,849 and the margin under the floor is
+151 to 250 tokens. The boundary was located during the trim: at 13,649 characters the tool reported
+~4.8k, and adding 19 characters back reported ~4.9k. So the 4,849/4,850 boundary sits at about
+13,650 characters, the final body is about 46 characters under it, and the true figure is near
+4,830 — roughly 170 tokens of headroom.
+
+### 15.5 The gate
+
+| command | result |
+| --- | --- |
+| `Tests/Checks/run-skill-checks.sh` | twelve green, SC5 at 250 lines and 224 |
+| `Tests/Checks/run-skill-checks.sh --self-test` | twelve red against their seeded violations |
+| `Tests/Checks/run-annotation-checks.sh` | nine green, AC6 all three blocks current |
+| `Tests/Checks/run-checks.sh` | snapshot, both language modes and the behaviour checks, all green |
+| `cmp AGENTS.md CLAUDE.md` | identical |
+
+`claude plugin details` after the trim, from a marketplace removed, re-added and re-installed:
+~4.8k on invoke.
+
+### 15.6 Still open
+
+- **No check measures the token budget.** SC5 counts lines — 250 against 400 — and the compaction
+  floor is in tokens. The line budget passed on both occasions the token budget was breached:
+  ~5.1k at 258 lines before `2a7fd05`, ~5.5k at 273 lines before this trim. A token check needs
+  `claude` on the runner and an install, which `run-skill-checks.sh` avoids by design: it reads
+  markdown and JSON with `grep`, `awk` and `python3`, no toolchain and no network, so it runs on
+  ubuntu in seconds beside `rules` and `annotations`. Whether to add a macOS-or-node lane for it,
+  or to keep measuring by hand at each release, is not decided here.
+- **The body has no headroom for a tenth section.** §14.3 added "Publishers are subject-backed" at
+  18 lines and that addition alone put the body over the floor. The next body section has to be
+  paid for out of an existing one.
