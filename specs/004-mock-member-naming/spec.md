@@ -1115,3 +1115,39 @@ and §2.8 leaves unchanged.
 Gate: `Tests/Checks/run-checks.sh` passed with no `--record` — both snapshots byte-identical, both
 language modes clean, all behaviour checks green. `run-annotation-checks.sh` and
 `run-skill-checks.sh` pass.
+
+### P2 — the prefix is the declared name
+
+`MockNaming.swiftifiedMemberName` is gone. `methodPrefix`, `overloadGroupKey` and `variablePrefix`
+each strip backticks and do nothing else, so §2.1's table is what the templates emit.
+
+`templates/Utility/StringLettercase.swift` went from 147 lines to 101: `lowercasedFirstWord`,
+`lowercasedFirstLetter` and `snakeCased`, and the private `lowerFirstWord`, `lowerFirstLetter` and
+`camelToSnakeCase` behind them, had no caller left. `uppercasedFirstLetter` and `camelCased` stay,
+both called only from `MockNaming.swift` and only by the overload long form and the return-type
+discriminator. The file that crashed generation on `func ID()` (§1.2) is deleted rather than fixed.
+
+**Backtick removal on the property path is load-bearing, which §7 recorded as unmeasured.**
+`Tests/Checks/Fixtures/Naming.swift` declares ``var `default`: Int { get set }``;
+`SourceryRuntime.Variable.name` carries the backticks, so the witness is emitted as
+``var `default`: Int = 0`` and the counter as `defaultSetCount`. Without the strip the counter would
+have been `` `default`SetCount ``, which is not an identifier.
+
+`Tests/Checks/Fixtures/Naming.swift` (four protocols, 11 requirements) is the new coverage:
+`NamingUnderscores` puts `func perform1_0()` beside `var setting4_2: Int { get set }`, which is §1.1;
+`NamingManyToOne` declares `load_data()` and `loadData()`, which failed generation with "not all
+duplicates resolved" before this phase and now carry `load_dataCallCount` and `loadDataCallCount`;
+`NamingUppercase` declares `ID()` and `URLSession()`, the §1.2 trap; `NamingKeywords` declares
+``var `default```, ``func `do`()`` and ``func `repeat`(times:)``.
+
+**No existing fixture member was renamed.** The recorded diff is 110 added lines and no deleted
+line: every declaration under `Tests/Checks/Fixtures/` was already lowerCamelCase with no
+underscore, which the old transform mapped to itself. That matches §5's finding for
+`modaal-firebase-wrappers` — §2.1 renames there: none — and means the transform's failures were
+reachable only through declarations no fixture carried.
+
+Gates: `Tests/Checks/run-checks.sh`, diff read, then `--record`; both language modes clean; all
+behaviour checks pass. `Tests/Examples/ExampleProjectSpm/test-ios.sh`: 19 tests, 0 failures — the
+RxSwift, type-erasure and return-type-overload specs assert on prefixes this phase could have moved
+and did not. That script resolves its scheme from the working directory, so it runs from
+`Tests/Examples/ExampleProjectSpm/`, not from the repository root; P8 adds that to `CONTRIBUTING.md`.

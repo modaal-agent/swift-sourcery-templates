@@ -17,7 +17,10 @@ enum MockNaming {
 
     // MARK: - Prefixes
 
-    /// The prefix every generated member of a method carries.
+    /// The prefix every generated member of a method carries: the declared name
+    /// with backticks removed, and nothing else — no case change, no underscore
+    /// removal, no first-word lowercasing (`spec.md` §2.1). `func perform1_0()`
+    /// gives `perform1_0`, `func ID()` gives `ID`, `` func `do`() `` gives `do`.
     ///
     /// - Parameters:
     ///   - callName: the method's declared name.
@@ -30,12 +33,12 @@ enum MockNaming {
         longFormComponents: [String] = [],
         returnTypeDiscriminator: String? = nil
     ) -> String {
-        var components = [callName]
+        var components = [callName.withoutBackticks]
         components += longFormComponents
         if let returnTypeDiscriminator = returnTypeDiscriminator {
             components += [returnTypeDiscriminator]
         }
-        return components.joined().swiftifiedMemberName
+        return components.joined()
     }
 
     /// One parameter's contribution to an overload's long-form prefix.
@@ -52,12 +55,16 @@ enum MockNaming {
     /// The key overloads are grouped under before the disambiguation chain runs.
     /// Two declarations share a group when they share this key.
     static func overloadGroupKey(shortName: String) -> String {
-        return shortName.swiftifiedMemberName
+        return shortName.withoutBackticks
     }
 
-    /// The prefix every generated member of a property carries.
+    /// The prefix every generated member of a property carries, under §2.1's
+    /// one rule: `var setting4_2: Int` gives `setting4_2`. A keyword-named
+    /// requirement keeps its backticks where it is *declared* — `` var `default`:
+    /// Int `` is the witness — and drops them here, because `` `default`GetCount ``
+    /// is not an identifier.
     static func variablePrefix(name: String) -> String {
-        return name
+        return name.withoutBackticks
     }
 
     /// Suffix derived from a method's return type, used to disambiguate
@@ -143,14 +150,9 @@ enum MockNaming {
 }
 
 private extension String {
-    /// The transform applied to a composed method prefix.
-    var swiftifiedMemberName: String {
-        return self
-            .replacingOccurrences(of: "(", with: "_")
-            .replacingOccurrences(of: ")", with: "")
-            .replacingOccurrences(of: ":", with: "_")
-            .replacingOccurrences(of: "`", with: "")
-            .camelCased()
-            .lowercasedFirstWord()
+    /// Backticks escape a keyword at the declaration and are not part of the
+    /// name. They are the whole of §2.1's transform.
+    var withoutBackticks: String {
+        return replacingOccurrences(of: "`", with: "")
     }
 }

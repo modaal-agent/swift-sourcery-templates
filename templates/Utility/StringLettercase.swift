@@ -2,18 +2,17 @@ import Foundation
 
 // Courtesy of https://github.com/SwiftGen/StencilSwiftKit
 
+// Two entry points remain, both called only from `Mocks/MockNaming.swift` and
+// both only by the return-type discriminator that disambiguates overloads
+// differing in return type alone. `lowercasedFirstWord`, `lowercasedFirstLetter`
+// and `snakeCased` went with the prefix transform they served
+// (`specs/004-mock-member-naming/spec.md` §2.1, P2); `lowerFirstWord` is the one
+// that traps on an all-uppercase name — it indexes `scalars[idx]` before testing
+// `idx` against `endIndex`, so `func ID()` crashed generation with "String index
+// is out of bounds" (§1.2).
 extension String {
-    func lowercasedFirstLetter() -> String {
-      return FiltersStrings.lowerFirstLetter(self)
-    }
-    func lowercasedFirstWord() -> String {
-      return FiltersStrings.lowerFirstWord(self)
-    }
     func uppercasedFirstLetter() -> String {
       return FiltersStrings.upperFirstLetter(self)
-    }
-    func snakeCased(toLower: Bool = true) -> String {
-      return FiltersStrings.camelToSnakeCase(self, toLower: toLower)
     }
     func camelCased(stripLeading: Bool = false) -> String {
       return FiltersStrings.snakeToCamelCase(self, stripLeading: stripLeading)
@@ -21,36 +20,6 @@ extension String {
 }
 
 private final class FiltersStrings {
-  /// Lowers the first letter of the string
-  /// e.g. "People picker" gives "people picker", "Sports Stats" gives "sports Stats"
-  static func lowerFirstLetter(_ string: String) -> String {
-    let first = String(string.prefix(1)).lowercased()
-    let other = String(string.dropFirst(1))
-    return first + other
-  }
-
-  /// If the string starts with only one uppercase letter, lowercase that first letter
-  /// If the string starts with multiple uppercase letters, lowercase those first letters
-  /// up to the one before the last uppercase one, but only if the last one is followed by
-  /// a lowercase character.
-  /// e.g. "PeoplePicker" gives "peoplePicker" but "URLChooser" gives "urlChooser"
-  static func lowerFirstWord(_ string: String) -> String {
-    let cs = CharacterSet.uppercaseLetters
-    let scalars = string.unicodeScalars
-    let start = scalars.startIndex
-    var idx = start
-    while let scalar = UnicodeScalar(scalars[idx].value), cs.contains(scalar) && idx <= scalars.endIndex {
-        idx = scalars.index(after: idx)
-    }
-    if idx > scalars.index(after: start) && idx < scalars.endIndex,
-        let scalar = UnicodeScalar(scalars[idx].value),
-        CharacterSet.lowercaseLetters.contains(scalar) {
-        idx = scalars.index(before: idx)
-    }
-    let transformed = String(scalars[start..<idx]).lowercased() + String(scalars[idx..<scalars.endIndex])
-    return transformed
-  }
-
   /// Uppers the first letter of the string
   /// e.g. "people picker" gives "People picker", "sports Stats" gives "Sports Stats"
   ///
@@ -60,21 +29,6 @@ private final class FiltersStrings {
   /// - Returns: the string with first letter being uppercased
   static func upperFirstLetter(_ string: String) -> String {
     return _upperFirstLetter(string)
-  }
-
-  /// Converts camelCase to snake_case. Takes an optional Bool argument for making the string lower case,
-  /// which defaults to true
-  ///
-  /// - Parameters:
-  ///   - value: the value to be processed
-  ///   - arguments: the arguments to the function; expecting zero or one boolean argument
-  /// - Returns: the snake case string
-  static func camelToSnakeCase(_ string: String, toLower: Bool = true) -> String {
-    let snakeCase = snakecase(string)
-    if toLower {
-        return snakeCase.lowercased()
-    }
-    return snakeCase
   }
 
   /// Converts snake_case to camelCase, stripping prefix underscores if needed

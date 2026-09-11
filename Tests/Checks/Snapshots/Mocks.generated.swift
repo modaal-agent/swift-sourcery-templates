@@ -446,6 +446,116 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
     lazy var tokenSubject = CurrentValueSubject<String, Error>("")
 }
 
+// MARK: - NamingKeywords
+final class NamingKeywordsMock: NamingKeywords {
+
+    // MARK: - Variables
+    var `default`: Int = 0 {
+        didSet {
+            defaultSetCount += 1
+        }
+    }
+    var defaultSetCount: Int = 0
+
+    // MARK: - Methods
+    func `do`() {
+        doCallCount += 1
+        if let __doHandler = self.doHandler {
+            __doHandler()
+        }
+    }
+    var doCallCount: Int = 0
+    var doHandler: (() -> ())? = nil
+    func `repeat`(times: Int) {
+        repeatCallCount += 1
+        repeatArgs.append(times)
+        if let __repeatHandler = self.repeatHandler {
+            __repeatHandler(times)
+        }
+    }
+    var repeatCallCount: Int = 0
+    var repeatArgs: [Int] = []
+    var repeatHandler: ((_ times: Int) -> ())? = nil
+}
+
+// MARK: - NamingManyToOne
+final class NamingManyToOneMock: NamingManyToOne {
+
+    // MARK: - Methods
+    func loadData() {
+        loadDataCallCount += 1
+        if let __loadDataHandler = self.loadDataHandler {
+            __loadDataHandler()
+        }
+    }
+    var loadDataCallCount: Int = 0
+    var loadDataHandler: (() -> ())? = nil
+    func load_data() {
+        load_dataCallCount += 1
+        if let __load_dataHandler = self.load_dataHandler {
+            __load_dataHandler()
+        }
+    }
+    var load_dataCallCount: Int = 0
+    var load_dataHandler: (() -> ())? = nil
+}
+
+// MARK: - NamingUnderscores
+final class NamingUnderscoresMock: NamingUnderscores {
+
+    // MARK: - Variables
+    var setting4_2: Int = 0 {
+        didSet {
+            setting4_2SetCount += 1
+        }
+    }
+    var setting4_2SetCount: Int = 0
+
+    // MARK: - Methods
+    func perform1_0() {
+        perform1_0CallCount += 1
+        if let __perform1_0Handler = self.perform1_0Handler {
+            __perform1_0Handler()
+        }
+    }
+    var perform1_0CallCount: Int = 0
+    var perform1_0Handler: (() -> ())? = nil
+    func perform2_0(value: Int) {
+        perform2_0CallCount += 1
+        perform2_0Args.append(value)
+        if let __perform2_0Handler = self.perform2_0Handler {
+            __perform2_0Handler(value)
+        }
+    }
+    var perform2_0CallCount: Int = 0
+    var perform2_0Args: [Int] = []
+    var perform2_0Handler: ((_ value: Int) -> ())? = nil
+}
+
+// MARK: - NamingUppercase
+final class NamingUppercaseMock: NamingUppercase {
+
+    // MARK: - Methods
+    func ID() -> String {
+        IDCallCount += 1
+        if let __IDHandler = self.IDHandler {
+            return __IDHandler()
+        }
+        return ""
+    }
+    var IDCallCount: Int = 0
+    var IDHandler: (() -> (String))? = nil
+    func URLSession() -> String {
+        URLSessionCallCount += 1
+        if let __URLSessionHandler = self.URLSessionHandler {
+            return __URLSessionHandler()
+        }
+        return ""
+    }
+    var URLSessionCallCount: Int = 0
+    var URLSessionHandler: (() -> (String))? = nil
+}
+
 // MARK: - NotificationSignalling
 final class NotificationSignallingMock: NotificationSignalling {
 
