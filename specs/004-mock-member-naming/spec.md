@@ -1474,3 +1474,40 @@ that covers, and what each repository owes:
 
 The rest of §4 P9 stands: the entry's three headings, the consumer delta from §5 measured into it,
 and the entry written before the tag.
+
+### P9 — the CHANGELOG entry, and the consumer measured
+
+`CHANGELOG.md` gains an `## Unreleased` entry under the three headings that file's header states,
+above the annotation-name entry and shipping in the same release as it. **Generated output** carries
+the two rename categories with before/after, §2.5's property members, §2.6's accessor, §2.7's
+construct and counters, and the two diagnostics that replace silent failures. **Breaking** carries
+the consumer table below and the reason no deprecated aliases are emitted — the generator would have
+to keep both naming rules to know the old name, which is the condition D6 removes. **Adopting**
+carries the two lanes' commands, `_<var>` for a test that reads a mock property, and the publisher
+member's new surface.
+
+**The consumer was regenerated, not estimated.** `modaal-firebase-wrappers`' seven modules were
+generated from this working tree into a scratch directory — its own tree was left untouched — and
+diffed against its committed output at templates 0.2.15.
+
+| measured | §5 predicted | actual |
+| --- | --- | --- |
+| files, lines | `7 files, 218 insertions` for the bump alone | 7 files, **1706 → 2934 lines**; 274 generated members → 515 |
+| §2.1 renames | none | **none** — confirmed; no removed name carries an underscore or leading capitals |
+| §2.2 renames | 27 member groups, 15 distinct names | **30 members over 15 declarations** — the 15 names §5 listed, each with a `CallCount` and a `Handler`; §5's "27 member groups" counted groups, not members |
+| §2.5 additions | 73 property members | **168 members over 56 requirements** — `GetCount`, `GetHandler` and `_<var>` each. §5's 73 is the number of `<method>Args` arrays the version bump adds, which its script evidently counted instead |
+| §2.3, §2.4, §2.6, §2.7 | none | **none** — confirmed |
+| its own tests that stop compiling | 9 references in 2 files | **9 references in 2 files** — `setDataDataForDocumentDocumentMerge*` (4), `setDataDataForDocumentDocumentMergeFields*` (4), `signInWithEmailEmailPasswordCompletionHandler` (1) |
+
+So §5's two errors are in the same direction and both under-count: it read member *groups* where the
+entry reads members, and it attributed the version bump's `Args` arrays to §2.5. The rename surface
+it predicted — which declarations move, and which of the consumer's own tests break — is exact.
+
+**Not done, and it is the gate on the tag.** The tag is not cut, and per the P9 amendment above it
+cannot be until `kotlin-ksp-mocks` is brought into step: its twin table, and the decision on whether
+it adopts §2.5. `CHANGELOG.md`'s entry names where the rule is stated and where it is built; the
+sentence naming the state of the twin as of the tag is written when that decision is taken.
+
+Lanes run at this phase, all green: `run-checks.sh`, `run-skill-checks.sh`,
+`run-annotation-checks.sh`, `run-cli-checks.sh`, `run-plugin-checks.sh`, and
+`Tests/Examples/ExampleProjectSpm/test-ios.sh` at P7. `run-xcode-checks.sh` was not run.
