@@ -94,10 +94,42 @@ A double that seeded itself would emit a value nobody wrote the moment the code 
 subscribes, and turn the test's own `send` into a second element — which is what resumes a bridging
 continuation twice.
 
+## `value of type 'XMock' has no member '<name>'`
+
+The prefix is the **declared name**, verbatim, with backticks dropped: `func perform1_0()` gives
+`perform1_0CallCount`, not `perform10CallCount`; `func ID()` gives `IDCallCount`. Older releases
+applied a case-and-underscore transform to methods and not to properties, so a name a test learned
+from a generated file made before the templates were bumped can be stale — regenerate, and read the
+member off the file.
+
+For an **overloaded** requirement the name carries the argument labels: `func end(atDocument
+document:)` gives `endAtDocument`. Only the overload with the fewest parameters keeps the plain
+name, and the requirement set includes what the protocol inherits, so a refinement can put a
+requirement into an overload group that its own declaration does not show. `/// sourcery: methodName
+= "customName"` pins a member's name.
+
+## A property's `<var>GetCount` moved and the test did not read it
+
+Every property requirement counts its reads, so an assertion that reads `mock.draft` moves
+`draftGetCount` itself. Read `mock._draft` — the store behind the accessors — to read or seed the
+value without moving a counter.
+
+## `<name>SubscribeCount` is zero and the stream delivered
+
+`<var>GetCount` counts the code under test *asking* for the publisher; `<name>SubscribeCount` counts
+it *subscribing*. A code path that reads the member and stores it without subscribing moves the
+first and not the second, and nothing is delivered to it.
+
+`<name>OutputCount` is the third question: it counts delivery, not sending. A value sent while
+nobody is subscribed is dropped by the `PassthroughSubject` and counts nothing. Where a method's
+`<method>Handler` is set, the member never reaches the deferred subject at all, so
+`<method>SubscribeCount` stays at zero by design.
+
 ## `<method>Args` does not exist
 
 Argument recording is skipped for three shapes: a method whose parameters are all closures, a
 generic method, and anything annotated `skipArgumentRecording` on the method or on its protocol.
+`skipArgumentRecording` drops `<name>Outputs` and `<name>Events` too, for the same reason.
 
 Assert through `<method>Handler` instead — it receives every parameter, closures included.
 

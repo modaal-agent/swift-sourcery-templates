@@ -3,6 +3,11 @@
 Every snippet below is the Swift the templates emit, copied from a generated file. It is what a test
 writes against, so the names and the fallbacks here are the ones to assert on.
 
+**The rule, in one sentence: a mock member is the declared name plus a suffix.** Verbatim, with
+backticks dropped and nothing else changed: `func perform1_0()` gives `perform1_0CallCount`,
+`func ID()` gives `IDCallCount`, ``func `do`()`` gives `doCallCount`, `var setting4_2: Int` gives
+`setting4_2GetCount`. An overload is the one case where the name is not the declaration, below.
+
 ## The file
 
 A generated file opens with a `// Generated using Sourcery` banner and `// DO NOT EDIT`, then the
@@ -83,79 +88,80 @@ var uploadHandler: ((_ fileName: String) async throws -> (URL))? = nil
 | any `Optional` | `nil` |
 | `Array`, `Dictionary`, `Set`, a tuple of defaultable types | `[]`, `[:]`, `Set()`, the element-wise default |
 | `String`, `Bool`, the integer and floating-point types, `TimeInterval`, `CGFloat`, `CGPoint`, `CGSize`, `CGRect` | `""`, `false`, `0`, `0.0`, `CGFloat(0)`, `.zero` |
-| `AnyPublisher<Output, Failure>`, and the RxSwift stream types | the member's own subject, erased — see below |
-| `AnyCancellable` or `Disposable` | a token that counts its own cancellation |
+| `AnyPublisher<Output, Failure>`, and the RxSwift stream types | a construct over the member's own subject — see [stream-members.md](stream-members.md) |
+| `AnyCancellable` | a token that counts its own `cancel()` |
+| `Disposable` | a token that counts its own `dispose()` |
 | anything else | `fatalError("<method>Handler expected to be set.")` |
 
 A method whose return type is in the last row is the one to seed before the call. `<method>CallCount`
 and `<method>Args` are recorded first, so the arguments of the call that trapped are readable in the
 debugger.
 
-## Publisher members
+## Stream members
 
-An `AnyPublisher` requirement is backed by a subject the test sends into. On a property:
-
-```swift
-var ownMemories: AnyPublisher<[MemoryDrop], Never> {
-    ownMemoriesGetCount += 1
-    if let handler = ownMemoriesGetHandler {
-        return handler()
-    }
-    return ownMemoriesSubject.eraseToAnyPublisher()
-}
-var ownMemoriesGetCount: Int = 0
-var ownMemoriesGetHandler: (() -> AnyPublisher<[MemoryDrop], Never>)? = nil
-lazy var ownMemoriesSubject = PassthroughSubject<[MemoryDrop], Never>()
-```
-
-On a method the same subject sits behind `<method>Handler`, as `<method>Subject`. The default is a
-`PassthroughSubject`, which delivers nothing to a subscriber that arrives after the value was sent,
-and the erased publisher finishes only when the test sends a completion:
-
-```swift
-mock.ownMemoriesSubject.send([drop])
-mock.ownMemoriesSubject.send(completion: .finished)
-```
-
-`/// sourcery: subject = "CurrentValue"` on the requirement makes it a `CurrentValueSubject` seeded
-with the `Output`'s default value, which replays that value to a late subscriber. An `Output` with no
-default value fails generation naming the member, because a `CurrentValueSubject` has to be seeded;
-set `<name>GetHandler` to a stream that replays instead.
-
-An RxSwift `Observable`, `Single` or `AnyObserver` member takes the same shape, backed by a
-`PublishSubject` under the same `<name>Subject` name.
+An `AnyPublisher` member hands back a construct the mock owns over a subject the test sends into and
+counts what crossed it — `<name>SubscribeCount`, `<name>OutputCount`, `<name>Outputs`,
+`<name>CompletionCount`, `<name>SubscribeCancelCount`; an `AnyObserver` member counts and records
+what the code under test pushed in. The emitted Swift and the RxSwift shapes are in
+[stream-members.md](stream-members.md).
 
 ## Properties
 
+Every property requirement is accessors over a store named `_<var>`, and every read is counted:
+
 ```swift
-// var requirement: stored, and writes are counted. Construction does not count.
-var draft: String = "" {
-    didSet {
+var draft: String {
+    get {
+        draftGetCount += 1
+        if let handler = draftGetHandler { return handler() }
+        return _draft
+    }
+    set {
         draftSetCount += 1
+        _draft = newValue
     }
 }
+var draftGetCount: Int = 0
+var draftGetHandler: (() -> String)? = nil
 var draftSetCount: Int = 0
-
-// read-only requirement with a default value: a var a test can re-seed.
-var identifier: String = ""
-
-// read-only requirement without one: a stored property and an initializer parameter.
-var analytics: AnalyticsTracking
-init(analytics: AnalyticsTracking, memoryRepository: MemoryRepositoryProtocol) { … }
+var _draft: String = ""
 ```
 
-There is no `<var>GetCount` for a stored property — a read of a stored `var` is not counted; the
-counted form is the computed one publisher members and effectful requirements take. A protocol of
-properties alone therefore generates an initializer-seeded bag, and adding a requirement without a
-default value to it breaks every construction of the mock at compile time.
+`_<var>` is what a test seeds and reads when it does not want to move a counter. `<var>SetCount` is
+emitted for a `{ get set }` requirement only — a read-only requirement's witness is still settable,
+and re-seeding it counts nothing, as it always did. A requirement with no synthesizable default is
+an initializer parameter, keeps its own name there, and seeding it at construction moves no counter.
 
-Under a `@MainActor` protocol, a `nonisolated` member's storage is declared `nonisolated(unsafe)`,
-because a nonisolated member cannot mutate main-actor isolated storage.
+`/// sourcery: const` makes the store a `let` and the witness get-only. `/// sourcery: handler` drops
+the store: the getter runs `<var>GetHandler` and traps with `<var>GetHandler expected to be set.`
+when the test set none.
+
+An effectful requirement generates the accessor it declares, and its handler carries the same
+effects:
+
+```swift
+var config: Config {
+    get async throws {
+        configGetCount += 1
+        if let handler = configGetHandler { return try await handler() }
+        return _config
+    }
+}
+var configGetHandler: (() async throws -> Config)? = nil
+var _config: Config
+```
+
+Swift has no effectful setter, so such a requirement has no `<var>SetCount`; `_<var>` stays
+assignable. A requirement declared `throws(SomeError)` fails generation naming the member: the mock
+writes bare `throws`, which does not satisfy it.
+
+Under a `@MainActor` protocol, a `nonisolated` member's store and counters are declared
+`nonisolated(unsafe)`, because a nonisolated member cannot mutate main-actor isolated storage.
 
 ## Cancellation tokens
 
-A method returning `AnyCancellable` or an RxSwift `Disposable` records the cancellation as well as
-the call:
+A method returning `AnyCancellable` or an RxSwift `Disposable` records the release as well as the
+call. The suffix is the call the returned token exposes, so the two frameworks keep their own word:
 
 ```swift
 func registerURLHandler(_ tag: String, priority: Int) -> AnyCancellable {
@@ -169,23 +175,36 @@ var registerURLHandlerCancelCallCount: Int = 0
 var registerURLHandlerCancelHandler: (() -> ())? = nil
 ```
 
-A test asserts that the caller released the registration by reading `<method>CancelCallCount`. The
-count belongs to the mock, not to the token, so it survives the token going out of scope.
+A `Disposable`-returning method gets `<method>DisposeCallCount` and `<method>DisposeHandler` the same
+way. The count belongs to the mock, not to the token, so it survives the token going out of scope.
 
 ## Overloads
 
-Overloads would collide on the shared bookkeeping names. The overload with the fewest parameters
-keeps the plain name; each other overload appends its parameter labels and names, capitalized:
+Overloads would collide on the shared bookkeeping names, so the chain below runs over the mock's
+whole requirement set — **inherited requirements included**.
+
+1. The overload with the fewest parameters keeps the plain name.
+2. Every other one appends, per parameter in declaration order, the capitalized **argument label**,
+   or the capitalized parameter name where the parameter has no label.
+3. If that still collides, every overload in the group takes the step-2 form plus a suffix derived
+   from its return type.
+4. If a collision survives step 3, generation fails naming both members.
 
 ```swift
 func update(id: String)                → updateCallCount, updateArgs, updateHandler
-func update(id: String, force: Bool)   → updateIdForceCallCount, updateIdForceArgs, updateIdForceHandler
+func update(id: String, force: Bool)   → updateIdForceCallCount, …
+func end(atDocument document: String)  → endAtDocumentCallCount, …   // the label, not label + name
+func end(at fieldValues: [String])     → endAtCallCount, …
+func putData(_ data: Data, metadata: M) → putDataDataMetadataCallCount, …   // no label: the name
 ```
 
-Adding a wider overload later therefore does not rename the members an existing test already uses.
-Two overloads with the same number of parameters take the long form on both sides, and overloads
-differing only in return type get a suffix derived from that type. `methodName = "customName"` on a
-method names its members outright.
+Adding a wider overload later therefore does not rename members an existing test uses.
+
+**The requirement set includes what the protocol inherits, so a refinement can move a name.** A
+protocol declaring `func data() -> [String: Any]?` keeps `dataCallCount`; one refining it and
+overriding the return type has two requirements, and both take step 3's suffix —
+`dataStringAnyOptionalCallCount` and `dataStringAnyCallCount`. Nothing in either declaration says
+so; `/// sourcery: methodName = "customName"` is how a member's name is pinned.
 
 ## What is not recorded
 
@@ -209,16 +228,22 @@ table with the columns the other way round.
 | `<method>CallCount` | `<fn>CallCount` |
 | `<method>Args` | `<fn>Args`, elements of a nested `<Fn>Args` data class rather than a tuple |
 | `<method>Handler` | `<fn>Handler` |
-| `<var>GetCount`, `<var>GetHandler` | `<prop>GetCount`, `<prop>GetHandler` |
+| `<var>GetCount`, `<var>GetHandler` | `<prop>GetCount`, `<prop>GetHandler` — on a `Flow` property only |
 | `<var>SetCount` | `<prop>SetCount` |
-| `<method>Subject` for an `AnyPublisher` member | `<fn>Channel` for a `Flow` member |
+| `<name>Subject` for an `AnyPublisher` member | `<fn>Channel` for a `Flow` member |
 | `fatalError("<method>Handler expected to be set.")` | the same string, thrown as `IllegalStateException` |
 | the initializer-seeded bag | the constructor-seeded bag |
 
-Members with no counterpart there: `<method>CancelCallCount`, and the per-declaration annotations of
-this generator, which that processor has no equivalent for because it selects targets in the build
-script. The property getter that traps is spelled differently on this side — `` `<var>GetHandler`
-must be set! `` — where the method form matches Kotlin's string exactly.
+Members with no counterpart there — the rows to check before assuming the dialects match:
 
-The names, the subject-backed stream shape and the handler-expected string are shared deliberately.
-Renaming one of them is a change to both generators, not a local refactor.
+| this side | Kotlin |
+| --- | --- |
+| `<var>GetCount` / `<var>GetHandler` / `_<var>` on **every** property | a stored property has `SetCount` alone; no read counter, no handler, no store |
+| `<name>SubscribeCount`, `<name>SubscribeCancelCount`, `<name>OutputCount`, `<name>Outputs`, `<name>OutputHandler`, `<name>CompletionCount` | none — a `Flow` property is the channel, unwrapped |
+| `<name>EventCallCount` / `<name>Events` / `<name>EventHandler` for an `AnyObserver` member | none — a sink-shaped requirement reaches no branch there |
+| `<method>CancelCallCount`, `<method>DisposeCallCount` | none |
+| the per-declaration annotations | none — that processor selects targets in the build script |
+
+Both property getters now trap with the same sentence as both method forms,
+`<name>GetHandler expected to be set.` The names, the subject-backed stream shape and that string are
+shared deliberately: renaming one is a change to both generators, not a local refactor.

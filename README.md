@@ -46,6 +46,35 @@ final class DataServiceMock: DataService {
 }
 ```
 
+**The naming rule: a mock member is the declared name plus a suffix.** The name is taken verbatim,
+with backticks dropped and nothing else changed — no case change, no underscore removal, no
+first-word lowercasing. `func perform1_0()` gives `perform1_0CallCount`, `func ID()` gives
+`IDCallCount`, ``func `do`()`` gives `doCallCount`, `var setting4_2: Int` gives `setting4_2GetCount`.
+An overload is the one case where the prefix is not the declared name: the overload with the fewest
+parameters keeps it, and every other one appends the capitalized argument label of each parameter,
+or the parameter name where there is none.
+
+| suffix | on | emitted when |
+| --- | --- | --- |
+| `CallCount` | method | always |
+| `Args` | method | at least one recordable parameter |
+| `Handler` | method | always |
+| `GetCount`, `GetHandler` | property | always |
+| `SetCount` | property | the requirement is `{ get set }` |
+| `_<var>` | property | the stored value, seeded and read without moving a counter |
+| `Subject` | both | `AnyPublisher`, `Observable`, `Single` |
+| `SubscribeCount`, `SubscribeCancelCount` | both | `AnyPublisher` — the code under test subscribed, and cancelled |
+| `OutputCount`, `Outputs`, `OutputHandler` | both | `AnyPublisher` — values the member delivered |
+| `CompletionCount` | both | `AnyPublisher` — the stream finished or failed |
+| `EventCallCount`, `Events`, `EventHandler` | both | `AnyObserver` — events pushed in |
+| `CancelCallCount`, `CancelHandler` | method | the return type is `AnyCancellable` |
+| `DisposeCallCount`, `DisposeHandler` | method | the return type is `Disposable` |
+
+A returned token's suffix is the call that token exposes: `cancel()` on `AnyCancellable`,
+`dispose()` on RxSwift's `Disposable`. Every name is built in
+[`templates/Mocks/MockNaming.swift`](templates/Mocks/MockNaming.swift), and two members of one mock
+that would carry the same name fail generation naming both.
+
 **Key features:**
 - **Call counting** — `methodCallCount` tracks invocation count
 - **Argument recording** — `methodArgs` holds what each call was passed, in order. See [Recorded arguments](#recorded-arguments)
@@ -54,6 +83,8 @@ final class DataServiceMock: DataService {
 - **`async` / `throws` preservation** — an `async` requirement generates an `async` method with an `async` handler, so a spec can control *when* the call returns, not only what it returns
 - **Smart defaults** — Optional returns `nil`, Void returns nothing, known types get sensible defaults, and RxSwift / Combine types get a subject the test drives
 - **Overload disambiguation** — overloaded methods get distinct handler names automatically
+- **Property read counting** — every property requirement generates `<var>GetCount`, `<var>GetHandler` and a `_<var>` store; `mock._draft` reads and seeds the value without moving a counter
+- **Effectful property requirements** — `{ get async }`, `{ get throws }` and `{ get async throws }` generate the accessor they declare, with the same effects on `<var>GetHandler`
 
 ## Recorded arguments
 
@@ -129,6 +160,28 @@ protocol UserRepositoryProtocol {
 mock.meStreamSubject.send(UserSummary(uid: "u1", displayName: "Ada"))   // state, replayed
 mock.bootstrapSubject.send(())                                          // event
 ```
+
+**The member hands back a construct the mock owns, not the erased subject**, so it records what the
+code under test did with the stream rather than only that it asked for one:
+
+| counter | what it answers |
+| --- | --- |
+| `<var>GetCount` / `<method>CallCount` | it asked for the stream |
+| `<name>SubscribeCount` | it subscribed |
+| `<name>OutputCount`, `<name>Outputs` | a value reached it — counted on **delivery**, so a value sent while nobody is subscribed counts nothing and one delivered to two subscribers counts twice |
+| `<name>CompletionCount` | the stream finished or failed |
+| `<name>SubscribeCancelCount` | it cancelled |
+
+`<name>OutputHandler` runs after the counter and the recorder and sees each value as it lands, which
+is how a test sends the next one from inside it. `/// sourcery: skipArgumentRecording` on the member
+or the protocol drops `<name>Outputs`, leaving the counters and the handler.
+
+A property's `<var>GetHandler` is read when the code under test **subscribes**, not when it reads the
+member, so a handler seeded after the publisher was captured still decides the stream. A method's
+`<method>Handler` stays at call time, where its arguments are and where its `async` and `throws`
+apply, and a method handler that answers bypasses the subject — `<method>SubscribeCount` then stays
+at zero. A publisher requirement declared `{ get async }` or `{ get throws }` fails generation: the
+closure that reads its handler is synchronous.
 
 The subject is a **`PassthroughSubject`**, for a variable and for a method alike — the same rule the
 RxSwift members follow with `PublishSubject`. The double emits what the test sends it and nothing

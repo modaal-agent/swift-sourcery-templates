@@ -1395,3 +1395,82 @@ value.
 Gates: `run-checks.sh`, diff read, then `--record` — 353 added lines, 25 deleted; both language
 modes clean; behaviour checks pass; `run-annotation-checks.sh` and `run-skill-checks.sh` pass after
 the re-render; `Tests/Examples/ExampleProjectSpm/test-ios.sh` 20 tests, 0 failures.
+
+### P8 — the documents
+
+Each document states the rule for its own reader, and none re-derives another's reasoning.
+
+- **`SKILL.md`** — §2.1 in one sentence, §2.2 in four, and the §2.3 table rebuilt with an "on"
+  column: `_<var>`, the four publisher counters, `<name>Outputs` / `<name>OutputHandler`,
+  `<name>Events`, and **`Dispose*` on its own row beside `Cancel*`**, which is `:202`'s correction —
+  that line documented `<method>CancelCallCount` for both return types. Three sentences follow for
+  §2.5's property members, §2.6's effectful accessor and §2.7's subscribe-time handler. 282 lines
+  against the 400-line ceiling.
+- **`references/generated-api.md`** — the naming rule at the top, the full overload chain including
+  step 4, §1.4's refinement case with `methodName` named as the answer, §2.5's property shape with
+  `const` and `handler`, §2.6's effectful accessor, `Cancel*` and `Dispose*` against their own return
+  types, and the twin table gaining a second table of the rows the two generators do **not** share.
+- **`references/stream-members.md` is new.** The publisher and RxSwift material did not fit: with
+  §2.7's shape written out, `generated-api.md` reached 337 lines against a 250-line ceiling
+  (`AGENTS.md` §"The skill is for adopters"). Splitting is the better half of the trade — a
+  reference costs nothing until the agent opens it — so the stream shapes, the four counters, the
+  late-seeded handler, the delivery-not-sending rule and the `AnyObserver` recorder live in their
+  own 89-line file, and `generated-api.md` (249) carries a five-line summary and a link. P8's plan
+  assumed one file; it is now two.
+- **`references/troubleshooting.md`** — three new sections: `has no member '<name>'` (§2.1 and
+  §2.2, including that a refinement can move a name), a property read count that moved because the
+  test read the property rather than `_<var>` (§2.5), and `<name>SubscribeCount` at zero (§2.7,
+  with delivery-not-sending and the method-handler-bypasses-the-subject case).
+- **`README.md`** §"Generated Mock API" — the rule and the full §2.3 suffix table, with
+  `MockNaming.swift` named as where every name is built; two new key-feature bullets for §2.5 and
+  §2.6. §"Combine" — a table of which counter answers which question, the subscribe-time handler,
+  the `skipArgumentRecording` opt-out and the effectful-publisher refusal. What the subject is and
+  what `subject = "CurrentValue"` does is unchanged, and says so.
+- **`CONTRIBUTING.md`** — §"Where to change what" gains "A mock member's name", naming
+  `MockNaming.swift` and the fact that the uniqueness check reads names back out of the emitted
+  declarations, so a new member is covered without being enumerated. §"Design rules already decided"
+  gains three rules (§2.1–§2.2, §2.5, §2.6) and the publisher entry is **amended rather than
+  replaced** — the subject and its default are unchanged and what is added is the construct around
+  them. §"Open items" loses the effectful-property entry, which P6 closed, and gains typed throws
+  and `AnySubscriber` (§8 questions 1 and 4).
+- **`AGENTS.md` / `CLAUDE.md`** §"State a rule once" — one bullet naming `MockNaming.swift`, kept
+  byte-identical with `cp`.
+- **`Tests/Evals/member-names`** — the sixth case. It asks which members a mock gives for
+  `setting4_2`, `pageSize`, `perform1_0()`, `ID()` and a three-way `end` overload group, with the
+  generated file deliberately out of reach. Five graders: the skill fired (with-arm only), the
+  prefix is verbatim (failing on `perform10CallCount`, `iDCallCount` or one rule for methods and
+  another for properties), the overload names (failing on `endAtFieldValuesCallCount` — the label
+  *and* the name — or on the plain name going to the wrong overload), the property members (failing
+  if a read-only requirement is said to generate none), and a regex for `perform1_0CallCount`. The
+  five-prompt count in `AGENTS.md`, `CONTRIBUTING.md` and `Tests/Evals/README.md` is now six.
+
+**Not done here, and why.** `kotlin-ksp-mocks/skills/kotlin-ksp-mocks/references/generated-api.md`'s
+twin table is a change to another repository, which P8 itself records as "a follow-up in that
+repository". The Swift-side half of that pair — the table naming the rows the two generators do not
+share — is in `references/generated-api.md` as of this phase, so the two tables are out of step
+until that follow-up lands. See the P9 amendment below.
+
+Gates: `run-skill-checks.sh` (SC5 at 282 / 249 / 89 lines, SC8 every link resolves, SC9 no version
+literal — a first draft of the troubleshooting entry named the release the transform changed in and
+SC9 caught it, SC13 six cases and 23 graders), `run-annotation-checks.sh` after the re-render, and
+`run-checks.sh`.
+
+### P9 amendment — re-align the Kotlin twin before the tag
+
+Superseding §4 P9's ordering, and recorded here because it was decided while P8 was being written:
+**the two repositories are brought back into step before this change is tagged**, not after. What
+that covers, and what each repository owes:
+
+1. `kotlin-ksp-mocks`' twin table gains the rows this side now names (P8's list above) — the
+   stored-property read counter, the publisher counters and recorders, and `<method>EventCallCount`
+   for an `AnyObserver` member, none of which either table carried before (D11).
+2. Whether `kotlin-ksp-mocks` adopts §2.5 — `GetCount`, `GetHandler` and a backing store on every
+   property requirement rather than `SetCount` alone (`MockRenderer.kt:127-140`, re-measured in
+   §9's P5 entry) — is decided before the tag rather than left open. If it does not, both twin
+   tables say so in the same words.
+3. `CHANGELOG.md`'s entry names the state of the twin as of the tag, so a consumer testing the same
+   logic on both platforms reads one answer rather than inferring it from two tables written at
+   different times.
+
+The rest of §4 P9 stands: the entry's three headings, the consumer delta from §5 measured into it,
+and the entry written before the tag.

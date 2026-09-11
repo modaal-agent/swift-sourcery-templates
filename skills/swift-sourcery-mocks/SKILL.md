@@ -192,17 +192,48 @@ XCTAssertEqual(service.fetchDataArgs, ["m1"])
 service.fetchDataHandler = { id, completion in completion("payload", nil) }
 ```
 
-| member | what it holds |
-| --- | --- |
-| `<method>CallCount` | how many times the requirement was called |
-| `<method>Args` | what each call was passed, in order. One recordable parameter gives `[T]`; two or more give `[(first: A, second: B)]`, labelled with the parameter names |
-| `<method>Handler` | the closure the test sets to control the return value and the side effects. `async` and `throws` are carried through to it |
-| `<var>GetCount` / `<var>GetHandler` / `<var>SetCount` | the same three for a property requirement |
-| `<method>Subject` / `<var>Subject` | the subject backing an `AnyPublisher` or an RxSwift member, which the test drives with `send` |
-| `<method>CancelCallCount` | for a method returning `AnyCancellable` or a `Disposable`: how many times the returned token was cancelled |
+**A mock member is the declared name plus a suffix.** The name is taken verbatim — no case change,
+no underscore removal — with backticks dropped: `func perform1_0()` gives `perform1_0CallCount`,
+`func ID()` gives `IDCallCount`, ``func `do`()`` gives `doCallCount`, `var setting4_2: Int` gives
+`setting4_2GetCount`.
+
+**Overloads.** The overload with the fewest parameters keeps the plain name. Each other one appends
+the capitalized argument label of every parameter, or the parameter name where there is no label —
+`func end(atDocument document:)` gives `endAtDocument`, `func putData(_ data:metadata:)` gives
+`putDataDataMetadata`. Overloads differing only in return type get a suffix from that type, and
+anything still colliding fails generation naming both members.
+
+| member | on | what it holds |
+| --- | --- | --- |
+| `<method>CallCount` | method | how many times the requirement was called |
+| `<method>Args` | method | what each call was passed, in order. One recordable parameter gives `[T]`; two or more give `[(first: A, second: B)]`, labelled with the parameter names |
+| `<method>Handler` | method | the closure the test sets to control the return value and the side effects. `async` and `throws` are carried through to it |
+| `<var>GetCount` / `<var>GetHandler` | property | every property requirement counts its reads, and the handler supplies the value |
+| `<var>SetCount` | property | writes to a `{ get set }` requirement |
+| `_<var>` | property | the stored value. Seed or read it to leave the counters where they are |
+| `<name>Subject` | both | the subject backing an `AnyPublisher` or an RxSwift member, which the test drives with `send` |
+| `<name>SubscribeCount` / `<name>SubscribeCancelCount` | both | for an `AnyPublisher` member: that the code under test subscribed, and that it cancelled |
+| `<name>OutputCount` / `<name>Outputs` / `<name>OutputHandler` | both | for an `AnyPublisher` member: the values it **delivered** — counted, recorded, handed to the handler |
+| `<name>CompletionCount` | both | for an `AnyPublisher` member: the stream finished or failed |
+| `<name>EventCallCount` / `<name>Events` / `<name>EventHandler` | both | for an `AnyObserver` member: the events pushed **in** — counted, recorded, handed to the handler |
+| `<method>CancelCallCount` / `<method>CancelHandler` | method | for a method returning `AnyCancellable`: the returned token was cancelled |
+| `<method>DisposeCallCount` / `<method>DisposeHandler` | method | for a method returning an RxSwift `Disposable`: the returned token was disposed |
+
+A returned token's suffix is the call that token exposes — `cancel()` on `AnyCancellable`,
+`dispose()` on `Disposable`.
 
 Closure parameters, a generic method's parameters and anything annotated `skipArgumentRecording` are
-not recorded — assert through the handler.
+not recorded — assert through the handler. `skipArgumentRecording` covers `<name>Outputs` and
+`<name>Events` too.
+
+**A property requirement declared `{ get async }`, `{ get throws }` or `{ get async throws }`**
+generates the accessor it declares, and `<var>GetHandler` carries the same effects. Swift has no
+effectful setter, so such a requirement has no `<var>SetCount`; seed `_<var>`.
+
+**A publisher member's handler is read when the code under test subscribes**, not when it reads the
+member — so a `<var>GetHandler` set after the publisher was captured still decides the stream.
+`<name>OutputCount` counts delivery, not sending: a value sent while nobody is subscribed goes
+nowhere and counts nothing.
 
 Return values default without a handler: `Optional` gives `nil`, `Void` gives nothing, known types
 give a usable empty value. Mock classes are `final` — set a handler rather than subclassing one.
@@ -212,7 +243,8 @@ The generated file compiles at zero diagnostics under `-swift-version 5
 mock class, `nonisolated` is carried through, and a `Sendable` protocol gets `@unchecked Sendable`.
 
 The emitted Swift for each shape, and the member map to the Kotlin twin, is
-[references/generated-api.md](references/generated-api.md).
+[references/generated-api.md](references/generated-api.md); the publisher and RxSwift shapes and
+their counters are [references/stream-members.md](references/stream-members.md).
 
 ## Publishers are subject-backed
 

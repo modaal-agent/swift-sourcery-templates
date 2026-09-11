@@ -43,7 +43,7 @@ Tests/                              # everything that verifies the product — s
   Examples/
     ExampleProjectSpm/              # full lane — RxSwift, RIBs, type erasure, the plugin
     ExampleProjectXcode/            # the adopter's shape, by URL at a tag — not a lane
-  Evals/                            # the skill's behavioural gate — five prompts, run with it and without
+  Evals/                            # the skill's behavioural gate — six prompts, run with it and without
 Scripts/
   assemble-release.sh               # builds the release assets — see Cutting a release
   engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
@@ -102,6 +102,20 @@ its consumers need no Sourcery installation.
 3. Add the shape to `Tests/Checks/Fixtures/`, `--record`, read the diff
 4. If it needs RxSwift or RIBs to express, add a protocol to the example project's `Protocols.swift`
    and a Quick spec
+
+### A mock member's name
+
+`templates/Mocks/MockNaming.swift`. It holds the prefix derivation for a method and for a property,
+the overload chain, every suffix, the store's spelling, the two `fatalError` strings and the
+uniqueness check every emitted name goes through. `MockMethod`, `MockVar`, `MockGenerator` and
+`SourceryRuntimeExtensions` call it rather than interpolating a suffix where the member is emitted —
+that is how the method trap string and the property one came to differ by three words and a pair of
+backticks, each written at its own site
+(`specs/004-mock-member-naming/spec.md` §1.8, D5).
+
+Adding a member means adding its function there and calling it. The uniqueness check reads names
+back out of the declarations a class emits, so a new member is covered by it without being
+enumerated anywhere.
 
 ### A new smart default value
 
@@ -206,6 +220,26 @@ silence.
 
 ## Design rules already decided
 
+**A mock member is the declared name plus a suffix.** The name is taken verbatim, with backticks
+dropped and nothing else changed. An overloaded method is the one exception: the overload with the
+fewest parameters keeps the plain prefix and every other one appends the capitalized argument label
+of each parameter, or the parameter name where there is none; a group that still collides takes a
+return-type suffix, and one that still collides after that fails generation naming both members.
+The suffix set and the rule are in `specs/004-mock-member-naming/spec.md` §2, and
+`templates/Mocks/MockNaming.swift` is where they live.
+
+**Every property requirement is accessors over a `_<var>` store.** A stored property cannot observe
+a read, so `<var>GetCount` and `<var>GetHandler` are emitted for every requirement and the generated
+initializer seeds the store — construction moves no counter, and a test that does not want to move
+one reads and seeds `_<var>`. The witness stays settable wherever it was settable before that
+change; `const` and `handler` were not settable and are not now.
+
+**An effectful property requirement generates the accessor it declares.** `{ get async }`,
+`{ get throws }` and `{ get async throws }` carry through to the accessor and to
+`<var>GetHandler`'s type. Swift has no effectful setter, so such a requirement is get-only.
+A typed throw — `throws(E)` on a property or a method — is refused with a diagnostic: the templates
+write bare `throws`, which does not satisfy it.
+
 **Mock classes are `final`.** Subclassing a generated mock is not supported; setting a handler is the
 supported way to change behaviour.
 
@@ -246,6 +280,23 @@ traps. It cannot be opted out of at the call site either: assigning a `Passthrou
 `checkCombineStreams` asserts all four corners: the default does not replay, a get handler that
 returns a `CurrentValueSubject` does, `share(id:)` says nothing until the test sends, and the
 annotated `token()` answers on subscribe.
+
+**What is added around that subject is a construct the mock owns.** The member returns a `Deferred`
+whose closure runs once per subscription, wrapped in `handleEvents`, so the mock counts
+`<name>SubscribeCount`, `<name>OutputCount`, `<name>CompletionCount` and
+`<name>SubscribeCancelCount` and records `<name>Outputs` — it recorded only that the code under test
+*asked* for the stream before. The subject, its kind and what `subject = "CurrentValue"` does are
+unchanged. A property reads `<var>GetHandler` inside that closure, so a handler seeded after the
+publisher was captured decides the stream; a method keeps `<method>Handler` at call time, where its
+arguments are and where its `async` and `throws` apply. The closure captures the subject directly
+and the mock weakly — the stream still delivers after the mock is released and only the counting
+stops. A publisher requirement declared `{ get async }` or `{ get throws }` is refused: that closure
+is synchronous. `checkPublisherCounting` asserts each of these.
+
+**An `AnyObserver` member records what was pushed into it**, as `<name>Events`, beside the count it
+already kept — the RxSwift dual of `<name>Outputs`. Both sit under `skipArgumentRecording`, for the
+reason `<method>Args` does: a recorded value lives as long as the mock. `Event` declares no
+`Equatable` conformance, so a test reads `<name>Events` through `compactMap(\.element)`.
 
 **A Component refuses what it cannot forward** — `static`, `init` and `subscript` requirements, and
 associated types — with a diagnostic naming the member. Check `isInitializer` **before** `isStatic`:
@@ -322,7 +373,7 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
-`Tests/Evals/` is not a lane. It is the skill's behavioural gate: each of five prompts run once with
+`Tests/Evals/` is not a lane. It is the skill's behavioural gate: each of six prompts run once with
 the plugin loaded and once without, and the two answers compared — `claude plugin eval . --ablation
 with-without`, or the pair of `claude -p` invocations in `Tests/Evals/README.md`. It spends model
 calls and a few minutes, the runner is in early access, and no CI job runs it. Run it when the
@@ -503,11 +554,13 @@ the assets to the tag's GitHub release.
   `SetCount`). Decide whether it is the default or gated behind an annotation (`sourcery:
   publicMock`) or a template arg (`--args publicMocks`); `public` as the default is probably right,
   since mocks are always consumed from another module.
-- **Effectful property requirements in the mock template.** `var x: T { get async throws }` is
-  parsed by Sourcery (`Variable.isAsync`, `Variable.throws`) and ignored by `Mocks.swifttemplate`,
-  which emits a plain property that does not satisfy the requirement. Fixing it means always
-  emitting a computed property with a `get async throws { }` accessor plus a separate backing store
-  — a new naming convention, so it was left out of 0.2.15 rather than guessed at. No consumer uses
-  the shape. The Component template **does** forward it (`Tests/Checks/Fixtures/Forwarding.swift`,
-  `ProfileDependency`), because forwarding an effectful requirement is a pass-through and mocking
-  one is not.
+- **Typed throws.** `func f() throws(E)` and `var x: T { get throws(E) }` reach the templates as
+  `Method.throwsTypeName` and `Variable.throwsTypeName`, and both are refused with a diagnostic:
+  `MockMethod.throwingDecl` writes bare `throws`, and a witness throwing `any Error` does not
+  satisfy a requirement throwing `E`. Emitting the typed form means carrying the error type into the
+  method signature, the handler type and the accessor, and deciding what an unset handler throws. No
+  fixture and no consumer protocol in reach declares one.
+- **`AnySubscriber`.** Combine's dual of RxSwift's `AnyObserver` reaches no branch of
+  `smartDefaultValueImplementation` and falls through to `MockError.noDefaultValue`, so a
+  requirement returning one is constructor-seeded or traps for want of a handler. A coverage gap
+  rather than a naming one; no protocol in reach declares it.

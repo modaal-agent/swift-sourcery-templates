@@ -14,6 +14,7 @@ skill and run that case again.
 | `cross-module-protocol` | a protocol declared in another module | `${SOURCERY_SOURCES}`, and another `--sources` on the CLI lane |
 | `does-not-conform` | why `PaymentsMock` does not conform to `Refunding` | the refined protocol was not among the parsed sources |
 | `publisher-hangs` | why a test awaiting the mock's publisher hangs | the backing `PassthroughSubject` does not replay |
+| `member-names` | which members a mock gives for underscored names and an overload group | the declared name verbatim; the fewest-parameter overload keeps it, the rest take their argument labels |
 
 ## Running them
 
