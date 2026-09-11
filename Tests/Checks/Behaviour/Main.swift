@@ -196,6 +196,114 @@ func checkCombineStreams() {
   expectEqual(repository.isRefreshingGetCount, 1, "a variable get is counted")
 }
 
+/// What the construct a publisher member hands back records
+/// (`specs/004-mock-member-naming/spec.md` §2.7). The member returns a `Deferred`
+/// the mock owns, so it can tell "asked for the stream" from "subscribed" from
+/// "was actually sent something" — three facts that were one counter before.
+func checkPublisherCounting() {
+  var cancellables: Set<AnyCancellable> = []
+
+  let repository = MemoryRepositoryProtocolMock()
+  _ = repository.ownMemories
+  expectEqual(repository.ownMemoriesGetCount, 1, "reading the member counts a read")
+  expectEqual(repository.ownMemoriesSubscribeCount, 0, "and no subscription")
+
+  let held = repository.ownMemories
+  var seen: [[MemoryDrop]] = []
+  held.sink { seen.append($0) }.store(in: &cancellables)
+  expectEqual(repository.ownMemoriesSubscribeCount, 1, "subscribing counts a subscription")
+
+  // Delivery is counted, not sending: a `PassthroughSubject` drops a value that
+  // reaches no subscriber, and `<name>OutputCount` is how a test sees that.
+  let quiet = MemoryRepositoryProtocolMock()
+  quiet.ownMemoriesSubject.send([MemoryDrop(id: "unheard")])
+  expectEqual(quiet.ownMemoriesOutputCount, 0, "a send with nobody subscribed counts no output")
+
+  repository.ownMemoriesSubject.send([MemoryDrop(id: "a")])
+  expectEqual(repository.ownMemoriesOutputCount, 1, "a delivered value counts one output")
+  expectEqual(repository.ownMemoriesOutputs, [[MemoryDrop(id: "a")]], "and is recorded")
+
+  // A publisher records per subscription, so one send to two subscribers counts
+  // and records twice.
+  repository.ownMemories.sink { _ in }.store(in: &cancellables)
+  expectEqual(repository.ownMemoriesSubscribeCount, 2, "a second subscription counts")
+  repository.ownMemoriesSubject.send([MemoryDrop(id: "b")])
+  expectEqual(repository.ownMemoriesOutputCount, 3, "one send to two subscribers counts twice")
+
+  repository.ownMemoriesSubject.send(completion: .finished)
+  expectEqual(repository.ownMemoriesCompletionCount, 2, "a completion is counted per subscription")
+
+  // Cancellation, counted separately from the subscription that produced it.
+  let cancelling = MemoryRepositoryProtocolMock()
+  var token: AnyCancellable? = cancelling.ownMemories.sink { _ in }
+  expectEqual(cancelling.ownMemoriesSubscribeCancelCount, 0, "an open subscription counts no cancel")
+  token?.cancel()
+  token = nil
+  expectEqual(cancelling.ownMemoriesSubscribeCancelCount, 1, "cancelling counts a cancel")
+
+  // The handler is read when the code under test subscribes, not when it reads
+  // the member — so a handler seeded after the publisher was captured decides
+  // the stream. That is what the `Deferred` buys over erasing the subject.
+  let late = MemoryRepositoryProtocolMock()
+  let captured = late.ownMemories
+  late.ownMemoriesGetHandler = { Just([MemoryDrop(id: "late")]).eraseToAnyPublisher() }
+  var lateSeen: [[MemoryDrop]] = []
+  captured.sink { lateSeen.append($0) }.store(in: &cancellables)
+  expectEqual(lateSeen, [[MemoryDrop(id: "late")]], "a handler seeded after capture decides the stream")
+  expectEqual(late.ownMemoriesOutputCount, 1, "a handler-supplied stream's values are counted too")
+  expectEqual(late.ownMemoriesCompletionCount, 1, "and its completion")
+
+  // `<name>OutputHandler` runs after the counter and the recorder, and sees each
+  // value as it lands — which is how a test drives a chain from inside it.
+  let chained = MemoryRepositoryProtocolMock()
+  var observed: [String] = []
+  chained.shareOutputHandler = { value in
+    observed.append(value)
+    if value == "first" { chained.shareSubject.send("second") }
+  }
+  chained.share(id: "a").sink(receiveCompletion: { _ in }, receiveValue: { _ in }).store(in: &cancellables)
+  chained.shareSubject.send("first")
+  expectEqual(observed, ["first", "second"], "the output handler sees each value and can send the next")
+  expectEqual(chained.shareOutputs, ["first", "second"], "and the recorder holds both")
+
+  // A method keeps its handler at call time, where its arguments are.
+  let handled = MemoryRepositoryProtocolMock()
+  handled.shareHandler = { _ in Just("direct").setFailureType(to: Error.self).eraseToAnyPublisher() }
+  var direct: [String] = []
+  handled.share(id: "a").sink(receiveCompletion: { _ in }, receiveValue: { direct.append($0) })
+    .store(in: &cancellables)
+  expectEqual(direct, ["direct"], "a method handler still answers at call time")
+  expectEqual(handled.shareSubscribeCount, 0, "and bypasses the deferred subject entirely")
+
+  // The stream outlives the mock: the closure captures the subject directly and
+  // the mock weakly, so only the counting stops.
+  let subject: PassthroughSubject<[MemoryDrop], Never>
+  var survivor: AnyPublisher<[MemoryDrop], Never>
+  do {
+    let short = MemoryRepositoryProtocolMock()
+    subject = short.ownMemoriesSubject
+    survivor = short.ownMemories
+  }
+  var afterRelease: [[MemoryDrop]] = []
+  survivor.sink { afterRelease.append($0) }.store(in: &cancellables)
+  subject.send([MemoryDrop(id: "c")])
+  expectEqual(afterRelease, [[MemoryDrop(id: "c")]], "the stream still delivers after the mock is released")
+
+  // `skipArgumentRecording` suppresses the recorder and nothing else.
+  let frames = FrameStreamingMock()
+  frames.frames.sink { _ in }.store(in: &cancellables)
+  frames.rawFrames.sink { _ in }.store(in: &cancellables)
+  let player = FeedAudioPlayer(memoryRepository: MemoryRepositoryProtocolMock(), analytics: AnalyticsTrackingMock())
+  frames.framesSubject.send(player)
+  frames.rawFramesSubject.send(player)
+  expectEqual(frames.framesOutputs.count, 1, "an unannotated member records what it delivered")
+  expectEqual(frames.rawFramesOutputCount, 1, "an opted-out member still counts its outputs")
+  var raw: [FeedAudioPlayer] = []
+  frames.rawFramesOutputHandler = { raw.append($0) }
+  frames.rawFramesSubject.send(player)
+  expectEqual(raw.count, 1, "and still runs its output handler")
+}
+
 @MainActor
 func checkComposition() {
   // A Dependency mock takes its whole surface through the initializer, which is
@@ -568,6 +676,7 @@ enum BehaviourChecks {
     await checkAsync()
     await checkNonisolatedMembers()
     checkCombineStreams()
+    checkPublisherCounting()
     checkComposition()
     checkSendableClosureParameters()
     checkSendableMock()

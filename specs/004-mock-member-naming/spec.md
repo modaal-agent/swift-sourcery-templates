@@ -1335,3 +1335,63 @@ Gates: `run-checks.sh`, diff read, then `--record` — 74 added lines, no delete
 modes clean; behaviour checks pass; `Tests/Examples/ExampleProjectSpm/test-ios.sh` 19 tests, 0
 failures. P8 deletes `CONTRIBUTING.md` §"Open items"'s effectful-property entry, which this phase
 closes, and adds typed throws in its place.
+
+### P7 — the publisher construct, and what a stream member records
+
+`SourceryRuntimeExtensions.smartDefaultValueImplementation` now returns
+`(getterImplementation: [SourceCode], mockedVariableHandlers: [SourceCode], suppliesHandlerConsultation: Bool)`
+and takes `recordsStreamValues`. The third element is what lets the publisher branch own the handler
+read: `MockVar` emits its own `if let handler = <var>GetHandler` only when the branch does not, so
+the handler is consulted once, at subscribe time (§2.7), rather than twice at two different moments.
+
+**The `AnyPublisher` branch emits §2.7's construct verbatim**, in the property form (the
+`<var>GetHandler` read inside the `Deferred` closure) and the method form (only the subject fallback
+deferred; `<method>Handler` stays at call time, where its arguments are). Nine members per publisher
+requirement, in the order §2.7 lists them.
+
+**The `AnyObserver` branch gains `<name>Events: [Event<Element>]`**, appended between the counter and
+the handler — the order `<method>CallCount` / `<method>Args` / `<method>Handler` already sets, so a
+handler that traps does not un-make the event.
+
+`SourceCode` gains one property, `trailer`: text emitted immediately after a block's closing brace.
+It is what lets `handleEvents(receiveOutput: { … }, receiveCompletion: …, receiveCancel: …)` be
+built as a block rather than as a hand-indented multi-line string literal, which is how the `Single`
+branch's body is written and why that body carries hardcoded leading spaces. The `Deferred`, the
+`.handleEvents(…)` and the `.eraseToAnyPublisher()` are three siblings at one level — Swift parses a
+leading-dot line after a closing brace as a continuation.
+
+`AnnotationRegistry.skipArgumentRecording`'s target widens to `Protocol / method / variable` and its
+effect names all three arrays; `Scripts/render-annotations.sh --write` re-rendered `README.md`,
+`SKILL.md` and `references/writing-testable-protocols.md`. On a method the opt-out already excluded
+generics, and `<method>Outputs` takes that exclusion too, for the same reason: the element type would
+name the method's generic parameters and a stored property can only name the class's.
+
+**One refusal §2.7 implies and does not state.** An `AnyPublisher` requirement declared `{ get async }`
+or `{ get throws }` cannot carry its effects into a synchronous `Deferred` closure, and before P7 it
+emitted an accessor whose effects the subject erase satisfied by accident. `MockVar` throws
+`MockError.effectfulStreamRequirement` naming the protocol, the member and the two ways out. The
+`refusal` gate carries it as a seventh case.
+
+Fixtures: `Streams.swift` gains `FrameStreaming` (a recording member, an opted-out member and an
+opted-out method) and `FrameRetaining` (the opt-out on the type).
+`Tests/Checks/Behaviour/Main.swift` gains `checkPublisherCounting`, 22 assertions — every check §2.7
+records as measured, run against the emitted shapes rather than against a scratch file:
+
+reading counts a read and no subscription; subscribing counts a subscription; a send with nobody
+subscribed counts no output; a delivered value counts one and is recorded; one send to two
+subscribers counts twice; a completion is counted per subscription; an open subscription counts no
+cancel and `cancel()` counts one; a handler seeded *after* the publisher was captured decides the
+stream, and its values and its completion are counted; `<name>OutputHandler` sees each value and can
+send the next from inside itself, with the recorder holding both; a method's handler still answers at
+call time and bypasses the deferred subject entirely; the stream still delivers after the mock is
+released; and `skipArgumentRecording` suppresses the recorder while leaving the counter and the
+output handler working.
+
+`Tests/Examples/ExampleProjectSpm`'s `SwiftSourceryTemplatesMocksSpec` gains the assertion §1.9
+measured a consumer giving up on — `expect(sut.entityObserverEvents.compactMap(\.element)) ==
+["next element"]` beside the existing `entityObserverEventCallCount` assertion, on the same pushed
+value.
+
+Gates: `run-checks.sh`, diff read, then `--record` — 353 added lines, 25 deleted; both language
+modes clean; behaviour checks pass; `run-annotation-checks.sh` and `run-skill-checks.sh` pass after
+the re-render; `Tests/Examples/ExampleProjectSpm/test-ios.sh` 20 tests, 0 failures.

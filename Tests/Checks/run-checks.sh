@@ -236,6 +236,7 @@ COLLISION_CASES=(
   "overload:CollidingOverload:sendToVoidCallCount"
   "typedthrowsvar:TypedThrowingProperty:secret"
   "typedthrowsfunc:TypedThrowingMethod:load"
+  "effectfulstream:EffectfulStreaming:frames"
 )
 
 mkdir -p "$COLLISION_DIR/bookkeeping"
@@ -288,6 +289,18 @@ public enum LoadFailure: Error { case unavailable }
 /// sourcery: ProtocolMock
 public protocol TypedThrowingMethod: AnyObject {
     func load() throws(LoadFailure) -> String
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/effectfulstream"
+cat > "$COLLISION_DIR/effectfulstream/EffectfulStream.swift" <<'SWIFT'
+// A publisher requirement declared `{ get async }`. The member hands back a
+// `Deferred` whose closure reads the handler when the code under test
+// subscribes, and that closure is synchronous.
+import Combine
+/// sourcery: ProtocolMock
+public protocol EffectfulStreaming: AnyObject {
+    var frames: AnyPublisher<Int, Never> { get async }
 }
 SWIFT
 

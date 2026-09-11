@@ -18,6 +18,10 @@ case collidingMemberNames(typeName: String, memberName: String)
 /// requirement is refused in generation rather than at the consumer's
 /// conformance (`spec.md` §2.6, §8 question 1).
 case typedThrowsUnsupported(typeName: String, member: String, errorTypeName: String)
+/// An `AnyPublisher` requirement declared `{ get async }` or `{ get throws }`.
+/// The construct it returns reads its handler from inside a synchronous
+/// closure, which cannot await or rethrow (`spec.md` §2.7).
+case effectfulStreamRequirement(typeName: String, member: String)
 case internalError(message: String)
 }
 
@@ -171,6 +175,14 @@ extension MockError: LocalizedError {
                 bare `throws`, and a witness that throws `any Error` does not satisfy a requirement \
                 that throws `\(errorTypeName)`. Declare the requirement `throws` on the protocol, or \
                 write this double by hand.
+                """
+        case .effectfulStreamRequirement(let typeName, let member):
+            return """
+                `\(typeName).\(member)` returns a publisher and is declared `async` or `throws`. \
+                The generated member hands back a `Deferred` whose closure reads \
+                `\(member)GetHandler` when the code under test subscribes, and that closure is \
+                synchronous. Drop the effects from the requirement, or return the stream from a \
+                method instead, where the handler is called with the method's own effects.
                 """
         case .collidingMemberNames(let typeName, let memberName):
             return """

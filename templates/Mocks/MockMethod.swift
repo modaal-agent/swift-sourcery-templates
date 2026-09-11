@@ -138,10 +138,11 @@ extension MockMethod {
                     isProperty: false,
                     mockVariablePrefix: mockedMethodName,
                     forceCastingToReturnTypeName: isGeneric,
-                    requestedSubjectKind: method.requestedSubjectKind)
+                    requestedSubjectKind: method.requestedSubjectKind,
+                    recordsStreamValues: recordsStreamValues)
 
-                methodImpl += smartDefaultValueImplementation.0
-                mockMethodHandlers += smartDefaultValueImplementation.1.isolated(storageIsolationDecl)
+                methodImpl += smartDefaultValueImplementation.getterImplementation
+                mockMethodHandlers += smartDefaultValueImplementation.mockedVariableHandlers.isolated(storageIsolationDecl)
             } else if method.returnTypeName.hasDefaultValue, let defaultValue = try? method.returnTypeName.defaultValue() {
                 methodImpl += SourceCode("return \(defaultValue)")
             } else {
@@ -179,10 +180,18 @@ extension MockMethod {
     ///   would produce `[(objects: S, …)]` on a class whose `S` is a different
     ///   type.
     private var recordedParameters: [SourceryRuntime.MethodParameter] {
-        guard !isGeneric,
-              !method.isAnnotatedSkipArgumentRecording,
-              !type.isAnnotatedSkipArgumentRecording else { return [] }
+        guard recordsStreamValues else { return [] }
         return method.parameters.filter { $0.isRecordable }
+    }
+
+    /// The same opt-outs, applied to `<method>Outputs` / `<method>Events` on a
+    /// method returning a stream (D13). A generic method is excluded for the
+    /// reason its arguments are: the element type names the *method's* generic
+    /// parameters, and a stored property can only name the class's.
+    private var recordsStreamValues: Bool {
+        return !isGeneric
+            && !method.isAnnotatedSkipArgumentRecording
+            && !type.isAnnotatedSkipArgumentRecording
     }
 
     /// The recorded-arguments array and the line that appends to it, or `nil`

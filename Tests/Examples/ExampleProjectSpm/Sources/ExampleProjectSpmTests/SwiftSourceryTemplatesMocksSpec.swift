@@ -53,6 +53,15 @@ class SwiftSourceryTemplatesMocksSpec: QuickSpec {
           it("entityObserverEvent call count increased") {
             expect(sut.entityObserverEventCallCount) == 1
           }
+          // The count says an event arrived; the recorder says which one.
+          // Asserting the value took a handler appending into a local array
+          // before `<name>Events`, and no spec in the reference consumer did
+          // that for any member (spec 004 §1.9, D13). `Event` declares no
+          // `Equatable` conformance, so the value is read through
+          // `compactMap(\.element)` rather than compared whole.
+          it("entityObserverEvents records the element that was pushed in") {
+            expect(sut.entityObserverEvents.compactMap(\.element)) == ["next element"]
+          }
         } // context("entityObserver.on() called")
       }
     } // describe("mock with AnyObserver")

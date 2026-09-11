@@ -385,6 +385,139 @@ final class DiagnosticsReportingMock: DiagnosticsReporting {
     nonisolated(unsafe) var reportHandler: ((_ code: String, _ detail: String?) -> ())? = nil
 }
 
+// MARK: - FrameRetaining
+final class FrameRetainingMock: FrameRetaining {
+
+    // MARK: - Variables
+    var frames: AnyPublisher<FeedAudioPlayer, Never> {
+        framesGetCount += 1
+        return Deferred { [weak self, subject = framesSubject] () -> AnyPublisher<FeedAudioPlayer, Never> in
+            self?.framesSubscribeCount += 1
+            if let handler = self?.framesGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.framesOutputCount += 1
+            self?.framesOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.framesCompletionCount += 1 }, receiveCancel: { [weak self] in self?.framesSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
+    }
+    var framesGetCount: Int = 0
+    var framesGetHandler: (() -> AnyPublisher<FeedAudioPlayer, Never>)? = nil
+    var framesSubscribeCount: Int = 0
+    var framesSubscribeCancelCount: Int = 0
+    var framesOutputCount: Int = 0
+    var framesOutputHandler: ((FeedAudioPlayer) -> Void)? = nil
+    var framesCompletionCount: Int = 0
+    lazy var framesSubject = PassthroughSubject<FeedAudioPlayer, Never>()
+
+    // MARK: - Methods
+    func replay(tag: String) -> AnyPublisher<FeedAudioPlayer, Never> {
+        replayCallCount += 1
+        if let __replayHandler = self.replayHandler {
+            return __replayHandler(tag)
+        }
+        return Deferred { [weak self, subject = replaySubject] () -> AnyPublisher<FeedAudioPlayer, Never> in
+            self?.replaySubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.replayOutputCount += 1
+            self?.replayOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.replayCompletionCount += 1 }, receiveCancel: { [weak self] in self?.replaySubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
+    }
+    var replayCallCount: Int = 0
+    var replayHandler: ((_ tag: String) -> (AnyPublisher<FeedAudioPlayer, Never>))? = nil
+    var replaySubscribeCount: Int = 0
+    var replaySubscribeCancelCount: Int = 0
+    var replayOutputCount: Int = 0
+    var replayOutputHandler: ((FeedAudioPlayer) -> Void)? = nil
+    var replayCompletionCount: Int = 0
+    lazy var replaySubject = PassthroughSubject<FeedAudioPlayer, Never>()
+}
+
+// MARK: - FrameStreaming
+final class FrameStreamingMock: FrameStreaming {
+
+    // MARK: - Variables
+    var frames: AnyPublisher<FeedAudioPlayer, Never> {
+        framesGetCount += 1
+        return Deferred { [weak self, subject = framesSubject] () -> AnyPublisher<FeedAudioPlayer, Never> in
+            self?.framesSubscribeCount += 1
+            if let handler = self?.framesGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.framesOutputCount += 1
+            self?.framesOutputs.append(value)
+            self?.framesOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.framesCompletionCount += 1 }, receiveCancel: { [weak self] in self?.framesSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
+    }
+    var framesGetCount: Int = 0
+    var framesGetHandler: (() -> AnyPublisher<FeedAudioPlayer, Never>)? = nil
+    var framesSubscribeCount: Int = 0
+    var framesSubscribeCancelCount: Int = 0
+    var framesOutputCount: Int = 0
+    var framesOutputs: [FeedAudioPlayer] = []
+    var framesOutputHandler: ((FeedAudioPlayer) -> Void)? = nil
+    var framesCompletionCount: Int = 0
+    lazy var framesSubject = PassthroughSubject<FeedAudioPlayer, Never>()
+    var rawFrames: AnyPublisher<FeedAudioPlayer, Never> {
+        rawFramesGetCount += 1
+        return Deferred { [weak self, subject = rawFramesSubject] () -> AnyPublisher<FeedAudioPlayer, Never> in
+            self?.rawFramesSubscribeCount += 1
+            if let handler = self?.rawFramesGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.rawFramesOutputCount += 1
+            self?.rawFramesOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.rawFramesCompletionCount += 1 }, receiveCancel: { [weak self] in self?.rawFramesSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
+    }
+    var rawFramesGetCount: Int = 0
+    var rawFramesGetHandler: (() -> AnyPublisher<FeedAudioPlayer, Never>)? = nil
+    var rawFramesSubscribeCount: Int = 0
+    var rawFramesSubscribeCancelCount: Int = 0
+    var rawFramesOutputCount: Int = 0
+    var rawFramesOutputHandler: ((FeedAudioPlayer) -> Void)? = nil
+    var rawFramesCompletionCount: Int = 0
+    lazy var rawFramesSubject = PassthroughSubject<FeedAudioPlayer, Never>()
+
+    // MARK: - Methods
+    func replay(tag: String) -> AnyPublisher<FeedAudioPlayer, Never> {
+        replayCallCount += 1
+        if let __replayHandler = self.replayHandler {
+            return __replayHandler(tag)
+        }
+        return Deferred { [weak self, subject = replaySubject] () -> AnyPublisher<FeedAudioPlayer, Never> in
+            self?.replaySubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.replayOutputCount += 1
+            self?.replayOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.replayCompletionCount += 1 }, receiveCancel: { [weak self] in self?.replaySubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
+    }
+    var replayCallCount: Int = 0
+    var replayHandler: ((_ tag: String) -> (AnyPublisher<FeedAudioPlayer, Never>))? = nil
+    var replaySubscribeCount: Int = 0
+    var replaySubscribeCancelCount: Int = 0
+    var replayOutputCount: Int = 0
+    var replayOutputHandler: ((FeedAudioPlayer) -> Void)? = nil
+    var replayCompletionCount: Int = 0
+    lazy var replaySubject = PassthroughSubject<FeedAudioPlayer, Never>()
+}
+
 // MARK: - MainDependency
 final class MainDependencyMock: MainDependency {
 
@@ -527,13 +660,28 @@ final class MemoryEventStreamingMock: MemoryEventStreaming {
     // MARK: - Variables
     var latestDrop: AnyPublisher<MemoryDrop, Never> {
         latestDropGetCount += 1
-        if let handler = latestDropGetHandler {
-            return handler()
+        return Deferred { [weak self, subject = latestDropSubject] () -> AnyPublisher<MemoryDrop, Never> in
+            self?.latestDropSubscribeCount += 1
+            if let handler = self?.latestDropGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
         }
-        return latestDropSubject.eraseToAnyPublisher()
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.latestDropOutputCount += 1
+            self?.latestDropOutputs.append(value)
+            self?.latestDropOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.latestDropCompletionCount += 1 }, receiveCancel: { [weak self] in self?.latestDropSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var latestDropGetCount: Int = 0
     var latestDropGetHandler: (() -> AnyPublisher<MemoryDrop, Never>)? = nil
+    var latestDropSubscribeCount: Int = 0
+    var latestDropSubscribeCancelCount: Int = 0
+    var latestDropOutputCount: Int = 0
+    var latestDropOutputs: [MemoryDrop] = []
+    var latestDropOutputHandler: ((MemoryDrop) -> Void)? = nil
+    var latestDropCompletionCount: Int = 0
     lazy var latestDropSubject = PassthroughSubject<MemoryDrop, Never>()
 }
 
@@ -543,23 +691,53 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
     // MARK: - Variables
     var isRefreshing: AnyPublisher<Bool, Never> {
         isRefreshingGetCount += 1
-        if let handler = isRefreshingGetHandler {
-            return handler()
+        return Deferred { [weak self, subject = isRefreshingSubject] () -> AnyPublisher<Bool, Never> in
+            self?.isRefreshingSubscribeCount += 1
+            if let handler = self?.isRefreshingGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
         }
-        return isRefreshingSubject.eraseToAnyPublisher()
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.isRefreshingOutputCount += 1
+            self?.isRefreshingOutputs.append(value)
+            self?.isRefreshingOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.isRefreshingCompletionCount += 1 }, receiveCancel: { [weak self] in self?.isRefreshingSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var isRefreshingGetCount: Int = 0
     var isRefreshingGetHandler: (() -> AnyPublisher<Bool, Never>)? = nil
+    var isRefreshingSubscribeCount: Int = 0
+    var isRefreshingSubscribeCancelCount: Int = 0
+    var isRefreshingOutputCount: Int = 0
+    var isRefreshingOutputs: [Bool] = []
+    var isRefreshingOutputHandler: ((Bool) -> Void)? = nil
+    var isRefreshingCompletionCount: Int = 0
     lazy var isRefreshingSubject = PassthroughSubject<Bool, Never>()
     var ownMemories: AnyPublisher<[MemoryDrop], Never> {
         ownMemoriesGetCount += 1
-        if let handler = ownMemoriesGetHandler {
-            return handler()
+        return Deferred { [weak self, subject = ownMemoriesSubject] () -> AnyPublisher<[MemoryDrop], Never> in
+            self?.ownMemoriesSubscribeCount += 1
+            if let handler = self?.ownMemoriesGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
         }
-        return ownMemoriesSubject.eraseToAnyPublisher()
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.ownMemoriesOutputCount += 1
+            self?.ownMemoriesOutputs.append(value)
+            self?.ownMemoriesOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.ownMemoriesCompletionCount += 1 }, receiveCancel: { [weak self] in self?.ownMemoriesSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var ownMemoriesGetCount: Int = 0
     var ownMemoriesGetHandler: (() -> AnyPublisher<[MemoryDrop], Never>)? = nil
+    var ownMemoriesSubscribeCount: Int = 0
+    var ownMemoriesSubscribeCancelCount: Int = 0
+    var ownMemoriesOutputCount: Int = 0
+    var ownMemoriesOutputs: [[MemoryDrop]] = []
+    var ownMemoriesOutputHandler: (([MemoryDrop]) -> Void)? = nil
+    var ownMemoriesCompletionCount: Int = 0
     lazy var ownMemoriesSubject = PassthroughSubject<[MemoryDrop], Never>()
 
     // MARK: - Methods
@@ -569,11 +747,26 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
         if let __deleteHandler = self.deleteHandler {
             return __deleteHandler(id)
         }
-        return deleteSubject.eraseToAnyPublisher()
+        return Deferred { [weak self, subject = deleteSubject] () -> AnyPublisher<(), Error> in
+            self?.deleteSubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.deleteOutputCount += 1
+            self?.deleteOutputs.append(value)
+            self?.deleteOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.deleteCompletionCount += 1 }, receiveCancel: { [weak self] in self?.deleteSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var deleteCallCount: Int = 0
     var deleteArgs: [String] = []
     var deleteHandler: ((_ id: String) -> (AnyPublisher<Void, Error>))? = nil
+    var deleteSubscribeCount: Int = 0
+    var deleteSubscribeCancelCount: Int = 0
+    var deleteOutputCount: Int = 0
+    var deleteOutputs: [()] = []
+    var deleteOutputHandler: ((()) -> Void)? = nil
+    var deleteCompletionCount: Int = 0
     lazy var deleteSubject = PassthroughSubject<(), Error>()
     func fetch(id: String) -> AnyPublisher<MemoryDrop?, Error> {
         fetchCallCount += 1
@@ -581,11 +774,26 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
         if let __fetchHandler = self.fetchHandler {
             return __fetchHandler(id)
         }
-        return fetchSubject.eraseToAnyPublisher()
+        return Deferred { [weak self, subject = fetchSubject] () -> AnyPublisher<MemoryDrop?, Error> in
+            self?.fetchSubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.fetchOutputCount += 1
+            self?.fetchOutputs.append(value)
+            self?.fetchOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.fetchCompletionCount += 1 }, receiveCancel: { [weak self] in self?.fetchSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var fetchCallCount: Int = 0
     var fetchArgs: [String] = []
     var fetchHandler: ((_ id: String) -> (AnyPublisher<MemoryDrop?, Error>))? = nil
+    var fetchSubscribeCount: Int = 0
+    var fetchSubscribeCancelCount: Int = 0
+    var fetchOutputCount: Int = 0
+    var fetchOutputs: [MemoryDrop?] = []
+    var fetchOutputHandler: ((MemoryDrop?) -> Void)? = nil
+    var fetchCompletionCount: Int = 0
     lazy var fetchSubject = PassthroughSubject<MemoryDrop?, Error>()
     func share(id: String) -> AnyPublisher<String, Error> {
         shareCallCount += 1
@@ -593,21 +801,51 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
         if let __shareHandler = self.shareHandler {
             return __shareHandler(id)
         }
-        return shareSubject.eraseToAnyPublisher()
+        return Deferred { [weak self, subject = shareSubject] () -> AnyPublisher<String, Error> in
+            self?.shareSubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.shareOutputCount += 1
+            self?.shareOutputs.append(value)
+            self?.shareOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.shareCompletionCount += 1 }, receiveCancel: { [weak self] in self?.shareSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var shareCallCount: Int = 0
     var shareArgs: [String] = []
     var shareHandler: ((_ id: String) -> (AnyPublisher<String, Error>))? = nil
+    var shareSubscribeCount: Int = 0
+    var shareSubscribeCancelCount: Int = 0
+    var shareOutputCount: Int = 0
+    var shareOutputs: [String] = []
+    var shareOutputHandler: ((String) -> Void)? = nil
+    var shareCompletionCount: Int = 0
     lazy var shareSubject = PassthroughSubject<String, Error>()
     func token() -> AnyPublisher<String, Error> {
         tokenCallCount += 1
         if let __tokenHandler = self.tokenHandler {
             return __tokenHandler()
         }
-        return tokenSubject.eraseToAnyPublisher()
+        return Deferred { [weak self, subject = tokenSubject] () -> AnyPublisher<String, Error> in
+            self?.tokenSubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.tokenOutputCount += 1
+            self?.tokenOutputs.append(value)
+            self?.tokenOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.tokenCompletionCount += 1 }, receiveCancel: { [weak self] in self?.tokenSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var tokenCallCount: Int = 0
     var tokenHandler: (() -> (AnyPublisher<String, Error>))? = nil
+    var tokenSubscribeCount: Int = 0
+    var tokenSubscribeCancelCount: Int = 0
+    var tokenOutputCount: Int = 0
+    var tokenOutputs: [String] = []
+    var tokenOutputHandler: ((String) -> Void)? = nil
+    var tokenCompletionCount: Int = 0
     lazy var tokenSubject = CurrentValueSubject<String, Error>("")
 }
 
@@ -803,23 +1041,53 @@ final class NotificationSignallingMock: NotificationSignalling {
     // MARK: - Variables
     var badgeCount: AnyPublisher<Int, Never> {
         badgeCountGetCount += 1
-        if let handler = badgeCountGetHandler {
-            return handler()
+        return Deferred { [weak self, subject = badgeCountSubject] () -> AnyPublisher<Int, Never> in
+            self?.badgeCountSubscribeCount += 1
+            if let handler = self?.badgeCountGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
         }
-        return badgeCountSubject.eraseToAnyPublisher()
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.badgeCountOutputCount += 1
+            self?.badgeCountOutputs.append(value)
+            self?.badgeCountOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.badgeCountCompletionCount += 1 }, receiveCancel: { [weak self] in self?.badgeCountSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var badgeCountGetCount: Int = 0
     var badgeCountGetHandler: (() -> AnyPublisher<Int, Never>)? = nil
+    var badgeCountSubscribeCount: Int = 0
+    var badgeCountSubscribeCancelCount: Int = 0
+    var badgeCountOutputCount: Int = 0
+    var badgeCountOutputs: [Int] = []
+    var badgeCountOutputHandler: ((Int) -> Void)? = nil
+    var badgeCountCompletionCount: Int = 0
     lazy var badgeCountSubject = CurrentValueSubject<Int, Never>(0)
     var friendGraphChanged: AnyPublisher<Void, Never> {
         friendGraphChangedGetCount += 1
-        if let handler = friendGraphChangedGetHandler {
-            return handler()
+        return Deferred { [weak self, subject = friendGraphChangedSubject] () -> AnyPublisher<(), Never> in
+            self?.friendGraphChangedSubscribeCount += 1
+            if let handler = self?.friendGraphChangedGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
         }
-        return friendGraphChangedSubject.eraseToAnyPublisher()
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.friendGraphChangedOutputCount += 1
+            self?.friendGraphChangedOutputs.append(value)
+            self?.friendGraphChangedOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.friendGraphChangedCompletionCount += 1 }, receiveCancel: { [weak self] in self?.friendGraphChangedSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var friendGraphChangedGetCount: Int = 0
     var friendGraphChangedGetHandler: (() -> AnyPublisher<Void, Never>)? = nil
+    var friendGraphChangedSubscribeCount: Int = 0
+    var friendGraphChangedSubscribeCancelCount: Int = 0
+    var friendGraphChangedOutputCount: Int = 0
+    var friendGraphChangedOutputs: [()] = []
+    var friendGraphChangedOutputHandler: ((()) -> Void)? = nil
+    var friendGraphChangedCompletionCount: Int = 0
     lazy var friendGraphChangedSubject = PassthroughSubject<(), Never>()
 }
 
@@ -1097,10 +1365,25 @@ final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryPr
         if let __deregisterCurrentDeviceHandler = self.deregisterCurrentDeviceHandler {
             return __deregisterCurrentDeviceHandler()
         }
-        return deregisterCurrentDeviceSubject.eraseToAnyPublisher()
+        return Deferred { [weak self, subject = deregisterCurrentDeviceSubject] () -> AnyPublisher<(), Error> in
+            self?.deregisterCurrentDeviceSubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.deregisterCurrentDeviceOutputCount += 1
+            self?.deregisterCurrentDeviceOutputs.append(value)
+            self?.deregisterCurrentDeviceOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.deregisterCurrentDeviceCompletionCount += 1 }, receiveCancel: { [weak self] in self?.deregisterCurrentDeviceSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var deregisterCurrentDeviceCallCount: Int = 0
     var deregisterCurrentDeviceHandler: (() -> (AnyPublisher<Void, Error>))? = nil
+    var deregisterCurrentDeviceSubscribeCount: Int = 0
+    var deregisterCurrentDeviceSubscribeCancelCount: Int = 0
+    var deregisterCurrentDeviceOutputCount: Int = 0
+    var deregisterCurrentDeviceOutputs: [()] = []
+    var deregisterCurrentDeviceOutputHandler: ((()) -> Void)? = nil
+    var deregisterCurrentDeviceCompletionCount: Int = 0
     lazy var deregisterCurrentDeviceSubject = PassthroughSubject<(), Error>()
     nonisolated func requestPermission() {
         requestPermissionCallCount += 1
@@ -1256,13 +1539,28 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
     // MARK: - Variables
     var meStream: AnyPublisher<UserSummary?, Never> {
         meStreamGetCount += 1
-        if let handler = meStreamGetHandler {
-            return handler()
+        return Deferred { [weak self, subject = meStreamSubject] () -> AnyPublisher<UserSummary?, Never> in
+            self?.meStreamSubscribeCount += 1
+            if let handler = self?.meStreamGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
         }
-        return meStreamSubject.eraseToAnyPublisher()
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.meStreamOutputCount += 1
+            self?.meStreamOutputs.append(value)
+            self?.meStreamOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.meStreamCompletionCount += 1 }, receiveCancel: { [weak self] in self?.meStreamSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var meStreamGetCount: Int = 0
     var meStreamGetHandler: (() -> AnyPublisher<UserSummary?, Never>)? = nil
+    var meStreamSubscribeCount: Int = 0
+    var meStreamSubscribeCancelCount: Int = 0
+    var meStreamOutputCount: Int = 0
+    var meStreamOutputs: [UserSummary?] = []
+    var meStreamOutputHandler: ((UserSummary?) -> Void)? = nil
+    var meStreamCompletionCount: Int = 0
     lazy var meStreamSubject = PassthroughSubject<UserSummary?, Never>()
 
     // MARK: - Methods
@@ -1272,11 +1570,26 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
         if let __bootstrapHandler = self.bootstrapHandler {
             return __bootstrapHandler(displayName)
         }
-        return bootstrapSubject.eraseToAnyPublisher()
+        return Deferred { [weak self, subject = bootstrapSubject] () -> AnyPublisher<(), Error> in
+            self?.bootstrapSubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.bootstrapOutputCount += 1
+            self?.bootstrapOutputs.append(value)
+            self?.bootstrapOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.bootstrapCompletionCount += 1 }, receiveCancel: { [weak self] in self?.bootstrapSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var bootstrapCallCount: Int = 0
     var bootstrapArgs: [String?] = []
     var bootstrapHandler: ((_ displayName: String?) -> (AnyPublisher<Void, Error>))? = nil
+    var bootstrapSubscribeCount: Int = 0
+    var bootstrapSubscribeCancelCount: Int = 0
+    var bootstrapOutputCount: Int = 0
+    var bootstrapOutputs: [()] = []
+    var bootstrapOutputHandler: ((()) -> Void)? = nil
+    var bootstrapCompletionCount: Int = 0
     lazy var bootstrapSubject = PassthroughSubject<(), Error>()
     func registerDevice(token: String, platform: String) -> AnyPublisher<Void, Error> {
         registerDeviceCallCount += 1
@@ -1284,11 +1597,26 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
         if let __registerDeviceHandler = self.registerDeviceHandler {
             return __registerDeviceHandler(token, platform)
         }
-        return registerDeviceSubject.eraseToAnyPublisher()
+        return Deferred { [weak self, subject = registerDeviceSubject] () -> AnyPublisher<(), Error> in
+            self?.registerDeviceSubscribeCount += 1
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.registerDeviceOutputCount += 1
+            self?.registerDeviceOutputs.append(value)
+            self?.registerDeviceOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.registerDeviceCompletionCount += 1 }, receiveCancel: { [weak self] in self?.registerDeviceSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
     }
     var registerDeviceCallCount: Int = 0
     var registerDeviceArgs: [(token: String, platform: String)] = []
     var registerDeviceHandler: ((_ token: String, _ platform: String) -> (AnyPublisher<Void, Error>))? = nil
+    var registerDeviceSubscribeCount: Int = 0
+    var registerDeviceSubscribeCancelCount: Int = 0
+    var registerDeviceOutputCount: Int = 0
+    var registerDeviceOutputs: [()] = []
+    var registerDeviceOutputHandler: ((()) -> Void)? = nil
+    var registerDeviceCompletionCount: Int = 0
     lazy var registerDeviceSubject = PassthroughSubject<(), Error>()
 }
 

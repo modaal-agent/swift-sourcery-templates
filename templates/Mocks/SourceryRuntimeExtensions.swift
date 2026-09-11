@@ -311,7 +311,19 @@ extension SourceryRuntime.TypeName {
         return (try? smartDefaultValueImplementation(isProperty: isProperty, mockVariablePrefix: "")) != nil
     }
 
-    func smartDefaultValueImplementation(isProperty: Bool, mockVariablePrefix: String, forceCastingToReturnTypeName: Bool = false, requestedSubjectKind: SubjectKind = .automatic) throws -> (getterImplementation: SourceCode, mockedVariableHandlers: [SourceCode]) {
+    /// The body a member of a stream or token type returns, and the bookkeeping
+    /// that body reads and writes.
+    ///
+    /// - Parameters:
+    ///   - recordsStreamValues: whether the member keeps `<name>Outputs` /
+    ///     `<name>Events`. `/// sourcery: skipArgumentRecording` on the member or
+    ///     on the protocol turns it off, for the reason it turns `<method>Args`
+    ///     off: a recorded value lives as long as the mock (`spec.md` D13).
+    /// - Returns: `suppliesHandlerConsultation` is true when the body reads
+    ///   `<name>GetHandler` itself, so the caller must not emit its own read.
+    ///   The publisher branch does, because the handler is read at subscribe
+    ///   time rather than at read time (§2.7).
+    func smartDefaultValueImplementation(isProperty: Bool, mockVariablePrefix: String, forceCastingToReturnTypeName: Bool = false, requestedSubjectKind: SubjectKind = .automatic, recordsStreamValues: Bool = true) throws -> (getterImplementation: [SourceCode], mockedVariableHandlers: [SourceCode], suppliesHandlerConsultation: Bool) {
         if isGeneric,
             let generic = generic,
             generic.name == "Single" || generic.name == "Observable" || generic.name == "AnyObserver",
@@ -336,22 +348,36 @@ extension SourceryRuntime.TypeName {
                         """)
                 ]}
                 let mockedVariableHandlers = [SourceCode("lazy var \(MockNaming.subject(mockVariablePrefix)) = PublishSubject<\(returnTypeName)>()")]
-                return (getterImplementation, mockedVariableHandlers)
+                return ([getterImplementation], mockedVariableHandlers, false)
             case "Observable":
                 let optionalMappingClauseForTupleTypes = generic.typeParameters[0].typeName.needsSubjectMapToReturnType ? ".map { $0 }" : ""
                 let getterImplementation = SourceCode("return \(MockNaming.subject(mockVariablePrefix))\(optionalMappingClauseForTupleTypes).as\(generic.name)()\(forceCasting)")
                 let mockedVariableHandlers = [SourceCode("lazy var \(MockNaming.subject(mockVariablePrefix)) = PublishSubject<\(returnTypeName)>()")]
-                return (getterImplementation, mockedVariableHandlers)
+                return ([getterImplementation], mockedVariableHandlers, false)
             case "AnyObserver":
+                // What the code under test pushes in is counted, recorded and
+                // handed to the handler, in the order a method's arguments
+                // already establish: the record is written before the handler
+                // runs, so a handler that traps does not un-make the event
+                // (§2.3, D13).
                 let getterImplementation = SourceCode("return AnyObserver { [weak self] event in") { [
                     SourceCode("self?.\(MockNaming.eventCallCount(mockVariablePrefix)) += 1"),
+                ] + (recordsStreamValues ? [
+                    SourceCode("self?.\(MockNaming.events(mockVariablePrefix)).append(event)"),
+                ] : []) + [
                     SourceCode("self?.\(MockNaming.eventHandler(mockVariablePrefix))?(event)"),
                 ]}
                 let mockedVariableHandlers: [SourceCode] = [
                     SourceCode("var \(MockNaming.eventCallCount(mockVariablePrefix)): Int = 0"),
+                ] + (recordsStreamValues ? [
+                    // RxSwift's `Event` declares no `Equatable` conformance, so
+                    // a test reads this through `compactMap(\.element)`, `error`
+                    // and `isCompleted` rather than comparing it whole.
+                    SourceCode("var \(MockNaming.events(mockVariablePrefix)): [Event<\(returnTypeName)>] = []"),
+                ] : []) + [
                     SourceCode("var \(MockNaming.eventHandler(mockVariablePrefix)): ((Event<\(returnTypeName)>) -> ())? = nil"),
                 ]
-                return (getterImplementation, mockedVariableHandlers)
+                return ([getterImplementation], mockedVariableHandlers, false)
             default:
                 fatalError("Should not happen")
             }
@@ -402,9 +428,65 @@ extension SourceryRuntime.TypeName {
                 subjectDecl = "PassthroughSubject<\(outputType), \(failureType)>()"
             }
 
-            let getterImplementation = SourceCode("return \(MockNaming.subject(mockVariablePrefix)).eraseToAnyPublisher()\(forceCasting)")
-            let mockedVariableHandlers = [SourceCode("lazy var \(MockNaming.subject(mockVariablePrefix)) = \(subjectDecl)")]
-            return (getterImplementation, mockedVariableHandlers)
+            // The member hands back a construct the mock owns rather than the
+            // erased subject (§2.7, D11). `Deferred`'s closure runs once per
+            // subscription, which is where the subscription is counted and —
+            // for a property — where `<var>GetHandler` is read, so a handler
+            // seeded after the code under test captured the publisher decides
+            // the stream. A method keeps its handler at call time, where its
+            // arguments are and where its `async` and `throws` apply, so only
+            // the subject fallback is deferred here.
+            //
+            // The closure captures the subject directly and the mock weakly:
+            // the stream still delivers after the mock is released and only the
+            // counting stops. Capturing the mock strongly would make every
+            // publisher member retain it, which is the hazard
+            // `skipArgumentRecording` exists for.
+            let subjectName = MockNaming.subject(mockVariablePrefix)
+            let erasedType = "AnyPublisher<\(outputType), \(failureType)>"
+            var deferredBody: [SourceCode] = [
+                SourceCode("self?.\(MockNaming.subscribeCount(mockVariablePrefix)) += 1")
+            ]
+            if isProperty {
+                deferredBody += [SourceCode("if let handler = self?.\(MockNaming.getHandler(mockVariablePrefix))") {[
+                    SourceCode("return handler()")
+                ]}]
+            }
+            deferredBody += [SourceCode("return subject.eraseToAnyPublisher()")]
+
+            // What the member delivered: counted, recorded, then handed to the
+            // handler. It records delivery rather than sending — a value sent
+            // while nobody is subscribed goes nowhere and counts nothing, and a
+            // value delivered to two subscribers counts twice.
+            var receiveOutputBody: [SourceCode] = [
+                SourceCode("self?.\(MockNaming.outputCount(mockVariablePrefix)) += 1")
+            ]
+            if recordsStreamValues {
+                receiveOutputBody += [SourceCode("self?.\(MockNaming.outputs(mockVariablePrefix)).append(value)")]
+            }
+            receiveOutputBody += [SourceCode("self?.\(MockNaming.outputHandler(mockVariablePrefix))?(value)")]
+
+            let getterImplementation: [SourceCode] = [
+                SourceCode("return Deferred { [weak self, subject = \(subjectName)] () -> \(erasedType) in", nested: deferredBody),
+                SourceCode(".handleEvents(receiveOutput: { [weak self] value in", nested: receiveOutputBody)
+                    .trailing(", receiveCompletion: { [weak self] _ in self?.\(MockNaming.completionCount(mockVariablePrefix)) += 1 }, receiveCancel: { [weak self] in self?.\(MockNaming.subscribeCancelCount(mockVariablePrefix)) += 1 })"),
+                SourceCode(".eraseToAnyPublisher()\(forceCasting)")
+            ]
+
+            var mockedVariableHandlers: [SourceCode] = [
+                SourceCode("var \(MockNaming.subscribeCount(mockVariablePrefix)): Int = 0"),
+                SourceCode("var \(MockNaming.subscribeCancelCount(mockVariablePrefix)): Int = 0"),
+                SourceCode("var \(MockNaming.outputCount(mockVariablePrefix)): Int = 0"),
+            ]
+            if recordsStreamValues {
+                mockedVariableHandlers += [SourceCode("var \(MockNaming.outputs(mockVariablePrefix)): [\(outputType)] = []")]
+            }
+            mockedVariableHandlers += [
+                SourceCode("var \(MockNaming.outputHandler(mockVariablePrefix)): ((\(outputType)) -> Void)? = nil"),
+                SourceCode("var \(MockNaming.completionCount(mockVariablePrefix)): Int = 0"),
+                SourceCode("lazy var \(subjectName) = \(subjectDecl)"),
+            ]
+            return (getterImplementation, mockedVariableHandlers, isProperty)
         }
 
         if unwrappedTypeName == "AnyCancellable" {
@@ -422,7 +504,7 @@ extension SourceryRuntime.TypeName {
                 SourceCode("var \(MockNaming.cancelCallCount(mockVariablePrefix)): Int = 0"),
                 SourceCode("var \(MockNaming.cancelHandler(mockVariablePrefix)): (() -> ())? = nil"),
             ]
-            return (getterImplementation, mockedVariableHandlers)
+            return ([getterImplementation], mockedVariableHandlers, false)
         }
 
         if unwrappedTypeName == "Disposable" {
@@ -435,7 +517,7 @@ extension SourceryRuntime.TypeName {
                 SourceCode("var \(MockNaming.disposeCallCount(mockVariablePrefix)): Int = 0"),
                 SourceCode("var \(MockNaming.disposeHandler(mockVariablePrefix)): (() -> ())? = nil"),
             ]
-            return (getterImplementation, mockedVariableHandlers)
+            return ([getterImplementation], mockedVariableHandlers, false)
         }
 
         throw MockError.noDefaultValue(typeName: self)

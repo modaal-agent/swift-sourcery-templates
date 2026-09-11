@@ -206,8 +206,8 @@ enum AnnotationRegistry {
         name: "skipArgumentRecording",
         aliases: [],
         kind: .option,
-        target: "Protocol / method",
-        effect: "Do not generate `<method>Args`; call counting and the handler are unaffected",
+        target: "Protocol / method / variable",
+        effect: "Do not generate `<method>Args`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected",
         valueHint: nil
     )
 

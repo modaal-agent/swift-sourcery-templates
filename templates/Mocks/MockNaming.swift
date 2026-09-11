@@ -135,6 +135,14 @@ enum MockNaming {
     static func subject(_ prefix: String) -> String { return "\(prefix)Subject" }
     static func eventCallCount(_ prefix: String) -> String { return "\(prefix)EventCallCount" }
     static func eventHandler(_ prefix: String) -> String { return "\(prefix)EventHandler" }
+    static func events(_ prefix: String) -> String { return "\(prefix)Events" }
+
+    static func subscribeCount(_ prefix: String) -> String { return "\(prefix)SubscribeCount" }
+    static func subscribeCancelCount(_ prefix: String) -> String { return "\(prefix)SubscribeCancelCount" }
+    static func outputCount(_ prefix: String) -> String { return "\(prefix)OutputCount" }
+    static func outputs(_ prefix: String) -> String { return "\(prefix)Outputs" }
+    static func outputHandler(_ prefix: String) -> String { return "\(prefix)OutputHandler" }
+    static func completionCount(_ prefix: String) -> String { return "\(prefix)CompletionCount" }
 
     // MARK: - Returned-token members
     //

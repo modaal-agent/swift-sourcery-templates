@@ -70,12 +70,20 @@ extension MockVar {
     /// falls through to plain storage below. An impossible `subject` annotation
     /// is not that case and is rethrown: swallowing it emitted a stored property
     /// with no initializer, and the generated file did not compile.
-    private func smartDefaultValueImplementation() throws -> (getterImplementation: SourceCode, mockedVariableHandlers: [SourceCode])? {
+    /// Whether this requirement keeps `<name>Outputs` / `<name>Events`.
+    /// `/// sourcery: skipArgumentRecording` on the requirement or on the
+    /// protocol turns it off, the way it turns `<method>Args` off (D13).
+    fileprivate var recordsStreamValues: Bool {
+        return !variable.isAnnotatedSkipArgumentRecording && !type.isAnnotatedSkipArgumentRecording
+    }
+
+    private func smartDefaultValueImplementation() throws -> (getterImplementation: [SourceCode], mockedVariableHandlers: [SourceCode], suppliesHandlerConsultation: Bool)? {
         do {
             return try variable.typeName.smartDefaultValueImplementation(
                 isProperty: true,
                 mockVariablePrefix: mockedVariableName,
-                requestedSubjectKind: variable.requestedSubjectKind)
+                requestedSubjectKind: variable.requestedSubjectKind,
+                recordsStreamValues: recordsStreamValues)
         } catch MockError.unseedableSubject(let typeName, let member) {
             throw MockError.unseedableSubject(typeName: typeName, member: member)
         } catch {
@@ -119,13 +127,23 @@ extension MockVar {
             variable.typeName.hasComplexTypeWithSmartDefaultValue(isProperty: true),
             let smartDefaultValueImplementation = try smartDefaultValueImplementation() {
 
-            let getterImplementation: [SourceCode] = [
-                SourceCode("\(MockNaming.getCount(mockedVariableName)) += 1"),
-                SourceCode("if let handler = \(MockNaming.getHandler(mockedVariableName))") {[
-                    SourceCode("return \(effectfulCallDecl)handler()")
-                ]},
-                smartDefaultValueImplementation.getterImplementation
+            // The publisher branch reads `<var>GetHandler` inside the construct
+            // it returns, at subscribe time — so the read-time consultation here
+            // would make the handler decide the stream twice, at two different
+            // moments (§2.7). Its accessor cannot carry effects either: the
+            // `Deferred` closure is not `async`.
+            if smartDefaultValueImplementation.suppliesHandlerConsultation, hasEffects {
+                throw MockError.effectfulStreamRequirement(typeName: type.name, member: variable.name)
+            }
+            var getterImplementation: [SourceCode] = [
+                SourceCode("\(MockNaming.getCount(mockedVariableName)) += 1")
             ]
+            if !smartDefaultValueImplementation.suppliesHandlerConsultation {
+                getterImplementation += [SourceCode("if let handler = \(MockNaming.getHandler(mockedVariableName))") {[
+                    SourceCode("return \(effectfulCallDecl)handler()")
+                ]}]
+            }
+            getterImplementation += smartDefaultValueImplementation.getterImplementation
             mockedVariableImplementation = accessor(getter: getterImplementation, setter: nil)
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getCount(mockedVariableName)): Int = 0"
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (()\(effectsDecl) -> \(variable.typeName.declaredName))? = nil"
