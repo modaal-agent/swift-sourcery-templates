@@ -138,15 +138,19 @@ enum MockNaming {
 
     // MARK: - Diagnostics
     //
-    // The text a generated member traps with. `kotlin-ksp-mocks` matches the
-    // method form byte for byte.
+    // The text a generated member traps with, in one wording for a method and a
+    // property alike (§2.4). The property form read
+    // `` `<var>GetHandler` must be set! `` until P4 — three words and a pair of
+    // backticks away from the method's, because each string was written where
+    // its own member was emitted. `kotlin-ksp-mocks` matches this text byte for
+    // byte.
 
     static func handlerExpectedMessage(handlerName: String) -> String {
         return "\(handlerName) expected to be set."
     }
 
     static func getHandlerExpectedMessage(prefix: String) -> String {
-        return "`\(getHandler(prefix))` must be set!"
+        return handlerExpectedMessage(handlerName: getHandler(prefix))
     }
 
     // MARK: - Collisions

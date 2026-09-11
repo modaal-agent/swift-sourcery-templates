@@ -1197,3 +1197,30 @@ added lines, no deleted line — no fixture declared an overload whose argument 
 parameter name); both language modes clean; behaviour checks pass;
 `Tests/Examples/ExampleProjectSpm/test-ios.sh` 19 tests, 0 failures, which is where the
 return-type-discriminated `data()` overloads are exercised.
+
+### P4 — one wording for both traps
+
+`MockNaming.getHandlerExpectedMessage(prefix:)` now returns
+`handlerExpectedMessage(handlerName: getHandler(prefix))`, so the property form is the method form
+with the property's handler name in it: `snapshotGetHandler expected to be set.` replaces
+`` `snapshotGetHandler` must be set! ``. One function produces both, which is what stops them
+drifting again.
+
+`Tests/Checks/Fixtures/Properties.swift` is new and declares `PropertyShaped`, one requirement per
+branch of `MockVar.mockImpl`: `identifier` (read-only, synthesizable default), `draft`
+(`{ get set }`), `themeProvider` (no default, initializer-seeded), `buildNumber`
+(`/// sourcery: const`, emitted `let buildNumber: Int = 0`), `snapshot` (`/// sourcery: handler`,
+read-only) and `cursor` (`/// sourcery: handler`, `{ get set }`).
+
+**Nothing under `Tests/` carried `/// sourcery: handler` before this file**, so the string that
+diverged from the method's appeared in no generated file this repository holds — which is how it
+stayed divergent. The two `handler` requirements put both emission shapes in the snapshot: a
+read-only one whose getter is the property body, and a mutable one whose `get` traps while its `set`
+counts.
+
+No suffix moved in this phase. D4 keeps `Dispose*` against `Disposable` and `Cancel*` against
+`AnyCancellable`, and the `SKILL.md:202` correction that documents each against its own return type
+is a document change, in P8.
+
+Gates: `run-checks.sh`, diff read, then `--record` — 39 added lines, no deleted line; both language
+modes clean; behaviour checks pass.

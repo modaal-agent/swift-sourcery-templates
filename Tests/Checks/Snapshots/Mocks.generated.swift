@@ -682,6 +682,50 @@ final class PlaybackRetainingMock: PlaybackRetaining {
     var retainHandler: ((_ player: FeedAudioPlayer) -> ())? = nil
 }
 
+// MARK: - PropertyShaped
+final class PropertyShapedMock: PropertyShaped {
+
+    // MARK: - Variables
+    let buildNumber: Int = 0
+    var cursor: Int {
+        get {
+            cursorGetCount += 1
+            if let handler = cursorGetHandler {
+                return handler()
+            }
+            fatalError("cursorGetHandler expected to be set.")
+        }
+        set {
+            cursorSetCount += 1
+        }
+    }
+    var cursorGetCount: Int = 0
+    var cursorGetHandler: (() -> Int)? = nil
+    var cursorSetCount: Int = 0
+    var draft: String = "" {
+        didSet {
+            draftSetCount += 1
+        }
+    }
+    var draftSetCount: Int = 0
+    var identifier: String = ""
+    var snapshot: [String: Int] {
+        snapshotGetCount += 1
+        if let handler = snapshotGetHandler {
+            return handler()
+        }
+        fatalError("snapshotGetHandler expected to be set.")
+    }
+    var snapshotGetCount: Int = 0
+    var snapshotGetHandler: (() -> [String: Int])? = nil
+    var themeProvider: ThemeProviding
+
+    // MARK: - Initializer
+    init(themeProvider: ThemeProviding) {
+        self.themeProvider = themeProvider
+    }
+}
+
 // MARK: - PushNotificationRepositoryProtocol
 @MainActor
 final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryProtocol {
