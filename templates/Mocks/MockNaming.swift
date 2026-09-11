@@ -41,15 +41,16 @@ enum MockNaming {
         return components.joined()
     }
 
-    /// One parameter's contribution to an overload's long-form prefix.
+    /// One parameter's contribution to an overload's long-form prefix (§2.2
+    /// step 2): the capitalized argument label, or the capitalized parameter
+    /// name when the parameter has no label.
+    ///
+    /// The label is what the caller writes, so `func end(atDocument document:)`
+    /// gives `endAtDocument` rather than `endAtDocumentDocument`. Where label
+    /// and name are the same word, or there is no label, this is the name —
+    /// `func update(id:force:)` gives `updateIdForce` either way.
     static func overloadComponent(argumentLabel: String?, parameterName: String) -> String {
-        let label: String
-        if let argumentLabel = argumentLabel, argumentLabel != parameterName {
-            label = argumentLabel.uppercasedFirstLetter()
-        } else {
-            label = ""
-        }
-        return "\(label)\(parameterName.uppercasedFirstLetter())"
+        return (argumentLabel ?? parameterName).withoutBackticks.uppercasedFirstLetter()
     }
 
     /// The key overloads are grouped under before the disambiguation chain runs.
@@ -146,6 +147,55 @@ enum MockNaming {
 
     static func getHandlerExpectedMessage(prefix: String) -> String {
         return "`\(getHandler(prefix))` must be set!"
+    }
+
+    // MARK: - Collisions
+    //
+    // Nothing checked a generated property name before this. `MockMethod.from`
+    // guarded duplicate *method* prefixes and `MockVar.from` uniqued the
+    // requirements by name and no further, so a protocol declaring both `draft`
+    // and `draftSetCount` emitted `var draftSetCount` twice and the generated
+    // file did not compile, with nothing from the template saying why
+    // (`spec.md` D9). The check below reads back what the class declares.
+
+    /// The name a generated member declaration declares, or `nil` when the line
+    /// declares no property.
+    ///
+    /// Only `var` and `let` are read. Two `func`s may legitimately share a base
+    /// name — they are the protocol's own overloads, and Swift allows them —
+    /// while two properties of one class may not, and the bookkeeping members
+    /// are all properties.
+    static func declaredPropertyName(inDeclaration line: String) -> String? {
+        var remainder = Substring(line)
+        var strippedModifier = true
+        while strippedModifier {
+            strippedModifier = false
+            for modifier in declarationModifiers where remainder.hasPrefix(modifier) {
+                remainder = remainder.dropFirst(modifier.count)
+                strippedModifier = true
+            }
+        }
+        guard remainder.hasPrefix("var ") || remainder.hasPrefix("let ") else { return nil }
+        let name = remainder.dropFirst(4).prefix { $0 != ":" && $0 != " " && $0 != "=" }
+        return name.isEmpty ? nil : String(name)
+    }
+
+    private static let declarationModifiers = ["nonisolated(unsafe) ", "nonisolated ", "lazy "]
+
+    /// Fails generation when one mock class declares the same property twice.
+    ///
+    /// - Parameters:
+    ///   - lines: the class's member declarations, in emission order.
+    ///   - typeName: the mocked protocol, for the message.
+    static func checkForCollisions(amongMemberDeclarations lines: [String], typeName: String) throws {
+        var seen = Set<String>()
+        for line in lines {
+            guard let name = declaredPropertyName(inDeclaration: line) else { continue }
+            guard !seen.contains(name) else {
+                throw MockError.collidingMemberNames(typeName: typeName, memberName: name)
+            }
+            seen.insert(name)
+        }
     }
 }
 

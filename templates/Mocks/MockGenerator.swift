@@ -9,6 +9,10 @@ case noDefaultValue(typeName: TypeName)
 /// something impossible and must reach them.
 case unseedableSubject(typeName: TypeName, member: String)
 case duplicateGenericTypeName(context: String)
+/// Two members of one mock would carry the same name. The generated file
+/// would not compile, and before this case it did not — with nothing from
+/// the template saying which two members collided (`spec.md` D9).
+case collidingMemberNames(typeName: String, memberName: String)
 case internalError(message: String)
 }
 
@@ -86,6 +90,15 @@ class MockGenerator {
                 mock += mockMethodsFlattened
             }
 
+            // Every name the class declares, checked once, after the members
+            // that produce them have all been emitted. It covers a requirement
+            // colliding with another requirement's bookkeeping, two
+            // requirements producing one prefix, and the stream members' own
+            // names — whichever branch emitted them.
+            try MockNaming.checkForCollisions(
+                amongMemberDeclarations: mock.nested.map { $0.line },
+                typeName: type.name)
+
             topScope += mock
         }
 
@@ -144,6 +157,14 @@ extension MockError: LocalizedError {
                 `\(member)GetHandler` in the test to a stream that replays, or give the type a default value.
                 """
         case .duplicateGenericTypeName(let context): return "Duplicate generic type name found while generating mock implementation: \(context)"
+        case .collidingMemberNames(let typeName, let memberName):
+            return """
+                `\(typeName)Mock` would declare `\(memberName)` twice. A requirement of \
+                `\(typeName)` collides with a bookkeeping member generated for another \
+                requirement, or two requirements produce the same name. Rename the requirement, \
+                or — for a method — name its members outright with \
+                `/// sourcery: methodName = "customName"` on the declaration.
+                """
         case .internalError(let message): return "Internal error: \(message)"
         }
     }

@@ -11,10 +11,13 @@
 #   3. near-miss  a misspelled selector fails generation naming the canonical
 #                 spelling; a misspelled option still generates and writes one
 #                 comment line
-#   4. typecheck  they compile clean together under Swift 5 + complete
+#   4. collision  two members that would carry one name fail generation naming
+#                 the protocol and the member, instead of writing a file the
+#                 consumer's compiler rejects
+#   5. typecheck  they compile clean together under Swift 5 + complete
 #                 concurrency checking, and under the Swift 6 language mode —
 #                 zero warnings, zero errors
-#   5. behaviour  they do what a consumer needs: mocks count calls, run handlers
+#   6. behaviour  they do what a consumer needs: mocks count calls, run handlers
 #                 and deliver values pushed into their subjects; Components
 #                 forward to the parent and hold what the level owns
 #
@@ -212,7 +215,67 @@ else
   fi
 fi
 
-# ── 4. Typecheck, both language modes ─────────────────────────────
+# ── 4. Collision ──────────────────────────────────────────────────
+# Each case here fails generation on purpose, so none of it can live in
+# Fixtures/ — one fixture that fails takes the whole lane's generation with it,
+# the way the near-miss selector case does. What is checked is that the failure
+# names the protocol and the member, rather than the template emitting a file
+# whose two identical declarations the consumer's compiler reports instead.
+echo ""
+echo "── collision ──"
+COLLISION_DIR="$WORK_DIR/collision"
+rm -rf "$COLLISION_DIR"
+
+# <case>:<protocol>:<member named in the message>
+COLLISION_CASES=(
+  "bookkeeping:CollidingBookkeeping:draftSetCount"
+  "overload:CollidingOverload:sendToVoidCallCount"
+)
+
+mkdir -p "$COLLISION_DIR/bookkeeping"
+cat > "$COLLISION_DIR/bookkeeping/Bookkeeping.swift" <<'SWIFT'
+// A requirement whose name is another requirement's bookkeeping member.
+/// sourcery: ProtocolMock
+public protocol CollidingBookkeeping: AnyObject {
+    var draft: String { get set }
+    var draftSetCount: Int { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/overload"
+cat > "$COLLISION_DIR/overload/Overload.swift" <<'SWIFT'
+// Two overloads sharing their labels, their parameter count and their return
+// type, differing only in a parameter type — which no part of the name derives
+// from. The long form and the return-type discriminator both leave them equal,
+// which is step 4 of the overload chain.
+/// sourcery: ProtocolMock
+public protocol CollidingOverload: AnyObject {
+    func send(to target: String)
+    func send(to target: Int)
+}
+SWIFT
+
+for entry in "${COLLISION_CASES[@]}"; do
+  case_name="${entry%%:*}"
+  rest="${entry#*:}"
+  protocol_name="${rest%%:*}"
+  member_name="${rest##*:}"
+  log="$WORK_DIR/collision-$case_name.log"
+  if "$SOURCERY" --sources "$COLLISION_DIR/$case_name" \
+       --templates "$GIT_ROOT/templates/Mocks.swifttemplate" \
+       --output "$COLLISION_DIR/$case_name.generated.swift" \
+       --args "import=Combine,import=Foundation" \
+       --disableCache --quiet > "$log" 2>&1; then
+    fail "$case_name: a colliding member generated instead of failing"
+  elif grep -q "$protocol_name" "$log" && grep -q "$member_name" "$log"; then
+    echo "  $case_name: fails, naming $protocol_name and $member_name"
+  else
+    tail -10 "$log"
+    fail "$case_name: failed, but the message does not name $protocol_name and $member_name"
+  fi
+done
+
+# ── 5. Typecheck, both language modes ─────────────────────────────
 typecheck() {
   local label="$1"; shift
   local log="$WORK_DIR/typecheck-$label.log"
@@ -235,7 +298,7 @@ echo "── typecheck ──"
 typecheck "swift5-complete" -swift-version 5 -strict-concurrency=complete
 typecheck "swift6" -swift-version 6
 
-# ── 5. Behaviour ──────────────────────────────────────────────────
+# ── 6. Behaviour ──────────────────────────────────────────────────
 echo ""
 echo "── behaviour ──"
 BEHAVIOUR_BIN="$WORK_DIR/behaviour"

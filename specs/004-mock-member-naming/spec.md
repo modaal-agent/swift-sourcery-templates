@@ -1151,3 +1151,49 @@ behaviour checks pass. `Tests/Examples/ExampleProjectSpm/test-ios.sh`: 19 tests,
 RxSwift, type-erasure and return-type-overload specs assert on prefixes this phase could have moved
 and did not. That script resolves its scheme from the working directory, so it runs from
 `Tests/Examples/ExampleProjectSpm/`, not from the repository root; P8 adds that to `CONTRIBUTING.md`.
+
+### P3 — the overload long form, and one collision check over every emitted name
+
+`MockNaming.overloadComponent` returns `(argumentLabel ?? parameterName).withoutBackticks
+.uppercasedFirstLetter()`, which is §2.2 step 2. `Tests/Checks/Fixtures/Naming.swift` gains
+`NamingOverloads`, whose five requirements produce `end`, `endAt`, `endAtDocument`,
+`referenceForURL` and `referenceWithPath` — §2.2's table, with `end()` keeping the plain prefix as
+the fewest-parameters overload (D3).
+
+`MockNaming.checkForCollisions(amongMemberDeclarations:typeName:)` reads the names back out of the
+declarations the class emits. `MockGenerator.generate` calls it once per type, after every member
+has been emitted, over `mock.nested.map { $0.line }` — which is exactly the class's direct members,
+because both `MockVar.mockImpl` and `MockMethod.mockImpl` return the witness and its bookkeeping as
+siblings. Reading the emitted declarations rather than enumerating names at each site is what makes
+it cover the branches in `SourceryRuntimeExtensions.swift` — `Subject`, `EventCallCount`,
+`CancelHandler` and the rest — without those sites being edited, and what makes P5's `_<var>` and
+P7's six publisher members arrive already checked.
+
+`declaredPropertyName(inDeclaration:)` reads `var` and `let` only, after stripping
+`nonisolated(unsafe) `, `nonisolated ` and `lazy `. Two `func`s may share a base name — they are the
+protocol's own overloads and Swift allows them — while two properties of one class may not, and
+every bookkeeping member is a property.
+
+`MockError.internalError("not all duplicates resolved")` is replaced at `MockMethod.from` by
+`MockError.collidingMemberNames(typeName:memberName:)`, so §2.2 step 4 and D9's property case now
+produce one wording: the mock class, the member declared twice, and the two fixes — rename the
+requirement, or `/// sourcery: methodName = "customName"` on a method.
+
+`run-checks.sh` gains a **collision** section (now gate 4 of 6), built like the near-miss one
+because each case has to fail generation and a fixture that fails takes the whole lane's generation
+with it. Two cases, each asserted to fail *and* to name its protocol and its member:
+
+| case | declarations | message names |
+| --- | --- | --- |
+| `bookkeeping` | `var draft { get set }` beside `var draftSetCount { get set }` | `CollidingBookkeeping`, `draftSetCount` |
+| `overload` | `send(to target: String)` beside `send(to target: Int)` | `CollidingOverload`, `sendToVoidCallCount` |
+
+The second is §2.2 step 4 reached: the long form gives both `sendTo`, the return-type discriminator
+appends `Void` to both, and the name that collides is therefore `sendToVoidCallCount` — the
+discriminator is in the message because it is in the name the mock would have declared.
+
+Gates: `run-checks.sh`, diff read, then `--record`; no existing fixture member was renamed (110
+added lines, no deleted line — no fixture declared an overload whose argument label differs from its
+parameter name); both language modes clean; behaviour checks pass;
+`Tests/Examples/ExampleProjectSpm/test-ios.sh` 19 tests, 0 failures, which is where the
+return-type-discriminated `data()` overloads are exercised.

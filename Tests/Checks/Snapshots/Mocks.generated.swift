@@ -500,6 +500,60 @@ final class NamingManyToOneMock: NamingManyToOne {
     var load_dataHandler: (() -> ())? = nil
 }
 
+// MARK: - NamingOverloads
+final class NamingOverloadsMock: NamingOverloads {
+
+    // MARK: - Methods
+    func end() {
+        endCallCount += 1
+        if let __endHandler = self.endHandler {
+            __endHandler()
+        }
+    }
+    var endCallCount: Int = 0
+    var endHandler: (() -> ())? = nil
+    func end(at fieldValues: [String]) {
+        endAtCallCount += 1
+        endAtArgs.append(fieldValues)
+        if let __endAtHandler = self.endAtHandler {
+            __endAtHandler(fieldValues)
+        }
+    }
+    var endAtCallCount: Int = 0
+    var endAtArgs: [[String]] = []
+    var endAtHandler: ((_ fieldValues: [String]) -> ())? = nil
+    func end(atDocument document: String) {
+        endAtDocumentCallCount += 1
+        endAtDocumentArgs.append(document)
+        if let __endAtDocumentHandler = self.endAtDocumentHandler {
+            __endAtDocumentHandler(document)
+        }
+    }
+    var endAtDocumentCallCount: Int = 0
+    var endAtDocumentArgs: [String] = []
+    var endAtDocumentHandler: ((_ document: String) -> ())? = nil
+    func reference(forURL url: String) {
+        referenceForURLCallCount += 1
+        referenceForURLArgs.append(url)
+        if let __referenceForURLHandler = self.referenceForURLHandler {
+            __referenceForURLHandler(url)
+        }
+    }
+    var referenceForURLCallCount: Int = 0
+    var referenceForURLArgs: [String] = []
+    var referenceForURLHandler: ((_ url: String) -> ())? = nil
+    func reference(withPath path: String) {
+        referenceWithPathCallCount += 1
+        referenceWithPathArgs.append(path)
+        if let __referenceWithPathHandler = self.referenceWithPathHandler {
+            __referenceWithPathHandler(path)
+        }
+    }
+    var referenceWithPathCallCount: Int = 0
+    var referenceWithPathArgs: [String] = []
+    var referenceWithPathHandler: ((_ path: String) -> ())? = nil
+}
+
 // MARK: - NamingUnderscores
 final class NamingUnderscoresMock: NamingUnderscores {
 

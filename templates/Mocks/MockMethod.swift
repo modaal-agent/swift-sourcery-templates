@@ -21,8 +21,12 @@ class MockMethod {
         let mockedMethods = allMethods
             .map { MockMethod(type: type, method: $0, genericTypePrefix: genericTypePrefix, useShortName: true) }
             .minimumNonConflictingPermutation
-        guard !mockedMethods.hasDuplicateMockedMethodNames else {
-            throw MockError.internalError(message: "Mock generator: not all duplicates resolved: \(mockedMethods.map { $0.mockedMethodName })!")
+        // §2.2 step 4: the long form and then the return-type discriminator
+        // both left a collision. Two overloads share their labels, their
+        // parameter count and their return type, and differ only in a parameter
+        // type — which no part of the name derives from.
+        if let collidingName = mockedMethods.duplicateMockedMethodName {
+            throw MockError.collidingMemberNames(typeName: type.name, memberName: MockNaming.callCount(collidingName))
         }
         return mockedMethods.sorted { $0.mockedMethodName < $1.mockedMethodName }
     }
@@ -404,15 +408,20 @@ private extension Collection where Element == MockMethod {
     }
 
     var hasDuplicateMockedMethodNames: Bool {
+        return duplicateMockedMethodName != nil
+    }
+
+    /// The first prefix two of these methods share, or `nil`.
+    var duplicateMockedMethodName: String? {
         var mockedMethodNames = Set<String>()
         for nextItem in self {
             let key = nextItem.mockedMethodName
             if mockedMethodNames.contains(key) {
-                return true
+                return key
             }
             mockedMethodNames.insert(key)
         }
-        return false
+        return nil
     }
 }
 

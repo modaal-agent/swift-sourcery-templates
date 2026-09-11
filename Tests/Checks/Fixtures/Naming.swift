@@ -49,3 +49,19 @@ public protocol NamingKeywords: AnyObject {
   func `do`()
   func `repeat`(times: Int)
 }
+
+/// An overload group whose argument labels differ from their parameter names.
+/// The long form takes the label — what the caller writes — and not the label
+/// followed by the name (§2.2 step 2): `endAtDocumentDocument` was the old
+/// spelling of the first of these. `end()` has the fewest parameters and keeps
+/// the plain prefix, which is what stops an added overload renaming a member an
+/// existing test already uses (D3).
+///
+/// sourcery: ProtocolMock
+public protocol NamingOverloads: AnyObject {
+  func end()
+  func end(atDocument document: String)
+  func end(at fieldValues: [String])
+  func reference(withPath path: String)
+  func reference(forURL url: String)
+}
