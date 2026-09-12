@@ -1511,3 +1511,225 @@ sentence naming the state of the twin as of the tag is written when that decisio
 Lanes run at this phase, all green: `run-checks.sh`, `run-skill-checks.sh`,
 `run-annotation-checks.sh`, `run-cli-checks.sh`, `run-plugin-checks.sh`, and
 `Tests/Examples/ExampleProjectSpm/test-ios.sh` at P7. `run-xcode-checks.sh` was not run.
+
+---
+
+## 10. Proposed: making a non-derivable name readable in the file, and finding the file
+
+Proposals only. Nothing here is implemented, and P1–P9 are complete without it. Two questions, asked
+after P9: how an agent reading a generated file learns that a member's name is not its declaration,
+and how an agent finds that file at all on the plugin lane.
+
+### 10.1 What is left after P8, measured
+
+§2.1 and §2.2 make most names derivable, and P8 states the rule in `SKILL.md`, `README.md` and
+`references/generated-api.md`. Three cases stay underivable **from the declaration a reader has in
+front of them**, even knowing the rule:
+
+1. **An overload's long form** (§2.2 step 2). Whether a declaration is in an overload group at all
+   depends on the mock's whole requirement set, inherited requirements included, so a protocol
+   refining another can put a requirement into a group that neither declaration shows (§1.4, §3 D3).
+2. **The return-type discriminator** (§2.2 step 3). `dataStringAnyOptional` appears in no
+   declaration.
+3. **`/// sourcery: methodName = "…"`**, which is visible at the declaration but not at the mock.
+
+Counted over generated output as of P9:
+
+| | methods | prefix ≠ declared name | classes with at least one |
+| --- | ---: | ---: | ---: |
+| `Tests/Checks/Snapshots/Mocks.generated.swift` | 56 | **4** (7%) | 4 of 33 |
+| `modaal-firebase-wrappers`, regenerated (7 modules) | 152 | **47** (30%) | 10 of 34 |
+
+The consumer's are concentrated: `CollectionReferenceProtocolMock` 12, `QueryProtocolMock` 11,
+`CloudFileStoringMock` 6, `CloudStorageReferencingMock` 6, then six classes with three or fewer. A
+query-builder API overloads heavily, and that is where an agent's derived guess is wrong 30% of the
+time.
+
+**Property prefixes need nothing.** `MockNaming.variablePrefix` is the declared name minus backticks
+in every branch, so no property name is underivable and no property comment is proposed.
+
+All three causes are known to `MockMethod` at emission — `useShortName`, `useReturnTypeInName` and
+`annotatedMethodName` — so no new analysis is needed to write the comment.
+
+### D14 — where the naming rule is stated inside a generated file
+
+**Ruled (a) and (b) — §10.5.**
+
+- **(a) One header per file, under the Sourcery banner (recommended).** Four lines stating §2.1 and
+  naming the overload exception. Cost is O(files): 28 lines across the consumer's seven.
+- (b) One header per class, under the existing `// MARK: - <Protocol>` line. In view wherever an
+  agent lands, at O(classes): 34 headers in the consumer, ~170 lines.
+- (c) Nothing; the rule is in `SKILL.md` and `README.md` as of P8. Leaves an agent reading a
+  generated file with no statement of the rule in the file it is reading.
+
+(a) and (b) differ only in whether the statement is in view when an agent reads a slice of a large
+file rather than the whole of it. The consumer's regenerated output is 2934 lines, which is read in
+slices; that is the case for (b), and D15(b) covers it more cheaply.
+
+### D15 — how a name that is not the declaration is recorded
+
+**Ruled (c) — §10.5.**
+
+- **(a) One comment line above the witness, naming the selector, the prefix and the cause
+  (recommended).** Emitted only for the three cases in §10.1, so most members get nothing:
+
+  ```swift
+  // `end(at:)` members are named `endAt*` — overload of `end`, argument labels appended
+  func end(at fieldValues: [String]) {
+      endAtCallCount += 1
+  ```
+
+  ```swift
+  // `data()` members are named `dataStringAnyOptional*` — overload of `data` differing only in return type
+  // `refresh()` members are named `reloadNow*` — `/// sourcery: methodName = "reloadNow"`
+  ```
+
+  The line carries both spellings, so `grep "end(at:)"` and `grep endAt` each find it. Cost: 47
+  lines in the consumer (1.6% of 2934), 4 in the snapshot.
+- (b) A per-class index line instead, listing the class's non-derived names under the `MARK:`.
+  Ten lines in the consumer, one per class that has any, and in view on landing — but a line listing
+  12 mappings is long, and it is not beside the declaration it describes.
+- (c) Both (a) and (b). 57 lines in the consumer; the index is then a second statement of what the
+  per-member lines already say.
+- (d) Neither. An agent that guesses `endAtFieldValues` gets a compile error naming the member it
+  wrote, and finds the real name by reading the class — which is what the evaluation measured as the
+  cost.
+
+### D16 — how the comment is kept true
+
+**Ruled (a) and (b) — §10.5.**
+
+The comment is a claim about the name, so it must be produced by the function that produces the
+name. `MockNaming` gains one function taking the same three inputs `methodPrefix` takes and
+returning the comment or `nil`; `MockMethod` calls it where it already calls `methodPrefix`. Written
+at the emission site instead, it becomes a second statement of the rule, which is what `AGENTS.md`
+§"State a rule once" exists to prevent and what §1.8 measured the cost of.
+
+- **(a) Generate it from `MockNaming`, and let the snapshot be the gate (recommended).** A comment
+  that disagrees with the name below it cannot be produced, and the snapshot diff shows both.
+- (b) The same, plus a check in `run-checks.sh` asserting that each comment's stated prefix equals
+  the `CallCount` on the following lines, with a red control. Cheap — one pass over the snapshot —
+  and it gates a hand-edit of the template that (a) makes impossible by construction.
+
+### 10.2 When this should land, if it lands
+
+**In the same release as P1–P9.** It changes every generated file, so a consumer regenerates and
+re-fingerprints either way; landing it in this tag costs nothing beyond the regenerate already
+required by §2.1 and §2.2. Landing it later forces a second regenerate of every consumer, and a
+second `mock-templates validate` failure, for comments alone.
+
+### 10.3 Finding the generated file on the plugin lane
+
+Measured on this machine — both lanes write under one path segment,
+`SourcerySwiftCodegenPlugin/.generatedFiles/`:
+
+```
+# SwiftPM
+<build>/plugins/outputs/<package lowercased>/<Target>/destination/
+    SourcerySwiftCodegenPlugin/.generatedFiles/<Config stem>/<Template>.generated.swift
+
+# Xcode
+<DerivedData>/<Project>-<hash>/Build/Intermediates.noindex/BuildToolPluginIntermediates/
+    <project>.output/<Target>/SourcerySwiftCodegenPlugin/.generatedFiles/<Config stem>/<Template>.generated.swift
+```
+
+So one command finds them on either lane, given the build root:
+
+```bash
+find "$BUILD_ROOT" -path '*/SourcerySwiftCodegenPlugin/.generatedFiles/*' -name '*.generated.swift'
+```
+
+`$BUILD_ROOT` is `.build` for a SwiftPM package. For an Xcode project it is derived data, which may
+be relocated, so it is read rather than assumed:
+
+```bash
+xcodebuild -project X.xcodeproj -showBuildSettings 2>/dev/null | awk -F' = ' '/ BUILD_DIR = /{print $2}'
+```
+
+### D17 — what to do about it
+
+**Ruled (a) and (a2) — §10.5. (f) was not ruled and is not in P11.**
+
+- **(a) Document it, in `references/spm-plugin.md` (recommended).** A "Finding the generated file"
+  section carrying the two path shapes, the `find`, and the `xcodebuild -showBuildSettings` line.
+  No build change, and it works against every version already released.
+- **(a2) …and document the build-log route beside it (recommended, same section).** The plugin
+  already emits the absolute directory:
+  `Diagnostics.remark("<config>: the plugin supplied output: <abs path>")`
+  (`Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift:529-550`). It is in every
+  build log today and is documented nowhere. `references/troubleshooting.md` already tells a reader
+  to read that log for a missing type (`spm-plugin.md:162`); this is the same log and one more thing
+  it answers.
+- (b) The skill instructs the adopting repository to commit a three-line
+  `Scripts/find-generated-mocks.sh` once, so later sessions run one command rather than
+  reconstructing the `find`. Durable across agent sessions; it is a file in the consumer's repository
+  that this repository cannot update.
+- (c) A **command plugin** — `swift package plugin generate-mocks
+  --allow-writing-to-package-directory` — writing the generated files into the package tree. A build
+  tool plugin cannot: its commands are sandboxed to `pluginWorkDirectory`. A command plugin can.
+  **Not recommended:** `mock-templates generate` already writes committed, in-tree, greppable output
+  and is the documented lane for exactly that (`references/cli-lane.md`), so this adds a second route
+  to the same result. Worth revisiting only to reuse the plugin's config discovery.
+- (d) A symlink or pointer file written into the package directory by the build tool plugin.
+  **Impossible**, on the same sandbox fact as (c).
+- (e) Emit the absolute output path into the generated file's own banner. It answers "where did this
+  come from" for a reader who already has the file, which is not the question asked.
+
+**(f) State the discoverability difference where a consumer picks a lane.**
+`references/cli-lane.md` and `references/spm-plugin.md` compare the two on fingerprinting, CI and
+checkout size. Generated output that is committed and greppable at a stable path, against output
+under a derived-data path that has to be found, is one more line in that comparison, and it is the
+line that matters for a repository whose tests are written by agents.
+
+### 10.4 Phasing, if this is taken
+
+**P10 — the comments (D14, D15, D16).** `MockNaming` gains the header text and the per-member
+comment function; `MockMethod` calls the second where it calls `methodPrefix`; `MockGenerator` emits
+the header. Fixtures already cover all three causes — `NamingOverloads` (§2.2 step 2),
+`ReturnTypeOverload` in `Tests/Examples/` and the `data()` pair (step 3) — and a `methodName` fixture
+is added, which the tree does not have today. Gates: the snapshot diff, both language modes, and the
+example lane, which is where the return-type-discriminated names are asserted on.
+
+**P11 — the plugin-output documentation (D17).** `references/spm-plugin.md` gains the section;
+`references/troubleshooting.md` gains a "the generated file is not where I looked" entry; the
+lane-comparison line in D17(f) goes in both references. `SKILL.md` gets one line, in its body, with
+the `find`. No template change, so no snapshot moves.
+
+P10 belongs in this release (§10.2). P11 is independent of the tag and can land at any point.
+
+### 10.5 Ruled
+
+Ruled 2026-09-12. The options listed in D14, D15, D16 and D17 stand as written; this section names
+which of them are taken, and supersedes the `(recommended)` mark in each of those four sections
+where the ruling differs from it.
+
+| decision | taken | against the mark in that section |
+| --- | --- | --- |
+| D14 — where the rule is stated in the file | **(a) and (b)** — a header at the top of the file *and* one under every class's `MARK:` line | (a) alone was marked |
+| D15 — how a renamed member is recorded | **(c)** — the per-class index *and* the line above the witness | (a) alone was marked |
+| D16 — how the comment is kept true | **(a) and (b)** — generated from `MockNaming`, *and* asserted by a gate in `run-checks.sh` with a red control | (a) alone was marked |
+| D17 — finding the generated file on the plugin lane | **(a) and (a2)** — the path shapes and the `find` in `references/spm-plugin.md`, and the build-log remark beside them | as marked |
+
+D14(b) is taken for the fact D14 records against it: a 2934-line generated file is read in slices,
+and the per-class header is what puts the rule in the slice an agent lands in. The class header is
+the same two lines for every class, with nothing interpolated from the protocol, so the snapshot
+diff a new protocol produces is those two lines and the class.
+
+D15(c) states the same sentence in two places — above the witness and in its class's index — and
+both come from one call, so the two cannot disagree.
+
+D16(b) gates what D16(a) makes impossible by construction. What it catches is a later edit that
+writes a comment where a member is emitted instead of asking `MockNaming` for one, which is what
+`AGENTS.md` §"State a rule once" forbids and what no other check reads. The gate also asserts that a
+class's index and its witness lines are the same set, so a member commented in one place and not the
+other fails the run.
+
+**Not taken:** D17(b), (c), (d) and (e), each for the reason D17 gives. **Not ruled:** D17(f), the
+lane-comparison line for `references/cli-lane.md` and `references/spm-plugin.md`. It is out of P11's
+scope and stays open.
+
+**What this makes P10 emit, against §10.4's two items:** four — the file header (D14a), the class
+header (D14b), the class index (D15b), and the line above the witness (D15a) — plus the gate (D16b)
+and its red control. `MockGenerator` emits the first three, `MockMethod` the fourth, and every
+string comes from `MockNaming`. The `methodName` fixture §10.4 names is still added, because no
+fixture in the tree carries that annotation today.
