@@ -11,6 +11,11 @@ class SourceCode {
     let line: String
     var nested: [SourceCode]
     var isBlockMandatory: Bool = false // if `true`, always output curly braces after the line, even if nested is empty, e.g., empty class/function declaration.
+    /// Emitted immediately after the closing brace, with no space. It is what
+    /// lets a block be part of a larger expression — the remaining arguments of
+    /// a call whose first argument is a trailing-style closure, as in
+    /// `handleEvents(receiveOutput: { … }, receiveCompletion: { … })`.
+    var trailer: String = ""
 
     init(_ line: String, nested: [SourceCode] = []) {
         self.line = line
@@ -36,7 +41,7 @@ class SourceCode {
             if !line.contains("{") { // as in, e.g., "return AnyObserver { [weak self] event in"
                 result += " {"
             }
-            result += "\n\(nestedCode)\n\(indent)}"
+            result += "\n\(nestedCode)\n\(indent)}\(trailer)"
         } else if isBlockMandatory {
             result += " {\n\(indent)}"
         }
@@ -52,7 +57,15 @@ extension SourceCode {
         guard !prefix.isEmpty, !line.isEmpty else { return self }
         let copy = SourceCode("\(prefix)\(line)", nested: nested)
         copy.isBlockMandatory = isBlockMandatory
+        copy.trailer = trailer
         return copy
+    }
+
+    /// Sets `trailer` and returns self, so a block that continues an expression
+    /// reads as one construct at the point it is built.
+    func trailing(_ trailer: String) -> SourceCode {
+        self.trailer = trailer
+        return self
     }
 }
 

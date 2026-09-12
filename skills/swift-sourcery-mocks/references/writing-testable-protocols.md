@@ -112,7 +112,7 @@ Annotation names are matched exactly, including case.
 | `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
 | `subject = "CurrentValue"` | Variable / method | Choose the subject backing an `AnyPublisher` member — `CurrentValue` or `Passthrough` |
-| `skipArgumentRecording` | Protocol / method | Do not generate `<method>Args`; call counting and the handler are unaffected |
+| `skipArgumentRecording` | Protocol / method / variable | Do not generate `<method>Args`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected |
 | `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
 | `componentAccess = "public"` | Protocol | Emit a `public` Component; the default is internal |

@@ -8,44 +8,26 @@ metadata:
 
 # Swift mock generation with swift-sourcery-templates
 
-Three templates, each selected by an annotation on a protocol: `Mocks` writes the mock class,
-`TypeErase` the type-erasing wrapper, `Component` the forwarding class of a dependency-injection
-tree.
+Three templates — `Mocks`, `TypeErase`, `Component` — each selected by an annotation on a protocol.
 
 ## Pick the lane first
 
 | what the repository is | lane |
 | --- | --- |
-| a SwiftPM package whose mocks compile into a test target of that same package | the build-tool plugin |
-| an Xcode project with no `Package.swift` | the same plugin, through `XcodeBuildToolPlugin`. `${SOURCERY_SOURCES}` reaches the target's own input-file directories and no further, so name every other directory in `sources:` under `${SOURCERY_PROJECT}` |
-| mocks committed to the repository, so a consumer or a cold CI job runs no generator | `mock-templates generate`, with `mock-templates validate` as the CI gate |
-| a library shipping mocks to downstream packages | `mock-templates generate`, committed. Generated mocks are `internal`, so the consumer writes `@testable import` |
+| a SwiftPM package whose mocks compile into a test target of the same package | the build-tool plugin |
+| an Xcode project with no `Package.swift` | the same plugin, through `XcodeBuildToolPlugin`; `${SOURCERY_SOURCES}` reaches the target's own input-file directories and no further, so name the others under `${SOURCERY_PROJECT}` |
+| mocks committed, so a consumer or a cold CI job runs no generator | `mock-templates generate`, with `mock-templates validate` as the CI gate |
+| a library shipping mocks downstream | `mock-templates generate`, committed. Generated mocks are `internal`, so the consumer writes `@testable import` |
 
-One lane per target: a package that generates at build time commits no generated file; a repository
-that commits them does not run the plugin.
+One lane per target: a package generating at build time commits no generated file; one that commits
+them does not run the plugin.
 
 ## Annotate the protocol
 
-```swift
-/// sourcery: ProtocolMock
-protocol DataService {
-    func fetchData(id: String, completion: @escaping (String?, Error?) -> Void)
-}
-```
-
-Several annotations on one declaration are comma-separated — `/// sourcery: ProtocolMock,
-DuetComponent` — and a value is written with `=`, as in `/// sourcery: subject = "CurrentValue"`.
-
-**A protocol you do not own** is annotated through an empty extension, in a directory of its own
-that the generation config also scans:
-
-```swift
-// SourceryAnnotations/ExternalFramework+Mocks.swift
-import ExternalFramework
-
-/// sourcery: ProtocolMock
-extension ExternalProtocol {}
-```
+`/// sourcery: ProtocolMock` above `protocol DataService { … }` is the whole of it. Several
+annotations on one declaration are comma-separated — `/// sourcery: ProtocolMock, DuetComponent` —
+and a value is written with `=`: `/// sourcery: subject = "CurrentValue"`. **A protocol you do not
+own** is annotated from an empty `extension ExternalProtocol {}`, in a directory the config scans.
 
 <!-- annotations:start -->
 <!-- Rendered from templates/Annotations/AnnotationRegistry.swift by Scripts/render-annotations.sh. Do not edit inside this block. -->
@@ -69,15 +51,14 @@ Annotation names are matched exactly, including case.
 | `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
 | `subject = "CurrentValue"` | Variable / method | Choose the subject backing an `AnyPublisher` member — `CurrentValue` or `Passthrough` |
-| `skipArgumentRecording` | Protocol / method | Do not generate `<method>Args`; call counting and the handler are unaffected |
+| `skipArgumentRecording` | Protocol / method / variable | Do not generate `<method>Args`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected |
 | `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
 | `componentAccess = "public"` | Protocol | Emit a `public` Component; the default is internal |
 <!-- annotations:end -->
 
-The legacy spellings `CreateMock`, `ObjcProtocol` and `TypeErase` still select the same templates;
-write the table's names in new code, because a release after the current one stops accepting them
-and generation then fails naming the replacement.
+`CreateMock`, `ObjcProtocol` and `TypeErase` still select the same templates, but write the table's
+names in new code: a later release stops accepting them.
 [references/writing-testable-protocols.md](references/writing-testable-protocols.md) has what to
 annotate, the shapes that generate well, and the isolation a mock restates.
 
@@ -87,23 +68,14 @@ annotate, the shapes that generate well, and the isolation a mock restates.
    `git ls-remote --tags https://github.com/modaal-agent/swift-sourcery-templates.git | tail -1`:
 
 ```swift
-dependencies: [
-    .package(url: "https://github.com/modaal-agent/swift-sourcery-templates.git", from: "<newest tag>"),
-],
-targets: [
-    .testTarget(
-        name: "MyModuleTests",
-        dependencies: [.target(name: "MyModule")],
-        plugins: [.plugin(name: "SourcerySwiftCodegenPlugin", package: "swift-sourcery-templates")]
-    ),
-]
+.package(url: "https://github.com/modaal-agent/swift-sourcery-templates.git", from: "<newest tag>"),
+// and on every target that generates:
+plugins: [.plugin(name: "SourcerySwiftCodegenPlugin", package: "swift-sourcery-templates")]
 ```
 
-2. Put a `*.sourcery*.yml` config in the source directory of every target that generates — three
-   lines is enough:
+2. Put a `*.sourcery*.yml` config in the source directory of every generating target — three lines:
 
 ```yml
-# Sources/MyModuleTests/.Sourcery.Mocks.yml
 templates:
   - Mocks
 ```
@@ -111,140 +83,126 @@ templates:
 The plugin fills in the sources, the output directory the build collects from, and — for a test
 target with exactly one direct dependency on a module of the same package — `args.testable`.
 
-3. Build. The plugin logs every exported variable, every default it supplied and every template
-   name it resolved.
+3. Build. The plugin logs every variable it exported, every default it supplied and every template
+   it resolved.
 
-**Reading beyond the target.** `${SOURCERY_SOURCES}` expands to the target's own sources plus the
-recursive closure of its dependencies, one directory per module, so a mock carries requirements its
-protocol inherits further down the graph:
+**Reading beyond the target.** `${SOURCERY_SOURCES}` is the target's own sources plus the recursive
+closure of its dependencies, so a mock carries requirements inherited further down the graph. Write
+it under `sources:`, with any further directory beside it, such as
+`${SOURCERY_TARGET_MyModuleTests}/SourceryAnnotations`. A list without it is scanned as written.
 
-```yml
-templates:
-  - Mocks
-sources:
-  - ${SOURCERY_SOURCES}
-  - ${SOURCERY_TARGET_MyModuleTests}/SourceryAnnotations
-```
+**Where it writes.** Omit `output:`, or write `${SOURCERY_OUTPUT_DIR}`. Any other directory fails the
+build: a prebuild command's outputs are collected only from the one it declared.
 
-A `sources:` list without the placeholder is scanned exactly as written.
-
-**Where it writes.** Omit `output:`, or write `output: ${SOURCERY_OUTPUT_DIR}`. Any other directory
-fails the build: a prebuild command's outputs are collected only from the directory it declared.
+**Finding what it wrote.** The generated file is a build product, not a file in the repository:
+`find .build -path '*/SourcerySwiftCodegenPlugin/.generatedFiles/*' -name '*.generated.swift'`. An
+Xcode project's build root is derived data rather than `.build`.
 
 **Naming a template.** A `templates:` entry may be the bare name of a shipped template — `Mocks`,
-`TypeErase`, `Component` — and Sourcery writes one `<Template>.generated.swift` per entry.
-
-Everything else is carried through unread, and every path the config writes must be absolute: the
-plugin runs a copy of it from its own work directory.
+`TypeErase`, `Component` — one `<Template>.generated.swift` per entry. The rest of the config is
+carried through unread, and every path it writes must be absolute: the plugin runs a copy from its
+own work directory.
 [references/spm-plugin.md](references/spm-plugin.md) has the exported variables, the resolution order
-for a template name, and Xcode.
+for a template name, Xcode, and how to find the output there.
 
 ## The CLI lane
 
-`mock-templates generate` writes the output under a fingerprint block naming the bundle tag, the
-config, the path and SHA-256 of every scanned source, and the SHA-256 of the generated body.
-`validate` re-hashes all of it without running the generator, so a cold CI job proves the committed
-files current in seconds.
+`mock-templates generate` writes the output under a fingerprint block — the bundle tag, the config,
+the path and SHA-256 of every scanned source, and the SHA-256 of the body. `validate` re-hashes it
+without running the generator, so a cold CI job proves the files current in seconds. The CLI ships in
+the release artifact bundle with the engine and `templates/`, all at one tag;
+[references/cli-lane.md](references/cli-lane.md) has the download, every flag and `imprint`.
 
-`mock-templates` ships in the release artifact bundle with the generator engine and `templates/`,
-all at one tag. [references/cli-lane.md](references/cli-lane.md) has the download, every flag and
-`imprint`.
+Generate one output file per module, in a script the repository commits. `generate` takes
+`--sourcery` and `--templates` from the unpacked bundle, one or more `--sources`, `--args`,
+`--bundle-version`, `--root "$(pwd)"` and `--output`; `cli-lane.md` above has the loop to copy.
 
-Generate one output file per module, in a script the repository commits:
-
-```bash
-VERSION=<newest tag>
-BUNDLE="swift-sourcery-templates-$VERSION.artifactbundle"
-"$BUNDLE/mock-templates/bin/mock-templates" generate \
-  --sourcery "$BUNDLE/sourcery/bin/sourcery" \
-  --templates "$BUNDLE/templates/Mocks.swifttemplate" \
-  --sources Sources/MyModule \
-  --sources SourceryAnnotations \
-  --args "import=Foundation,testable=MyModule" \
-  --bundle-version "$VERSION" \
-  --root "$(pwd)" \
-  --output Tests/MyModuleTests/Generated/MyModuleMocks.swift
-```
-
-Gate it in CI with the CLI alone, which needs no engine download:
-
-```bash
-mock-templates validate \
-  --file Tests/MyModuleTests/Generated/MyModuleMocks.swift \
-  --root "$(pwd)" \
-  --sources Sources/MyModule \
-  --sources SourceryAnnotations \
-  --template Mocks.swifttemplate \
-  --args "import=Foundation,testable=MyModule"
-```
-
-`validate` fails on an input that changed, went missing or was added, on a hand-edited body, and —
-with `--template` and `--args` — on a config that no longer matches the one that generated the file.
+Gate it in CI with `mock-templates validate`, which needs no engine download: `--file` the generated
+file, `--root "$(pwd)"`, and the same `--sources`, `--template` and `--args`. It fails on an input
+that changed, went missing or was added, on a hand-edited body, and — given `--template` and
+`--args` — on a config that no longer matches.
 
 ## What the generated mock gives a test
 
 ```swift
 let service = DataServiceMock()
 sut.load(id: "m1")
-
 XCTAssertEqual(service.fetchDataCallCount, 1)
 XCTAssertEqual(service.fetchDataArgs, ["m1"])
 service.fetchDataHandler = { id, completion in completion("payload", nil) }
 ```
 
-| member | what it holds |
-| --- | --- |
-| `<method>CallCount` | how many times the requirement was called |
-| `<method>Args` | what each call was passed, in order. One recordable parameter gives `[T]`; two or more give `[(first: A, second: B)]`, labelled with the parameter names |
-| `<method>Handler` | the closure the test sets to control the return value and the side effects. `async` and `throws` are carried through to it |
-| `<var>GetCount` / `<var>GetHandler` / `<var>SetCount` | the same three for a property requirement |
-| `<method>Subject` / `<var>Subject` | the subject backing an `AnyPublisher` or an RxSwift member, which the test drives with `send` |
-| `<method>CancelCallCount` | for a method returning `AnyCancellable` or a `Disposable`: how many times the returned token was cancelled |
+**A mock member is the declared name plus a suffix.** The name is taken verbatim — no case change,
+no underscore removal — with backticks dropped: `func perform1_0()` gives `perform1_0CallCount`,
+``func `do`()`` gives `doCallCount`, `var setting4_2: Int` gives `setting4_2GetCount`.
 
-Closure parameters, a generic method's parameters and anything annotated `skipArgumentRecording` are
-not recorded — assert through the handler.
+**Overloads.** The one with the fewest parameters keeps the plain name; each other appends the
+capitalized argument label of every parameter, or the parameter name where there is no label —
+`func end(atDocument document:)` gives `endAtDocument`. Overloads differing only in return type get
+a suffix from that type, and anything still colliding fails generation naming both members.
 
-Return values default without a handler: `Optional` gives `nil`, `Void` gives nothing, known types
-give a usable empty value. Mock classes are `final` — set a handler rather than subclassing one.
+**The generated file names the ones it did not derive.** It states the rule at the top and under
+every `// MARK:`, and a member whose prefix is not its declared name carries ``// `end(at:)` members
+are named `endAt*` — overload of `end`, argument labels appended`` above the witness and in its
+class's index. Search for either spelling.
 
-The generated file compiles at zero diagnostics under `-swift-version 5
--strict-concurrency=complete` and under `-swift-version 6`: the protocol's global actor lands on the
-mock class, `nonisolated` is carried through, and a `Sendable` protocol gets `@unchecked Sendable`.
+| member | on | what it holds |
+| --- | --- | --- |
+| `<method>CallCount` | method | how many times the requirement was called |
+| `<method>Args` | method | what each call was passed, in order: `[T]` for one recordable parameter, `[(first: A, second: B)]` for more, labelled with the parameter names |
+| `<method>Handler` | method | the closure the test sets to decide the return value and the side effects; `async` and `throws` carry through to it |
+| `<var>GetCount` / `<var>GetHandler` | property | every property requirement counts its reads; the handler supplies the value |
+| `<var>SetCount` / `_<var>` | property | writes to a `{ get set }` requirement, and the store — `_<var>` reads and seeds without moving a counter, and is the only way to seed a `{ get }` one |
+| `<name>Subject` | both | the subject behind an `AnyPublisher` or RxSwift member, which the test drives with `send` |
+| `<name>SubscribeCount` / `<name>SubscribeCancelCount` / `<name>CompletionCount` | both | an `AnyPublisher` member: the code under test subscribed, cancelled, saw the stream end |
+| `<name>OutputCount` / `<name>Outputs` / `<name>OutputHandler` | both | an `AnyPublisher` member: what it **delivered** — counted, recorded, handed to the handler |
+| `<name>EventCallCount` / `<name>Events` / `<name>EventHandler` | both | an `AnyObserver` member: the events pushed **in**, the same three ways |
+| `<method>CancelCallCount` / `<method>CancelHandler`, `<method>DisposeCallCount` / `<method>DisposeHandler` | method | the returned `AnyCancellable` was cancelled, or the returned RxSwift `Disposable` disposed |
 
-The emitted Swift for each shape, and the member map to the Kotlin twin, is
-[references/generated-api.md](references/generated-api.md).
+A returned token's suffix is the call it exposes: `cancel()`, `dispose()`. Closure parameters, a
+generic method's parameters and anything `skipArgumentRecording` covers are not recorded — assert
+through the handler; that annotation drops `<name>Outputs` and `<name>Events` too.
 
-## Publishers are subject-backed
+**A property declared `{ get async }`, `{ get throws }` or `{ get async throws }`** generates the
+accessor it declares, and `<var>GetHandler` carries the same effects. Swift has no effectful setter,
+so it has no `<var>SetCount`; seed `_<var>`. A member with no handler set returns a default — `nil`
+for an `Optional`, a usable empty value for a known type. Mock classes are `final`: set a handler
+rather than subclassing one.
 
-An `AnyPublisher` requirement, on a property or a method, is generated with a subject the test sends
-into, named `<var>Subject` or `<method>Subject`:
+**Drive a publisher member through its subject:**
 
 ```swift
-let repo = MemoryRepositoryMock()
-var received: [[MemoryDrop]] = []
-let token = repo.ownMemories.sink { received.append($0) }   // subscribe first
-repo.ownMemoriesSubject.send([drop])                        // then send
+let token = repo.ownMemories.sink { received.append($0) }  // subscribe first
+repo.ownMemoriesSubject.send([drop])                       // then send
 ```
 
-The default is a `PassthroughSubject`, which delivers nothing to a subscriber that arrives after the
-value was sent, so a test that seeds in `setUp` and subscribes in the body waits. To make the member
-replay, annotate it `subject = "CurrentValue"` — a `CurrentValueSubject` seeded with the `Output`'s
-default value — or return a publisher of your own from `<var>GetHandler`. A test that collects to the
-end also has to `send(completion: .finished)`.
+The default `PassthroughSubject` delivers nothing to a subscriber that arrives after the value was
+sent, so subscribe first or annotate the member `subject = "CurrentValue"` to replay one; a test
+collecting to the end also has to `send(completion: .finished)`.
+
+[references/generated-api.md](references/generated-api.md) has the emitted Swift for each shape and
+the Kotlin member map; [references/stream-members.md](references/stream-members.md) the publisher and
+RxSwift shapes, their counters, and when each handler is read.
 
 ## When it goes wrong
 
-| symptom | cause | action |
-| --- | --- | --- |
-| `type 'XMock' does not conform to protocol 'Y'` | the refined protocol was not among the parsed sources | plugin: put `- ${SOURCERY_SOURCES}` in `sources:`. CLI: add the other module's directory as another `--sources` |
-| the target compiles and a generated type is missing | `output:` named a directory the build does not collect from | omit `output:`, or write `${SOURCERY_OUTPUT_DIR}` |
-| `'createmock' on 'Foo' is not 'ProtocolMock'` | the spelling differs from the registry's only in case | spell it exactly — matching includes case |
-| a protocol generates no mock and nothing is reported | the declaration carries no selector, or the file is not under any scanned source root | annotate it, or add its directory to the sources |
-| the generator will not run — unidentified developer | the downloaded engine binary is quarantined | `xattr -dr com.apple.quarantine <artifact bundle>/sourcery/bin/sourcery` |
-| a Combine test hangs, or a continuation resumes twice | a `PassthroughSubject`-backed `AnyPublisher` member does not replay | subscribe before sending, or annotate `subject = "CurrentValue"` |
-| `<method>Args` does not exist | every parameter is a closure, the method is generic, or `skipArgumentRecording` is on the method or its protocol | assert through `<method>Handler` |
-| a Component fails generation naming a member | `static`, `init` and `subscript` requirements and associated types cannot be forwarded | hand-write that member, or annotate `DuetComponent, owns` and write the subclass |
-| the Swift 6 test body is rejected | calling a `nonisolated async` member of a non-Sendable mock from the main actor crosses an isolation boundary | make the test body non-isolated |
+- `type 'XMock' does not conform to protocol 'Y'` — the refined protocol was not parsed. Plugin:
+  `- ${SOURCERY_SOURCES}` in `sources:`. CLI: the other module's directory as another `--sources`.
+- the target compiles and a generated type is missing — `output:` named a directory the build does
+  not collect from. Omit it, or write `${SOURCERY_OUTPUT_DIR}`.
+- `'createmock' on 'Foo' is not 'ProtocolMock'` — spelling is matched including case.
+- a protocol generates no mock and nothing is reported — no selector on the declaration, or the file
+  is under no scanned source root.
+- the generator will not run, unidentified developer — the engine binary is quarantined:
+  `xattr -dr com.apple.quarantine <bundle>/sourcery/bin/sourcery`.
+- a Combine test hangs, or a continuation resumes twice — a `PassthroughSubject`-backed member does
+  not replay. Subscribe before sending, or annotate `subject = "CurrentValue"`.
+- `<method>Args` does not exist — every parameter is a closure, the method is generic, or
+  `skipArgumentRecording` covers it. Assert through `<method>Handler`.
+- a Component fails generation naming a member — `static`, `init`, `subscript` and associated types
+  cannot be forwarded. Hand-write it, or annotate `DuetComponent, owns` and write the subclass.
+- the Swift 6 test body is rejected — calling a `nonisolated async` member of a non-Sendable mock
+  from the main actor crosses isolation. Make the test body non-isolated.
 
-[references/troubleshooting.md](references/troubleshooting.md) has each of these in full, with the
-diagnostic text to match against.
+[references/troubleshooting.md](references/troubleshooting.md) has each in full, with the diagnostic
+text.

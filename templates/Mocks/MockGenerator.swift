@@ -9,6 +9,19 @@ case noDefaultValue(typeName: TypeName)
 /// something impossible and must reach them.
 case unseedableSubject(typeName: TypeName, member: String)
 case duplicateGenericTypeName(context: String)
+/// Two members of one mock would carry the same name. The generated file
+/// would not compile, and before this case it did not — with nothing from
+/// the template saying which two members collided (`spec.md` D9).
+case collidingMemberNames(typeName: String, memberName: String)
+/// A requirement declaring `throws(E)`. The templates write bare `throws`,
+/// and a witness throwing `any Error` does not satisfy it — so the
+/// requirement is refused in generation rather than at the consumer's
+/// conformance (`spec.md` §2.6, §8 question 1).
+case typedThrowsUnsupported(typeName: String, member: String, errorTypeName: String)
+/// An `AnyPublisher` requirement declared `{ get async }` or `{ get throws }`.
+/// The construct it returns reads its handler from inside a synchronous
+/// closure, which cannot await or rethrow (`spec.md` §2.7).
+case effectfulStreamRequirement(typeName: String, member: String)
 case internalError(message: String)
 }
 
@@ -29,6 +42,10 @@ class MockGenerator {
         }
         var topScope = TopScope()
 
+        // The naming rule, stated once at the top of the file (D14(a)).
+        topScope += Constants.NEWL
+        topScope += MockNaming.fileNamingHeaderLines
+
         for type in types {
             let mockVars = MockVar.from(type)
             let variablesToInit = mockVars.filter { $0.provideValueInInitializer }.map { (mockedVariableName: $0.mockedVariableName, variable: $0.variable, defaultValue: try? $0.variable.typeName.defaultValue()) }
@@ -36,6 +53,17 @@ class MockGenerator {
 
             topScope += Constants.NEWL
             topScope += "// MARK: - \(type.name)"
+
+            // The rule again, in the slice an agent lands in (D14(b)), and then
+            // this class's index of the members that do not follow it (D15(b)).
+            // Both lines of the index and the line above the witness come from
+            // one call per method, so they cannot disagree.
+            topScope += MockNaming.classNamingHeaderLines
+            let namingComments = mockMethods.compactMap { $0.namingComment }
+            if !namingComments.isEmpty {
+                topScope += MockNaming.namingIndexHeaderLine
+                topScope += namingComments.map { MockNaming.namingIndexLine($0) }
+            }
 
             let genericTypes: [GenericTypeInfo] = (type.genericTypes + mockMethods.flatMap { $0.genericTypes }).merged()
 
@@ -72,7 +100,10 @@ class MockGenerator {
                     return "\($0.mockedVariableName): \($0.variable.typeName.declaredName)\(defaultValue)"
                 }.joined(separator: ", ")
                 let initImpl = SourceCode("init(\(argumentList))")
-                initImpl += variablesToInit.map { "self.\($0.mockedVariableName) = \($0.mockedVariableName)" }
+                // The parameter keeps the requirement's own name and the
+                // assignment targets the store, so a consumer's `Mock(analytics:)`
+                // is unchanged and construction moves no counter (§2.5).
+                initImpl += variablesToInit.map { "self.\(MockNaming.store($0.mockedVariableName)) = \($0.mockedVariableName)" }
                 mock += Constants.NEWL
                 mock += "// MARK: - Initializer"
                 mock += initImpl
@@ -85,6 +116,15 @@ class MockGenerator {
                 mock += "// MARK: - Methods"
                 mock += mockMethodsFlattened
             }
+
+            // Every name the class declares, checked once, after the members
+            // that produce them have all been emitted. It covers a requirement
+            // colliding with another requirement's bookkeeping, two
+            // requirements producing one prefix, and the stream members' own
+            // names — whichever branch emitted them.
+            try MockNaming.checkForCollisions(
+                amongMemberDeclarations: mock.nested.map { $0.line },
+                typeName: type.name)
 
             topScope += mock
         }
@@ -144,6 +184,29 @@ extension MockError: LocalizedError {
                 `\(member)GetHandler` in the test to a stream that replays, or give the type a default value.
                 """
         case .duplicateGenericTypeName(let context): return "Duplicate generic type name found while generating mock implementation: \(context)"
+        case .typedThrowsUnsupported(let typeName, let member, let errorTypeName):
+            return """
+                `\(typeName).\(member)` is declared `throws(\(errorTypeName))`. The generated mock writes \
+                bare `throws`, and a witness that throws `any Error` does not satisfy a requirement \
+                that throws `\(errorTypeName)`. Declare the requirement `throws` on the protocol, or \
+                write this double by hand.
+                """
+        case .effectfulStreamRequirement(let typeName, let member):
+            return """
+                `\(typeName).\(member)` returns a publisher and is declared `async` or `throws`. \
+                The generated member hands back a `Deferred` whose closure reads \
+                `\(member)GetHandler` when the code under test subscribes, and that closure is \
+                synchronous. Drop the effects from the requirement, or return the stream from a \
+                method instead, where the handler is called with the method's own effects.
+                """
+        case .collidingMemberNames(let typeName, let memberName):
+            return """
+                `\(typeName)Mock` would declare `\(memberName)` twice. A requirement of \
+                `\(typeName)` collides with a bookkeeping member generated for another \
+                requirement, or two requirements produce the same name. Rename the requirement, \
+                or — for a method — name its members outright with \
+                `/// sourcery: methodName = "customName"` on the declaration.
+                """
         case .internalError(let message): return "Internal error: \(message)"
         }
     }

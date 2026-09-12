@@ -97,6 +97,47 @@ without it and the failure surfaces as a missing type far from its cause. Three 
 - `output: ${SOURCERY_OUTPUT_DIR}` — the same directory, written out;
 - any other directory — the build fails, naming both paths.
 
+## Finding the generated file on disk
+
+It is a build product under the build root, not a file in the package tree, and nothing writes a
+copy or a pointer into the tree — a prebuild command may write only inside the directory the plugin
+declared. Both lanes put it under one path segment, `SourcerySwiftCodegenPlugin/.generatedFiles/`:
+
+```
+# SwiftPM
+<build>/plugins/outputs/<package, lowercased>/<Target>/destination/
+    SourcerySwiftCodegenPlugin/.generatedFiles/<config stem>/<Template>.generated.swift
+
+# Xcode
+<DerivedData>/<Project>-<hash>/Build/Intermediates.noindex/BuildToolPluginIntermediates/
+    <project>.output/<Target>/SourcerySwiftCodegenPlugin/.generatedFiles/<config stem>/<Template>.generated.swift
+```
+
+The config stem is the config's file name without its leading dot and its extension, so
+`.Sourcery.Mocks.yml` writes into `.generatedFiles/Sourcery.Mocks/`. One command finds the files on
+either lane:
+
+```bash
+find "$BUILD_ROOT" -path '*/SourcerySwiftCodegenPlugin/.generatedFiles/*' -name '*.generated.swift'
+```
+
+`$BUILD_ROOT` is `.build` for a package. For an Xcode project it is derived data, which may be
+relocated, so read it rather than assume it:
+
+```bash
+xcodebuild -project X.xcodeproj -showBuildSettings 2>/dev/null | awk -F' = ' '/ BUILD_DIR = /{print $2}'
+```
+
+**The build log names the directory outright.** For every config the plugin supplies `output:` for,
+it remarks:
+
+```
+.Sourcery.Mocks.yml: the plugin supplied sources: …; output: /abs/path/…/.generatedFiles/Sourcery.Mocks.
+```
+
+`swift build -v` prints it; in Xcode it is in the build log under the target's plugin step. Read it
+when the `find` comes back empty — it says whether the plugin ran at all.
+
 ## `args.testable`, and the arguments that stay yours
 
 `args.import`, `args.excludedSwiftLintRules` and the choice of template are carried through unread.

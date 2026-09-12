@@ -42,8 +42,8 @@ func checkCallCountingAndHandlers() {
   mock.requestRecordPermission { captured.append($0) }
   expectEqual(captured, [true], "@escaping completion is captured and invoked")
 
-  mock.recordPermission = .granted
-  expect(mock.recordPermission == .granted, "a read-only requirement is settable on the mock")
+  mock._recordPermission = .granted
+  expect(mock.recordPermission == .granted, "a read-only requirement is seeded through its store")
 
   struct Boom: Error {}
   mock.activateRecordingHandler = { throw Boom() }
@@ -107,7 +107,7 @@ actor Gate {
 @MainActor
 func checkNonisolatedMembers() async {
   let mock = PushNotificationRepositoryProtocolMock(authorizationStatus: .granted)
-  mock.installationId = "install-1"
+  mock._installationId = "install-1"
 
   // The point of the `nonisolated` modifier surviving into the mock: this call
   // is legal from a context that is not the main actor.
@@ -194,6 +194,114 @@ func checkCombineStreams() {
   repository.isRefreshing.sink { refreshing.append($0) }.store(in: &cancellables)
   expectEqual(refreshing, [true], "a get handler overrides the subject")
   expectEqual(repository.isRefreshingGetCount, 1, "a variable get is counted")
+}
+
+/// What the construct a publisher member hands back records
+/// (`specs/004-mock-member-naming/spec.md` §2.7). The member returns a `Deferred`
+/// the mock owns, so it can tell "asked for the stream" from "subscribed" from
+/// "was actually sent something" — three facts that were one counter before.
+func checkPublisherCounting() {
+  var cancellables: Set<AnyCancellable> = []
+
+  let repository = MemoryRepositoryProtocolMock()
+  _ = repository.ownMemories
+  expectEqual(repository.ownMemoriesGetCount, 1, "reading the member counts a read")
+  expectEqual(repository.ownMemoriesSubscribeCount, 0, "and no subscription")
+
+  let held = repository.ownMemories
+  var seen: [[MemoryDrop]] = []
+  held.sink { seen.append($0) }.store(in: &cancellables)
+  expectEqual(repository.ownMemoriesSubscribeCount, 1, "subscribing counts a subscription")
+
+  // Delivery is counted, not sending: a `PassthroughSubject` drops a value that
+  // reaches no subscriber, and `<name>OutputCount` is how a test sees that.
+  let quiet = MemoryRepositoryProtocolMock()
+  quiet.ownMemoriesSubject.send([MemoryDrop(id: "unheard")])
+  expectEqual(quiet.ownMemoriesOutputCount, 0, "a send with nobody subscribed counts no output")
+
+  repository.ownMemoriesSubject.send([MemoryDrop(id: "a")])
+  expectEqual(repository.ownMemoriesOutputCount, 1, "a delivered value counts one output")
+  expectEqual(repository.ownMemoriesOutputs, [[MemoryDrop(id: "a")]], "and is recorded")
+
+  // A publisher records per subscription, so one send to two subscribers counts
+  // and records twice.
+  repository.ownMemories.sink { _ in }.store(in: &cancellables)
+  expectEqual(repository.ownMemoriesSubscribeCount, 2, "a second subscription counts")
+  repository.ownMemoriesSubject.send([MemoryDrop(id: "b")])
+  expectEqual(repository.ownMemoriesOutputCount, 3, "one send to two subscribers counts twice")
+
+  repository.ownMemoriesSubject.send(completion: .finished)
+  expectEqual(repository.ownMemoriesCompletionCount, 2, "a completion is counted per subscription")
+
+  // Cancellation, counted separately from the subscription that produced it.
+  let cancelling = MemoryRepositoryProtocolMock()
+  var token: AnyCancellable? = cancelling.ownMemories.sink { _ in }
+  expectEqual(cancelling.ownMemoriesSubscribeCancelCount, 0, "an open subscription counts no cancel")
+  token?.cancel()
+  token = nil
+  expectEqual(cancelling.ownMemoriesSubscribeCancelCount, 1, "cancelling counts a cancel")
+
+  // The handler is read when the code under test subscribes, not when it reads
+  // the member — so a handler seeded after the publisher was captured decides
+  // the stream. That is what the `Deferred` buys over erasing the subject.
+  let late = MemoryRepositoryProtocolMock()
+  let captured = late.ownMemories
+  late.ownMemoriesGetHandler = { Just([MemoryDrop(id: "late")]).eraseToAnyPublisher() }
+  var lateSeen: [[MemoryDrop]] = []
+  captured.sink { lateSeen.append($0) }.store(in: &cancellables)
+  expectEqual(lateSeen, [[MemoryDrop(id: "late")]], "a handler seeded after capture decides the stream")
+  expectEqual(late.ownMemoriesOutputCount, 1, "a handler-supplied stream's values are counted too")
+  expectEqual(late.ownMemoriesCompletionCount, 1, "and its completion")
+
+  // `<name>OutputHandler` runs after the counter and the recorder, and sees each
+  // value as it lands — which is how a test drives a chain from inside it.
+  let chained = MemoryRepositoryProtocolMock()
+  var observed: [String] = []
+  chained.shareOutputHandler = { value in
+    observed.append(value)
+    if value == "first" { chained.shareSubject.send("second") }
+  }
+  chained.share(id: "a").sink(receiveCompletion: { _ in }, receiveValue: { _ in }).store(in: &cancellables)
+  chained.shareSubject.send("first")
+  expectEqual(observed, ["first", "second"], "the output handler sees each value and can send the next")
+  expectEqual(chained.shareOutputs, ["first", "second"], "and the recorder holds both")
+
+  // A method keeps its handler at call time, where its arguments are.
+  let handled = MemoryRepositoryProtocolMock()
+  handled.shareHandler = { _ in Just("direct").setFailureType(to: Error.self).eraseToAnyPublisher() }
+  var direct: [String] = []
+  handled.share(id: "a").sink(receiveCompletion: { _ in }, receiveValue: { direct.append($0) })
+    .store(in: &cancellables)
+  expectEqual(direct, ["direct"], "a method handler still answers at call time")
+  expectEqual(handled.shareSubscribeCount, 0, "and bypasses the deferred subject entirely")
+
+  // The stream outlives the mock: the closure captures the subject directly and
+  // the mock weakly, so only the counting stops.
+  let subject: PassthroughSubject<[MemoryDrop], Never>
+  var survivor: AnyPublisher<[MemoryDrop], Never>
+  do {
+    let short = MemoryRepositoryProtocolMock()
+    subject = short.ownMemoriesSubject
+    survivor = short.ownMemories
+  }
+  var afterRelease: [[MemoryDrop]] = []
+  survivor.sink { afterRelease.append($0) }.store(in: &cancellables)
+  subject.send([MemoryDrop(id: "c")])
+  expectEqual(afterRelease, [[MemoryDrop(id: "c")]], "the stream still delivers after the mock is released")
+
+  // `skipArgumentRecording` suppresses the recorder and nothing else.
+  let frames = FrameStreamingMock()
+  frames.frames.sink { _ in }.store(in: &cancellables)
+  frames.rawFrames.sink { _ in }.store(in: &cancellables)
+  let player = FeedAudioPlayer(memoryRepository: MemoryRepositoryProtocolMock(), analytics: AnalyticsTrackingMock())
+  frames.framesSubject.send(player)
+  frames.rawFramesSubject.send(player)
+  expectEqual(frames.framesOutputs.count, 1, "an unannotated member records what it delivered")
+  expectEqual(frames.rawFramesOutputCount, 1, "an opted-out member still counts its outputs")
+  var raw: [FeedAudioPlayer] = []
+  frames.rawFramesOutputHandler = { raw.append($0) }
+  frames.rawFramesSubject.send(player)
+  expectEqual(raw.count, 1, "and still runs its output handler")
 }
 
 @MainActor
@@ -419,7 +527,7 @@ func checkComponentMutationAndEffects() async {
   let parent = CaptureDependencyMock(
     analytics: AnalyticsTrackingMock(),
     memoryRepository: MemoryRepositoryProtocolMock())
-  parent.installationId = "install-7"
+  parent._installationId = "install-7"
 
   let component = CaptureComponent(dependency: parent)
 
@@ -492,6 +600,70 @@ func checkSendableMock() {
   expect(sendable is AnalyticsTrackingMock, "a Sendable protocol produces a Sendable mock")
 }
 
+// MARK: - Property accessors
+
+/// Every property requirement generates `GetCount`, `GetHandler` and a `_<var>`
+/// store (`specs/004-mock-member-naming/spec.md` §2.5). What that has to get
+/// right is which access moves which counter.
+@MainActor
+func checkPropertyCounting() {
+  let mock = PropertyShapedMock(themeProvider: StubThemeProvider())
+
+  // Construction seeds the store, so it counts no write. This is what keeps
+  // `Mock(themeProvider:)` from arriving with `themeProviderSetCount == 1`.
+  expectEqual(mock.themeProviderGetCount, 0, "construction counts no read")
+
+  _ = mock.identifier
+  _ = mock.identifier
+  expectEqual(mock.identifierGetCount, 2, "a read of a stored requirement counts")
+
+  mock._identifier = "seeded"
+  expectEqual(mock.identifierGetCount, 2, "seeding through the store counts no read")
+  expectEqual(mock.identifier, "seeded", "the accessor returns what the store holds")
+
+  let draftMock = CaptureDependencyMock(analytics: AnalyticsTrackingMock(), memoryRepository: MemoryRepositoryProtocolMock())
+  draftMock.draft = "typed"
+  expectEqual(draftMock.draftSetCount, 1, "a write to a `{ get set }` requirement counts")
+  expectEqual(draftMock.draftGetCount, 0, "a write counts no read")
+  expectEqual(draftMock.draft, "typed", "the value written is the value read")
+  expectEqual(draftMock.draftGetCount, 1, "and that read counts")
+
+  draftMock._draft = "reseeded"
+  expectEqual(draftMock.draftSetCount, 1, "seeding through the store counts no write")
+
+  draftMock.draftGetHandler = { "from the handler" }
+  expectEqual(draftMock.draft, "from the handler", "the handler wins over the store")
+  expectEqual(draftMock._draft, "reseeded", "and leaves the store alone")
+}
+
+/// An effectful property requirement generates the accessor it declares
+/// (`spec.md` §2.6). A stored property could not satisfy `{ get async throws }`
+/// at all, so this is the first time the mock template witnesses one.
+func checkEffectfulProperties() async {
+  let mock = PropertyEffectfulMock(loader: StubThemeProvider())
+
+  mock._token = "seeded"
+  let token = await mock.token
+  expectEqual(token, "seeded", "an `{ get async }` accessor suspends and returns the store")
+  expectEqual(mock.tokenGetCount, 1, "and counts the read")
+
+  struct Boom: Error {}
+  mock.configGetHandler = { throw Boom() }
+  var threw = false
+  do { _ = try await mock.config } catch { threw = true }
+  expect(threw, "a `{ get async throws }` handler propagates out of the accessor")
+  expectEqual(mock.configGetCount, 1, "the read that threw is still counted")
+
+  mock._secret = "quiet"
+  let secret = try? mock.secret
+  expectEqual(secret, "quiet", "a `{ get throws }` accessor returns the store when no handler throws")
+
+  // The store is assignable even though the requirement is get-only, which is
+  // how a test seeds a type with no synthesizable default.
+  mock._loader = StubThemeProvider()
+  expectEqual(mock.loaderGetCount, 0, "seeding the store of an effectful requirement counts no read")
+}
+
 // MARK: - Entry point
 
 @main
@@ -499,9 +671,12 @@ enum BehaviourChecks {
   static func main() async {
     print("behaviour checks")
     checkCallCountingAndHandlers()
+    checkPropertyCounting()
+    await checkEffectfulProperties()
     await checkAsync()
     await checkNonisolatedMembers()
     checkCombineStreams()
+    checkPublisherCounting()
     checkComposition()
     checkSendableClosureParameters()
     checkSendableMock()

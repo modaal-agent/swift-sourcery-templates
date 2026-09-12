@@ -8,7 +8,7 @@ generated Xcode project. The fast lane comes first.
 ## The fast lane
 
 `./run-checks.sh` runs every template in its `TEMPLATES` list over
-[`Fixtures/`](Fixtures) and holds the results to five gates. It needs no
+[`Fixtures/`](Fixtures) and holds the results to seven gates. It needs no
 simulator and no third-party package, so it runs in a few seconds and is the loop
 to use while editing `templates/`.
 
@@ -23,6 +23,8 @@ SOURCERY=/path/to/sourcery Tests/Checks/run-checks.sh
 | **snapshot** | each generated file matches its recording in [`Snapshots/`](Snapshots), so every template change shows up as a reviewable diff of real output |
 | **zero-match** | a scan with no matching annotation still writes the file — the generators emit a marker comment, because the engine skips whitespace-only renders and consumers commit + fingerprint the output — snapshotted as `ZeroMatch-*` |
 | **near-miss** | a selector whose spelling differs from the registry's only in case fails the run, naming the type, the spelling found and the canonical form; an option that does writes one `// sourcery-templates:` comment into the generated file and generation continues |
+| **refusal** | a construct the templates cannot emit fails generation naming the protocol and the member, instead of writing a file the consumer's compiler rejects: two members that would carry one name, a requirement declaring `throws(E)`, an `AnyPublisher` requirement declared `async` or `throws` |
+| **naming-comments** | every `` `X` members are named `Y*` `` comment in the generated file describes the member under it, and each class's index is exactly the set of members commented inside that class — with a red control for a comment naming the wrong prefix and one for an index missing a member |
 | **typecheck** | all of them compile **together** with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6` |
 | **behaviour** | the mocks count calls, record arguments, run handlers, suspend where the protocol suspends and deliver values pushed into their subjects; the Components forward to the parent and hold what the level owns — [`Behaviour/Main.swift`](Behaviour/Main.swift), plain assertions in one executable |
 
@@ -84,6 +86,35 @@ The generic case is not here: a generic method records nothing, and the
 annotated-generic protocols that would prove it live in the example project (a
 mocked generic method needs `annotatedGenericTypes` to produce a usable double
 at all). The example lane is what covers it.
+
+[`Naming.swift`](Fixtures/Naming.swift) is the naming rule itself: which prefix a
+declared name produces, and which declarations produce a prefix that is not the
+declared name. The last three rows are the only members in the snapshot that
+carry a naming comment, so they are what the naming-comment gate reads.
+
+| construct | fixture |
+| --- | --- |
+| underscore in a method name beside one in a property name | `NamingUnderscores` |
+| two declarations the old transform mapped onto one name | `NamingManyToOne` |
+| an all-uppercase name | `NamingUppercase` |
+| keyword-named requirements, backticked at the witness | `NamingKeywords` |
+| an overload group — argument labels appended, fewest parameters keeps the plain name | `NamingOverloads` |
+| `methodName` — a prefix that appears in no declaration | `NamingAnnotated` |
+| overloads the labels do not separate, so the return type does | `NamingReturnTypes` |
+| an overload group's tie-break — same parameter count, one of them unlabelled | `NamingUnlabelledOverload` |
+
+[`Properties.swift`](Fixtures/Properties.swift) declares every branch of
+`MockVar.mockImpl` once.
+
+| construct | fixture |
+| --- | --- |
+| read-only with a synthesizable default | `PropertyShaped.identifier` |
+| mutable with a synthesizable default | `PropertyShaped.draft` |
+| no synthesizable default — an initializer parameter | `PropertyShaped.themeProvider` |
+| `const` | `PropertyShaped.buildNumber` |
+| `handler`, read-only and mutable — the property trap string | `PropertyShaped.snapshot` / `.cursor` |
+| `{ get async throws }`, `{ get async }`, `{ get throws }` | `PropertyEffectful` |
+| an effectful requirement whose type has no default | `PropertyEffectful.loader` |
 
 [`Forwarding.swift`](Fixtures/Forwarding.swift) adds the shapes the Component
 template has to forward. Two of its protocols carry `DuetComponent` alone, each

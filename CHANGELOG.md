@@ -18,6 +18,138 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
+## Unreleased — a mock member is the declared name plus a suffix
+
+Ships in the same release as the annotation-name entry below.
+
+**Generated output.** The bookkeeping prefix is now the member's declared name with backticks
+removed, and nothing else — no case change, no underscore removal, no first-word lowercasing. It was
+that for a property and a transform for a method, so one generated class carried two rules:
+
+```swift
+func perform1_0()              // perform10CallCount     → perform1_0CallCount
+func ID() -> String            // crashed generation     → IDCallCount
+var setting4_2: Int { get set }// setting4_2SetCount     → unchanged
+```
+
+An **overloaded** method's long form appends the capitalized argument label of each parameter, or the
+parameter name where the parameter has no label. It appended the label *and* the name before:
+
+```swift
+func end(atDocument document:)     // endAtDocumentDocument   → endAtDocument
+func end(at fieldValues:)          // endAtFieldValues        → endAt
+func reference(withPath path:)     // referenceWithPathPath   → referenceWithPath
+func update(id:force:)             // updateIdForce           → unchanged
+func putData(_ data:metadata:)     // putDataDataMetadata     → unchanged
+```
+
+**Every property requirement now counts its reads.** It generates `<var>GetCount`, `<var>GetHandler`
+and a store named `_<var>`, and the generated initializer seeds the store — construction still moves
+no counter, and `Mock(analytics:)` keeps its argument label. A stored property could not observe a
+read at all before, so `<var>GetCount` existed only on a stream member or one annotated `handler`.
+
+```swift
+var draft: String {
+    get { draftGetCount += 1; if let handler = draftGetHandler { return handler() }; return _draft }
+    set { draftSetCount += 1; _draft = newValue }
+}
+var draftGetCount: Int = 0
+var draftGetHandler: (() -> String)? = nil
+var draftSetCount: Int = 0
+var _draft: String = ""
+```
+
+**A `{ get }` requirement's witness is get-only**, as the requirement is, and `mock._<var> = value`
+is how a test seeds one — the same expression `kotlin-ksp-mocks` writes. A read-only requirement was
+emitted as a settable stored property before, so `mock.draft = x` compiled and moved no counter.
+`<var>SetCount` is still emitted for a `{ get set }` requirement only.
+
+**A property requirement declared `{ get async }`, `{ get throws }` or `{ get async throws }`**
+generates the accessor it declares, with the same effects on `<var>GetHandler`. It generated a plain
+stored property before, which does not satisfy the requirement.
+
+**An `AnyPublisher` member hands back a construct the mock owns** — a `Deferred` over the same
+subject — and counts what crossed it: `<name>SubscribeCount`, `<name>SubscribeCancelCount`,
+`<name>OutputCount`, `<name>CompletionCount`, with `<name>Outputs` recording the delivered values and
+`<name>OutputHandler` running after them. The subject, its default and `subject = "CurrentValue"` are
+unchanged. A property's `<var>GetHandler` is now read when the code under test **subscribes** rather
+than when it reads the member, so a handler seeded after the publisher was captured decides the
+stream. An `AnyObserver` member gains `<name>Events`, recording what was pushed in beside the count
+it already kept. `skipArgumentRecording` covers both recorders.
+
+**Two diagnostics replace two silent failures.** Two members of one mock that would carry the same
+name fail generation naming both — a protocol declaring `draft` and `draftGetCount` emitted
+`var draftGetCount` twice and only the consumer's compiler said so. A requirement declaring
+`throws(E)`, on a property or a method, fails generation naming the member: the templates write bare
+`throws`, and a witness throwing `any Error` does not satisfy it.
+
+A property getter with no handler set now traps with `<var>GetHandler expected to be set.`, the
+wording the method form already used and the one `kotlin-ksp-mocks` matches; it was
+`` `<var>GetHandler` must be set! ``.
+
+**Every generated file says how its members are named.** Five lines at the top state the rule, every
+`// MARK: - <Protocol>` restates it in two, and a member whose prefix is not its declared name
+carries a comment naming both spellings — above the witness, and in an index under that class's
+`MARK:`:
+
+```swift
+// `end(at:)` members are named `endAt*` — overload of `end`, argument labels appended
+func end(at fieldValues: [String]) {
+```
+
+Comments only: no member moves and no generated code changes. Search a generated file for either
+spelling, the declaration as written or the prefix its members carry.
+
+**Breaking, twice.** Every test naming a renamed member stops compiling. Regenerate and fix what the
+compiler names — each error names the member and the type, which is why no deprecated aliases are
+emitted: keeping them would mean keeping both naming rules in the generator.
+
+Every assignment to a `{ get }` requirement on a mock stops compiling too, with
+`cannot assign to property: … is a get-only property`. The fix at each site is `_<var>`:
+`mock.documentID = "d1"` becomes `mock._documentID = "d1"`. No deprecation window is available —
+`@available(*, deprecated)` marks a property, not one accessor. Nothing assigns such a requirement
+through the protocol, so every site is code holding the concrete `<Type>Mock`.
+
+Measured against `modaal-firebase-wrappers`, regenerated against `master` from its pinned 0.2.15:
+**7 files, 1706 lines → 2803**, 274 generated members → 515.
+
+| category | count |
+| --- | --- |
+| members renamed by the overload rule | 30, over 15 declarations (`endAtDocumentDocument*` → `endAtDocument*`, `referenceWithPathPath*` → `referenceWithPath*`, `signInWithEmailEmailPasswordCompletion*` → `signInWithEmailPasswordCompletion*`, …) |
+| members renamed by the prefix rule | 0 — no protocol there declares a method name carrying an underscore or leading capitals |
+| property members added | 168, over 56 requirements: `GetCount`, `GetHandler` and `_<var>` each |
+| `<method>Args` added | 73 — from the version bump itself, not from this change; that repository is pinned before argument recording |
+| naming comments | 214 lines — 5 per file, 2 per class, and 47 members carrying one above the witness and one in their class's index, in 10 of its 34 classes |
+| witnesses that became get-only | 69, over 52 distinct names; 4 `{ get set }` witnesses keep their setter |
+| its own tests that stop compiling on an assignment | **12 sites in 5 files** — `FirebaseAuthCombineTests` (4), `DocumentReferenceCombineTests` (4), `QueryDocumentSnapshotProtocolTests` (2), `FirestoreCombineTests` (1), `QueryCombineTests` (1); each becomes `_<var>` |
+| its own tests that stop compiling | **9 references in 2 files**, all naming `setDataDataForDocumentDocumentMerge*`, `setDataDataForDocumentDocumentMergeFields*` or `signInWithEmailEmailPasswordCompletionHandler` |
+
+The remaining renames land only in the committed generated files and in whatever repository imports
+that mocks module.
+
+A member that must keep its old name takes `/// sourcery: methodName = "oldName"` on the
+declaration.
+
+**Adopting.**
+
+1. **Plugin lane** — rebuild. The mock regenerates and the compiler names every test that used a
+   renamed member.
+2. **CLI lane** — `mock-templates generate`, then `mock-templates validate` in CI. The fingerprint
+   block changes with the body.
+3. **A property read starts counting.** An assertion that reads `mock.draft` moves `draftGetCount`
+   itself. Read and seed `mock._draft` to leave the counters where they are.
+4. **Seed a `{ get }` requirement through `_<var>`.** `mock.documentID = "d1"` no longer compiles;
+   `mock._documentID = "d1"` is the replacement, and it is the same expression on the Kotlin side.
+5. **A publisher member gains six members and a handler.** Driving `<name>Subject` is unchanged, and
+   a value sent while nobody is subscribed still goes nowhere — `<name>OutputCount` is how a test
+   sees that.
+
+The rule is stated in `README.md` §"Generated Mock API", in the skill's
+`references/generated-api.md` and `references/stream-members.md`, in every generated file, and built
+in one place, `templates/Mocks/MockNaming.swift`. `specs/004-mock-member-naming/spec.md` is what measured it.
+
+---
+
 ## Unreleased — annotation names are matched exactly, and the selectors are renamed
 
 **Generated output:** unchanged for a source that spells its annotations the way `README.md` spells

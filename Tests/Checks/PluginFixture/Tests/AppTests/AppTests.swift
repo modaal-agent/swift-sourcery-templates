@@ -7,7 +7,7 @@ import XCTest
 final class AppTests: XCTestCase {
   func testMockCarriesEveryInheritedRequirement() throws {
     let mock = ProfilePersistingMock()
-    mock.profileID = "id"
+    mock._profileID = "id"
     try mock.save("value", key: "key")
     mock.report("message")
     XCTAssertEqual(mock.saveCallCount, 1)

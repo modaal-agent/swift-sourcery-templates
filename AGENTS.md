@@ -92,9 +92,14 @@ Habits to avoid (common LLM-isms):
 - Code goes on a branch and through a PR, so [`ci.yml`](.github/workflows/ci.yml)'s seven lanes run
   before it lands. They trigger on push, not on PR open.
 - Any merge strategy — merge, rebase or squash — chosen for the nature of the PR.
-- A change touching no code may go straight to `master`: a spec, a note, README or CHANGELOG
-  wording, the skill tree under `skills/` or a `.claude-plugin/` manifest. `templates/`, `Sources/`,
-  `Plugins/`, `Tests/`, `Scripts/` and `.github/` are code.
+- **A new spec starts its feature's branch, and the spec is that branch's first commit.** Offer the
+  branch when the spec is asked for and create it before writing, named `spec/NNN-slug` after the
+  spec directory. The feature's code then lands on the same branch. A follow-up file beside a closed
+  spec follows this rule too when it plans new work.
+- A change touching no code may go straight to `master`: a note, README or CHANGELOG wording, the
+  skill tree under `skills/` or a `.claude-plugin/` manifest, or an addition to a spec whose branch
+  has already merged. `templates/`, `Sources/`, `Plugins/`, `Tests/`, `Scripts/` and `.github/` are
+  code.
 - Branch when the work starts. If code is ready and the checkout is `master`, ask which branch.
 - Pushing, opening a PR and merging one each need their own go-ahead.
 
@@ -135,6 +140,10 @@ Habits to avoid (common LLM-isms):
   parameter-declaration rules in `MethodParameter.parametersDecl` / `closureAttributesDecl`. Both
   templates read them. Restating a rule at a call site is how the mock and the Component come to
   emit different isolation for the same protocol.
+- **Every generated mock member name is built in `templates/Mocks/MockNaming.swift`** — the prefix,
+  the overload chain, every suffix, the backing store's spelling, both `fatalError` strings and the
+  uniqueness check. Interpolating a suffix where a member is emitted is how the method trap string
+  and the property one came to differ by three words and a pair of backticks.
 - Both language modes are the gate: `-swift-version 5 -strict-concurrency=complete` **and**
   `-swift-version 6`, at zero *diagnostics*. A construct can be a warning under the first and an
   error under the second.
@@ -172,7 +181,7 @@ templates. `Tests/Checks/run-skill-checks.sh` gates every rule below that a scri
   for every turn after the skill is invoked; a reference costs nothing until the agent opens it.
 - **The skill's behavioural gate is `Tests/Evals/`, and it does not live under `skills/`** — the
   runner refuses a case directory inside a plugin's component directory, so
-  `.claude-plugin/plugin.json` names the suite in `experimental.evals`. Each of the five prompts is
+  `.claude-plugin/plugin.json` names the suite in `experimental.evals`. Each of the six prompts is
   run once with the plugin loaded and once without, in fresh sessions, and the two answers compared.
   A with-arm answer that is wrong is a defect in the skill's text: edit the skill and run that case
   again. It spends model calls and no CI job runs it; SC13 only checks that each case would parse.

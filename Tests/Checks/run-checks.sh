@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Template checks — run every template over Checks/Fixtures, then hold the
-# results to three gates:
+# results to seven gates:
 #
 #   1. snapshot   each generated file matches Checks/Snapshots (record with --record)
 #   2. zero-match each template still WRITES its file over sources with no
@@ -11,10 +11,17 @@
 #   3. near-miss  a misspelled selector fails generation naming the canonical
 #                 spelling; a misspelled option still generates and writes one
 #                 comment line
-#   4. typecheck  they compile clean together under Swift 5 + complete
+#   4. refusal    a construct the templates cannot emit fails generation naming
+#                 the protocol and the member, instead of writing a file the
+#                 consumer's compiler rejects: two members that would carry one
+#                 name, and a requirement declaring `throws(E)`
+#   5. naming     every `… members are named `X*` …` comment matches the member
+#                 below it, and each class's index lists exactly the members
+#                 commented inside it
+#   6. typecheck  they compile clean together under Swift 5 + complete
 #                 concurrency checking, and under the Swift 6 language mode —
 #                 zero warnings, zero errors
-#   5. behaviour  they do what a consumer needs: mocks count calls, run handlers
+#   7. behaviour  they do what a consumer needs: mocks count calls, run handlers
 #                 and deliver values pushed into their subjects; Components
 #                 forward to the parent and hold what the level owns
 #
@@ -212,7 +219,212 @@ else
   fi
 fi
 
-# ── 4. Typecheck, both language modes ─────────────────────────────
+# ── 4. Refusal ────────────────────────────────────────────────────
+# Each case here fails generation on purpose, so none of it can live in
+# Fixtures/ — one fixture that fails takes the whole lane's generation with it,
+# the way the near-miss selector case does. What is checked is that the failure
+# names the protocol and the member, rather than the template emitting a file the
+# consumer's compiler rejects: two identical declarations, or a witness that
+# throws `any Error` against a requirement that throws `E`.
+echo ""
+echo "── refusal ──"
+COLLISION_DIR="$WORK_DIR/refusal"
+rm -rf "$COLLISION_DIR"
+
+# <case>:<protocol>:<member named in the message>
+COLLISION_CASES=(
+  "bookkeeping:CollidingBookkeeping:draftSetCount"
+  "readcount:CollidingReadCount:draftGetCount"
+  "store:CollidingStore:_draft"
+  "overload:CollidingOverload:sendToVoidCallCount"
+  "typedthrowsvar:TypedThrowingProperty:secret"
+  "typedthrowsfunc:TypedThrowingMethod:load"
+  "effectfulstream:EffectfulStreaming:frames"
+)
+
+mkdir -p "$COLLISION_DIR/bookkeeping"
+cat > "$COLLISION_DIR/bookkeeping/Bookkeeping.swift" <<'SWIFT'
+// A requirement whose name is another requirement's bookkeeping member.
+/// sourcery: ProtocolMock
+public protocol CollidingBookkeeping: AnyObject {
+    var draft: String { get set }
+    var draftSetCount: Int { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/readcount"
+cat > "$COLLISION_DIR/readcount/ReadCount.swift" <<'SWIFT'
+// `<var>GetCount` is emitted for every property requirement, so a protocol that
+// declares one of its own collides where it did not before.
+/// sourcery: ProtocolMock
+public protocol CollidingReadCount: AnyObject {
+    var draft: String { get set }
+    var draftGetCount: Int { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/store"
+cat > "$COLLISION_DIR/store/Store.swift" <<'SWIFT'
+// The backing store a property requirement's accessors sit over. A protocol may
+// declare `_draft` itself, and the mock cannot hold two.
+/// sourcery: ProtocolMock
+public protocol CollidingStore: AnyObject {
+    var draft: String { get set }
+    var _draft: String { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/typedthrowsvar"
+cat > "$COLLISION_DIR/typedthrowsvar/TypedThrowsVar.swift" <<'SWIFT'
+// A typed throw on a property requirement. The accessor writes bare `throws`,
+// which does not satisfy `throws(E)`.
+public enum LoadFailure: Error { case unavailable }
+/// sourcery: ProtocolMock
+public protocol TypedThrowingProperty: AnyObject {
+    var secret: String { get throws(LoadFailure) }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/typedthrowsfunc"
+cat > "$COLLISION_DIR/typedthrowsfunc/TypedThrowsFunc.swift" <<'SWIFT'
+// The same on a method. `MockMethod.throwingDecl` writes bare `throws` too.
+public enum LoadFailure: Error { case unavailable }
+/// sourcery: ProtocolMock
+public protocol TypedThrowingMethod: AnyObject {
+    func load() throws(LoadFailure) -> String
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/effectfulstream"
+cat > "$COLLISION_DIR/effectfulstream/EffectfulStream.swift" <<'SWIFT'
+// A publisher requirement declared `{ get async }`. The member hands back a
+// `Deferred` whose closure reads the handler when the code under test
+// subscribes, and that closure is synchronous.
+import Combine
+/// sourcery: ProtocolMock
+public protocol EffectfulStreaming: AnyObject {
+    var frames: AnyPublisher<Int, Never> { get async }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/overload"
+cat > "$COLLISION_DIR/overload/Overload.swift" <<'SWIFT'
+// Two overloads sharing their labels, their parameter count and their return
+// type, differing only in a parameter type — which no part of the name derives
+// from. The long form and the return-type discriminator both leave them equal,
+// which is step 4 of the overload chain.
+/// sourcery: ProtocolMock
+public protocol CollidingOverload: AnyObject {
+    func send(to target: String)
+    func send(to target: Int)
+}
+SWIFT
+
+for entry in "${COLLISION_CASES[@]}"; do
+  case_name="${entry%%:*}"
+  rest="${entry#*:}"
+  protocol_name="${rest%%:*}"
+  member_name="${rest##*:}"
+  log="$WORK_DIR/collision-$case_name.log"
+  if "$SOURCERY" --sources "$COLLISION_DIR/$case_name" \
+       --templates "$GIT_ROOT/templates/Mocks.swifttemplate" \
+       --output "$COLLISION_DIR/$case_name.generated.swift" \
+       --args "import=Combine,import=Foundation" \
+       --disableCache --quiet > "$log" 2>&1; then
+    fail "$case_name: a colliding member generated instead of failing"
+  elif grep -q "$protocol_name" "$log" && grep -q "$member_name" "$log"; then
+    echo "  $case_name: fails, naming $protocol_name and $member_name"
+  else
+    tail -10 "$log"
+    fail "$case_name: failed, but the message does not name $protocol_name and $member_name"
+  fi
+done
+
+# ── 5. Naming comments ────────────────────────────────────────────
+# `MockNaming.methodPrefix` returns a method's prefix and, when that prefix is
+# not the declared name, the comment recording it — one call, so a comment that
+# disagrees with the member below it cannot be produced (`spec.md` D16(a)). This
+# gate reads both back out of the generated file: the prefix a comment names has
+# to be the prefix the witness under it counts, and each class's index has to
+# list exactly the members commented inside that class. What it catches is a
+# later edit that writes a comment where a member is emitted instead of asking
+# `MockNaming` for one, which is what `AGENTS.md` §"State a rule once" forbids
+# and what no other gate reads.
+echo ""
+echo "── naming-comments ──"
+
+naming_comment_violations() {
+  awk '
+    /^\/\/ MARK: - / { cls = substr($0, 12) }
+    / members are named `/ {
+      is_index = ($0 ~ /^\/\/   `/)
+      text = $0
+      sub(/^[ \t]*/, "", text)
+      sub(/^\/\/ +/, "", text)
+      if (is_index) { indexed[cls SUBSEP text] = 1; next }
+      witnessed[cls SUBSEP text] = 1
+      at = NR
+      if (match(text, /named `[A-Za-z0-9_]+\*`/) == 0) {
+        printf "    line %d: the comment names no prefix: %s\n", at, text; bad++; next
+      }
+      prefix = substr(text, RSTART + 7, RLENGTH - 9)
+      if ((getline decl) <= 0 || decl !~ /func /) {
+        printf "    line %d: the comment is not above a func: %s\n", at, text; bad++; next
+      }
+      if ((getline body) <= 0) {
+        printf "    line %d: the witness has no body: %s\n", at, text; bad++; next
+      }
+      sub(/^[ \t]*/, "", body)
+      if (body != prefix "CallCount += 1") {
+        printf "    line %d: the comment says `%s`, the witness counts `%s`\n", at, prefix, body
+        bad++
+      }
+      next
+    }
+    END {
+      for (k in witnessed) if (!(k in indexed)) {
+        split(k, m, SUBSEP)
+        printf "    %s: commented at the witness, missing from the index: %s\n", m[1], m[2]
+        bad++
+      }
+      for (k in indexed) if (!(k in witnessed)) {
+        split(k, m, SUBSEP)
+        printf "    %s: in the index, missing at the witness: %s\n", m[1], m[2]
+        bad++
+      }
+      exit (bad ? 1 : 0)
+    }
+  ' "$1"
+}
+
+NAMING_GENERATED="$WORK_DIR/Mocks.generated.swift"
+NAMING_COMMENTED="$(grep -cE '^[[:space:]]+// `.+` members are named `' "$NAMING_GENERATED" || true)"
+if naming_comment_violations "$NAMING_GENERATED" > "$WORK_DIR/naming-comments.log" 2>&1; then
+  echo "  $NAMING_COMMENTED renamed members, each commented at its witness and in its class's index"
+else
+  cat "$WORK_DIR/naming-comments.log"
+  fail "a naming comment does not describe the member below it"
+fi
+
+# Red controls. Without them the gate passes on a file that carries no comment
+# at all, which is the state it exists to detect.
+naming_control="$WORK_DIR/naming-control-prefix.swift"
+sed 's/members are named `endAt\*`/members are named `endsAt*`/' "$NAMING_GENERATED" > "$naming_control"
+if naming_comment_violations "$naming_control" > "$WORK_DIR/naming-control-prefix.log" 2>&1; then
+  fail "the naming-comment gate passed a comment naming a prefix the witness does not count"
+else
+  echo "  the same check fails on a comment naming the wrong prefix"
+fi
+
+naming_control_index="$WORK_DIR/naming-control-index.swift"
+grep -v '^//   `end(at:)` members are named' "$NAMING_GENERATED" > "$naming_control_index"
+if naming_comment_violations "$naming_control_index" > "$WORK_DIR/naming-control-index.log" 2>&1; then
+  fail "the naming-comment gate passed a class index missing one of its members"
+else
+  echo "  the same check fails on a class index missing one of its members"
+fi
+
+# ── 6. Typecheck, both language modes ─────────────────────────────
 typecheck() {
   local label="$1"; shift
   local log="$WORK_DIR/typecheck-$label.log"
@@ -235,7 +447,7 @@ echo "── typecheck ──"
 typecheck "swift5-complete" -swift-version 5 -strict-concurrency=complete
 typecheck "swift6" -swift-version 6
 
-# ── 5. Behaviour ──────────────────────────────────────────────────
+# ── 7. Behaviour ──────────────────────────────────────────────────
 echo ""
 echo "── behaviour ──"
 BEHAVIOUR_BIN="$WORK_DIR/behaviour"

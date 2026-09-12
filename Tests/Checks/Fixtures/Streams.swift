@@ -51,3 +51,36 @@ public protocol NotificationSignalling: AnyObject {
   /// sourcery: subject = "CurrentValue"
   var badgeCount: AnyPublisher<Int, Never> { get }
 }
+
+// MARK: - What a stream member records
+
+/// `<name>Outputs` on a publisher member and `<name>Events` on an `AnyObserver`
+/// one record what crossed the member, the way `<method>Args` records what a
+/// call carried (`specs/004-mock-member-naming/spec.md` D13). They sit under the
+/// same opt-out and for the same reason: a recorded value lives as long as the
+/// mock, and when the value is an object a churn or leak spec measures the
+/// deallocation of, that retain reads as a leak in the code under test.
+///
+/// `frames` records; `rawFrames` is annotated and does not. Both still count
+/// their outputs and run `<name>OutputHandler`.
+///
+/// sourcery: CreateMock
+public protocol FrameStreaming: AnyObject {
+  var frames: AnyPublisher<FeedAudioPlayer, Never> { get }
+
+  /// sourcery: skipArgumentRecording
+  var rawFrames: AnyPublisher<FeedAudioPlayer, Never> { get }
+
+  /// The same on a method.
+  /// sourcery: skipArgumentRecording
+  func replay(tag: String) -> AnyPublisher<FeedAudioPlayer, Never>
+}
+
+/// The opt-out on the type reaches every stream member of it, as it reaches
+/// every method's arguments.
+///
+/// sourcery: CreateMock, skipArgumentRecording
+public protocol FrameRetaining: AnyObject {
+  var frames: AnyPublisher<FeedAudioPlayer, Never> { get }
+  func replay(tag: String) -> AnyPublisher<FeedAudioPlayer, Never>
+}

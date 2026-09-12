@@ -4,6 +4,7 @@
 <%- includeFile("Utility/Generics") -%>
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
+<%- includeFile("Mocks/MockNaming") -%>
 <%- includeFile("Mocks/MockMethod") -%>
 <%- includeFile("Mocks/MockVar") -%>
 <%- includeFile("Mocks/MockGenerator") -%>
