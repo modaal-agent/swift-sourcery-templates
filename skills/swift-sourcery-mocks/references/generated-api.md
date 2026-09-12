@@ -130,9 +130,8 @@ var _draft: String = ""
 
 `_<var>` is what a test seeds and reads without moving a counter, and for a `{ get }` requirement it
 is the only way to seed one: the witness is get-only, as the requirement is, and `<var>SetCount` is
-emitted for a `{ get set }` requirement only. `mock._<var> = value` is the same expression on the
-Kotlin side. A requirement with no synthesizable default is an initializer parameter, keeps its name
-there, and seeding it at construction moves no counter.
+emitted for a `{ get set }` requirement only. A requirement with no synthesizable default is an
+initializer parameter, keeps its name there, and seeding it at construction moves no counter.
 
 `/// sourcery: const` makes the store a `let`, fixed at construction. `/// sourcery: handler` drops
 the store: the getter runs `<var>GetHandler` and traps with that string when the test set none.
@@ -228,9 +227,11 @@ table with the columns the other way round.
 | `<method>CallCount` | `<fn>CallCount` |
 | `<method>Args` | `<fn>Args`, elements of a nested `<Fn>Args` data class rather than a tuple |
 | `<method>Handler` | `<fn>Handler` |
-| `<var>GetCount`, `<var>GetHandler` | `<prop>GetCount`, `<prop>GetHandler` — on a `Flow` property only |
-| `<var>SetCount` | `<prop>SetCount` |
-| `<name>Subject` for an `AnyPublisher` member | `<fn>Channel` for a `Flow` member |
+| `<var>GetCount`, `<var>GetHandler` | `<prop>GetCount`, `<prop>GetHandler`, on every property |
+| `<var>SetCount` | `<prop>SetCount`, on a `var` requirement |
+| `_<var>` | `_<prop>` — the store a test seeds and reads without moving a counter, and the only way to seed a read-only requirement on either side |
+| `<name>Subject` for an `AnyPublisher` member, broadcast to every subscriber | `<fn>Channel` for a `Flow` member, single-consumer |
+| `<name>SubscribeCount`, `<name>SubscribeCancelCount`, `<name>OutputCount`, `<name>Outputs`, `<name>OutputHandler`, `<name>CompletionCount` | the same six, on a `Flow`-returning function or a read-only `Flow` property |
 | `fatalError("<method>Handler expected to be set.")` | the same string, thrown as `IllegalStateException` |
 | the initializer-seeded bag | the constructor-seeded bag |
 
@@ -238,12 +239,11 @@ Members with no counterpart there — the rows to check before assuming the dial
 
 | this side | Kotlin |
 | --- | --- |
-| `<var>GetCount` / `<var>GetHandler` / `_<var>` on **every** property | a stored property has `SetCount` alone; no read counter, no handler, no store |
-| `<name>SubscribeCount`, `<name>SubscribeCancelCount`, `<name>OutputCount`, `<name>Outputs`, `<name>OutputHandler`, `<name>CompletionCount` | none — a `Flow` property is the channel, unwrapped |
+| a method whose `<method>Handler` supplies the publisher — its subscribe, output and completion counters stay at zero | that processor wraps a handler-supplied `Flow`, so the counters move |
 | `<name>EventCallCount` / `<name>Events` / `<name>EventHandler` for an `AnyObserver` member | none — a sink-shaped requirement reaches no branch there |
 | `<method>CancelCallCount`, `<method>DisposeCallCount` | none |
 | the per-declaration annotations | none — that processor selects targets in the build script |
 
-Both property getters now trap with the same sentence as both method forms,
+Both property getters trap with the same sentence as both method forms,
 `<name>GetHandler expected to be set.` The names, the subject-backed stream shape and that string are
 shared deliberately: renaming one is a change to both generators, not a local refactor.
