@@ -159,9 +159,7 @@ class's index. Search for either spelling.
 | `<name>EventCallCount` / `<name>Events` / `<name>EventHandler` | both | an `AnyObserver` member: the events pushed **in**, the same three ways |
 | `<method>CancelCallCount` / `<method>CancelHandler`, `<method>DisposeCallCount` / `<method>DisposeHandler` | method | the returned `AnyCancellable` was cancelled, or the returned RxSwift `Disposable` disposed |
 
-A returned token's suffix is the call it exposes: `cancel()`, `dispose()`. Closure parameters, a
-generic method's parameters and anything `skipArgumentRecording` covers are not recorded — assert
-through the handler; that annotation drops `<name>Outputs` and `<name>Events` too.
+A returned token's suffix is the call it exposes: `cancel()`, `dispose()`.
 
 **A property declared `{ get async }`, `{ get throws }` or `{ get async throws }`** generates the
 accessor it declares, and `<var>GetHandler` carries the same effects. Swift has no effectful setter,
@@ -176,13 +174,18 @@ let token = repo.ownMemories.sink { received.append($0) }  // subscribe first
 repo.ownMemoriesSubject.send([drop])                       // then send
 ```
 
-The default `PassthroughSubject` delivers nothing to a subscriber that arrives after the value was
-sent, so subscribe first or annotate the member `subject = "CurrentValue"` to replay one; a test
-collecting to the end also has to `send(completion: .finished)`.
+The default `PassthroughSubject` delivers a value only to the subscribers present when it is sent;
+a test collecting to the end also has to `send(completion: .finished)`.
 
 [references/generated-api.md](references/generated-api.md) has the emitted Swift for each shape and
 the Kotlin member map; [references/stream-members.md](references/stream-members.md) the publisher and
 RxSwift shapes, their counters, and when each handler is read.
+
+**Printing a mock without building.** This prints the named protocols' mocks, or every generated
+file, and compiles nothing ([references/printing-mocks.md](references/printing-mocks.md)):
+```bash
+"${CLAUDE_SKILL_DIR}/scripts/print-mocks.sh" <Target> [<Protocol> ...]
+```
 
 ## When it goes wrong
 

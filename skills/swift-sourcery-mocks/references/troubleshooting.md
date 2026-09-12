@@ -194,8 +194,21 @@ back empty the plugin did not run or did not write: the build log names the dire
 which [spm-plugin.md](spm-plugin.md) quotes. On the CLI lane the file is committed at the `output:`
 the config names.
 
+## A generated mock keeps a member the protocol lost, or lacks one it gained
+
+SwiftPM runs the plugin when it plans a build, and `swift build` reuses its last plan when no source
+file was added or removed. After an edit inside an existing file the generated file stays as it was:
+the test compiles against the old members, or fails naming a protocol that is gone. Plan again:
+
+```bash
+"${CLAUDE_SKILL_DIR}/scripts/print-mocks.sh" <Target>
+```
+
+or build once with `swift build --disable-build-manifest-caching`. [printing-mocks.md](printing-mocks.md)
+has what the script prints. An Xcode build runs the plugin on every build.
+
 ## The build succeeds and the committed generated file is stale
 
-Only the CLI lane can produce this: the plugin regenerates on every build. Run `mock-templates
+A committed generated file is the CLI lane's; on the plugin lane, see the section above. Run `mock-templates
 validate` — it names which input changed, or reports the body as hand-edited. Add that command to
 CI, which is what the fingerprint block exists for.

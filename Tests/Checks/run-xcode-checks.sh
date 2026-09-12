@@ -359,6 +359,73 @@ else
   fi
 fi
 
+# ── 9. print-mocks.sh ─────────────────────────────────────────────
+# The skill's script, Xcode lane (spec 005 §2.3): the engine re-run on the configs
+# App's last build synthesized, from the project's directory. What it prints has
+# to be the file that build wrote, byte for byte, and the build's own file stays
+# as it was. The fixture names its template under this checkout and clones its
+# packages outside the derived data, so neither of the script's routes to the
+# engine answers here; the gate passes the engine the build log shows the plugin
+# ran. `Core` applies no plugin and is the red control.
+echo ""
+echo "── print-mocks.sh ──"
+PRINT_MOCKS="$GIT_ROOT/skills/swift-sourcery-mocks/scripts/print-mocks.sh"
+PRINTED="$WORK_DIR/print-mocks"
+ENGINE="$(grep -oE "/[^ '\"]*/sourcery/bin/sourcery" "$APP_LOG" | awk 'NR == 1' || true)"
+print_mocks() {   # name target [protocol...]
+  local name="$1"; shift
+  ( cd "$FIXTURE_DIR" && DERIVED_DATA="$DD" PRINT_MOCKS_ENGINE="$ENGINE" "$PRINT_MOCKS" "$@" ) \
+    > "$PRINTED-$name" 2> "$PRINTED-$name.err"
+}
+
+cp "$APP_MOCK" "$PRINTED-build-before"
+if print_mocks whole App && tail -n +2 "$PRINTED-whole" | sed '$d' | cmp -s - "$APP_MOCK"; then
+  pass "App's generated file, from the engine re-run on its synthesized config, byte for byte"
+else
+  cat "$PRINTED-whole.err"
+  tail -n +2 "$PRINTED-whole" | sed '$d' | diff "$APP_MOCK" - | head -10 || true
+  fail "print-mocks.sh App did not print the file the build wrote"
+fi
+case "$(head -1 "$PRINTED-whole")" in
+  "// $DD/Build/Intermediates.noindex/PrintMocks/App/"*)
+    pass "it wrote under the derived data's PrintMocks/" ;;
+  *)
+    fail "the printed path is not under $DD/Build/Intermediates.noindex/PrintMocks/App/: $(head -1 "$PRINTED-whole")" ;;
+esac
+if cmp -s "$PRINTED-build-before" "$APP_MOCK"; then
+  pass "and the build's own generated file is unchanged"
+else
+  fail "print-mocks.sh changed the file the build wrote"
+fi
+
+if print_mocks one App ProfilePersisting && [ "$(head -1 "$PRINTED-one")" = "// MARK: - ProfilePersisting" ]; then
+  pass "one protocol: its // MARK: - block"
+else
+  cat "$PRINTED-one.err"
+  fail "print-mocks.sh App ProfilePersisting did not print that mock's block"
+fi
+
+# Without the engine: the config names its template as `${GIT_ROOT}/…`, unquoted, so
+# no route answers. The script has to say so rather than end with no output.
+if ( cd "$FIXTURE_DIR" && DERIVED_DATA="$DD" PRINT_MOCKS_ENGINE= "$PRINT_MOCKS" App ) \
+     > "$PRINTED-noengine" 2> "$PRINTED-noengine.err"; then
+  fail "App with no engine to be found exited 0"
+elif grep -qxF "print-mocks: no Sourcery engine found for $DD — set PRINT_MOCKS_ENGINE" "$PRINTED-noengine.err"; then
+  pass "no engine to be found: exit 1, naming PRINT_MOCKS_ENGINE"
+else
+  cat "$PRINTED-noengine.err"
+  fail "App with no engine to be found did not end with the message the script documents"
+fi
+
+if print_mocks core Core; then
+  fail "Core, which applies no plugin, exited 0"
+elif grep -qF "print-mocks: no configs the plugin synthesized for Core under $DD" "$PRINTED-core.err"; then
+  pass "Core applies no plugin: exit 1, naming the target and the derived data"
+else
+  cat "$PRINTED-core.err"
+  fail "Core failed, but not with the message the script documents"
+fi
+
 # ── Result ────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILURES" = "0" ]; then

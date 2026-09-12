@@ -690,6 +690,12 @@ picks the lane, writes the config, and names the cause when generation produces 
 conform. Its annotation table is rendered from the same registry this README's is
 (`Scripts/render-annotations.sh`), so the two cannot drift apart.
 
+It carries one script, `scripts/print-mocks.sh`, which prints the mocks the plugin generates for a
+target without building it. In a SwiftPM package it plans the build, which runs the plugin and
+compiles nothing; in an Xcode project it re-runs the generator on the configs the target's last build
+wrote. [`references/printing-mocks.md`](skills/swift-sourcery-mocks/references/printing-mocks.md)
+has the command and what each failure means.
+
 Four channels install it, over one tree.
 
 **1. Any of ~75 agents, through the cross-agent CLI.** `-g` installs for every project on the

@@ -83,6 +83,23 @@ if [ "${1:-}" = "--self-test" ]; then
   # to know how to score, and it is checked against a closed set of six.
   mutate_SC13() { sed -i.bak 's/^type: llm$/type: judge/' Tests/Evals/plugin-lane-setup/graders/correct-lane.md && rm -f Tests/Evals/plugin-lane-setup/graders/correct-lane.md.bak; }
 
+  P=skills/swift-sourcery-mocks/scripts/print-mocks.sh
+
+  # SC6 over a script — a variable the plugin does not export, read by the script.
+  mutate_SC6_script() { printf '\n# ${SOURCERY_MODULE_ROOT}\n' >> "$P"; }
+
+  # SC9 over a script — a version pinned in a comment.
+  mutate_SC9_script() { printf '\n# measured against 0.8.0\n' >> "$P"; }
+
+  # SC14 — the skill names a script that is not there.
+  mutate_SC14_missing() { printf '\nRun `"${CLAUDE_SKILL_DIR}/scripts/print-mock.sh" <Target>`.\n' >> "$S"; }
+
+  # SC14 — the script lost its mode bit.
+  mutate_SC14_mode() { chmod -x "$P"; }
+
+  # SC14 — a quoted line the script does not print.
+  mutate_SC14_quote() { printf '\n| `print-mocks: <Target> has no generated file` | build it |\n' >> "$S"; }
+
   seed() {
     local check="$1" expected="$2"
     local root="$SELF_TEST_DIR/$check"
@@ -126,6 +143,11 @@ if [ "${1:-}" = "--self-test" ]; then
   seed SC10 "SC10"
   seed SC11 "SC11"
   seed SC13 "SC13"
+  seed SC6_script "SC6"
+  seed SC9_script "SC9"
+  seed SC14_missing "SC14"
+  seed SC14_mode "SC14"
+  seed SC14_quote "SC14"
 
   echo ""
   if [ "$seed_failures" = "0" ]; then
@@ -161,6 +183,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 TREE_FILES="$(find skills -type f -name '*.md' | sort)"
+# The code in the tree: what an agent runs from a skill's `scripts/` directory
+# (spec 005 §7.1 D5). SC6, SC9 and SC14 read it; no line budget applies.
+SCRIPT_FILES="$(find skills -type f -path 'skills/*/scripts/*' | sort)"
 
 echo ""
 echo "── skills ──"
@@ -311,7 +336,7 @@ echo ""
 echo "── SC6: every \`SOURCERY_*\` name is one the plugin exports ──"
 grep -oh 'SOURCERY_[A-Z0-9_]*' "$PLUGIN_SOURCE" | sort -u > "$TMP/exported"
 # shellcheck disable=SC2086
-grep -oh 'SOURCERY_[A-Za-z0-9_]*' $TREE_FILES | sort -u > "$TMP/written"
+grep -oh 'SOURCERY_[A-Za-z0-9_]*' $TREE_FILES $SCRIPT_FILES | sort -u > "$TMP/written"
 SC6=""
 while read -r name; do
   [ -z "$name" ] && continue
@@ -383,7 +408,7 @@ fi
 echo ""
 echo "── SC9: no version literal in the skill tree ──"
 # shellcheck disable=SC2086
-SC9="$(grep -nE '[0-9]+\.[0-9]+\.[0-9]+' $TREE_FILES)"
+SC9="$(grep -nE '[0-9]+\.[0-9]+\.[0-9]+' $TREE_FILES $SCRIPT_FILES)"
 if [ -n "$SC9" ]; then
   fail SC9 "a version is pinned where nothing will update it:"
   printf '%s\n' "$SC9" | sed 's/^/      /'
@@ -580,6 +605,53 @@ PY
 else
   fail SC13 "a case the runner would refuse:"
   printf '%s\n' "$SC13" | sed 's/^/      /'
+fi
+
+# ── SC14: the scripts the skill names, and the lines it quotes ───
+# The skill tells an agent to run `scripts/<name>` from its own directory, so a
+# script it names has to be there and executable, and so does every file under a
+# `scripts/` directory. It also quotes the lines a script ends with, each with
+# what to do: every quoted `<script>: …` line has to be a `fail "…"` string of
+# that script. A `<placeholder>` in the quote and a `$name` or `${…}` in the
+# script each read as one wildcard (spec 005 §3 D6).
+echo ""
+echo "── SC14: every script the skill names is there and executable, and every line it quotes is one the script prints ──"
+SC14=""
+NAMED=0
+for file in $TREE_FILES; do
+  skill="$(printf '%s\n' "$file" | cut -d/ -f1-2)"
+  for script in $(grep -oE 'scripts/[A-Za-z0-9._-]+' "$file" | sed 's/\.*$//' | sort -u); do
+    NAMED=$((NAMED + 1))
+    if [ ! -f "$skill/$script" ]; then
+      SC14="$SC14
+$file names $script, and $skill/$script is not there"
+    fi
+  done
+done
+for script in $SCRIPT_FILES; do
+  [ -x "$script" ] || SC14="$SC14
+$script is not executable"
+done
+: > "$TMP/printed"
+: > "$TMP/quoted"
+for script in $SCRIPT_FILES; do
+  base="$(basename "$script")"; base="${base%.*}"
+  sed -n 's/.*fail "\([^"]*\)".*/\1/p' "$script" \
+    | sed -E 's/\$\{[^}]*\}/<*>/g; s/\$[A-Za-z_][A-Za-z0-9_]*/<*>/g' \
+    | sed "s|^|$base: |" >> "$TMP/printed"
+  # shellcheck disable=SC2086
+  grep -ohE "\`$base: [^\`]*\`" $TREE_FILES | sed -E 's/^`//; s/`$//; s/<[^>]*>/<*>/g' >> "$TMP/quoted"
+done
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  grep -qxF -- "$line" "$TMP/printed" || SC14="$SC14
+quoted, and printed by no script: $line"
+done < <(sort -u "$TMP/quoted")
+if [ -n "$SC14" ]; then
+  fail SC14 "the skill describes a script that does not do what it says:"
+  printf '%s\n' "$SC14" | grep -v '^$' | sed 's/^/      /'
+else
+  pass SC14 "$(printf '%s\n' $SCRIPT_FILES | grep -c .) script(s), $NAMED mention(s) resolved, $(sort -u "$TMP/quoted" | grep -c .) quoted line(s) printed by one"
 fi
 
 # ── Result ────────────────────────────────────────────────────────

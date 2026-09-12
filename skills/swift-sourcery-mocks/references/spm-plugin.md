@@ -138,6 +138,8 @@ it remarks:
 `swift build -v` prints it; in Xcode it is in the build log under the target's plugin step. Read it
 when the `find` comes back empty — it says whether the plugin ran at all.
 
+[printing-mocks.md](printing-mocks.md) prints these files, or one protocol's mock, without a build.
+
 ## `args.testable`, and the arguments that stay yours
 
 `args.import`, `args.excludedSwiftLintRules` and the choice of template are carried through unread.
