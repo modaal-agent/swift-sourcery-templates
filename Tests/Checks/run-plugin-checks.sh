@@ -150,7 +150,14 @@ echo "── building the fixture ──"
 if [ "$KEEP" = "0" ]; then
   # Keep the resolved dependencies and the downloaded artifact bundle; drop
   # everything the plugin produced, so the caches below really are cold.
-  rm -rf "$FIXTURE_SCRATCH/plugins/outputs"
+  #
+  # `build.db` goes with them. Deleting the outputs alone leaves llbuild's
+  # manifest naming files that are gone, and the plugin is not re-run when
+  # nothing it reads has changed — the build then fails with "missing inputs"
+  # naming the two generated files. A run that failed downstream of generation,
+  # followed by a run that changes only a fixture source, is the sequence that
+  # reaches it.
+  rm -rf "$FIXTURE_SCRATCH/plugins/outputs" "$FIXTURE_SCRATCH/build.db"
 fi
 
 BUILD_LOG="$WORK_DIR/fixture-build.log"
@@ -256,7 +263,7 @@ echo "── no-defaults ──"
 if diff -q "$FIXTURE_DIR/Sources/Verbatim/.Sourcery.Verbatim.yml" "$VERBATIM_CONFIG" > /dev/null; then
   pass "a config declaring everything comes out byte-identical"
 else
-  diff -u "$FIXTURE_DIR/Sources/Verbatim/.Sourcery.Verbatim.yml" "$VERBATIM_CONFIG" | head -20
+  diff -u "$FIXTURE_DIR/Sources/Verbatim/.Sourcery.Verbatim.yml" "$VERBATIM_CONFIG" | head -20 || true
   fail "a config declaring everything was rewritten"
 fi
 
@@ -488,16 +495,20 @@ fi
 
 BUNDLE_ROUTE_SCRATCH="$WORK_DIR/bundle-route"
 BUNDLE_ROUTE_LOG="$WORK_DIR/bundle-route.log"
+# Cold every run. The remark the gate below greps for is written while the
+# plugin runs, and a warm build does not run it, so a second invocation reported
+# a failure the fixture had not caused.
+if [ "$KEEP" = "0" ]; then rm -rf "$BUNDLE_ROUTE_SCRATCH"; fi
 if ! swift build --package-path "$BUNDLE_ROUTE_DIR" --scratch-path "$BUNDLE_ROUTE_SCRATCH" \
      "${SWIFT_FLAGS[@]}" -v > "$BUNDLE_ROUTE_LOG" 2>&1; then
-  grep -E "error:" "$BUNDLE_ROUTE_LOG" | head -10
+  grep -E "error:" "$BUNDLE_ROUTE_LOG" | head -10 || true
   fail "the bundle-route fixture did not build — a bare name did not resolve without a templates/ in the checkout"
 else
   pass "a bare template name resolves with no templates/ in the consumed checkout"
   if grep -qF "shipped templates come from the pinned artifact bundle" "$BUNDLE_ROUTE_LOG"; then
     pass "and the log names the artifact bundle as the route"
   else
-    grep -o "shipped templates come from [^\"]*" "$BUNDLE_ROUTE_LOG" | head -1
+    grep -o "shipped templates come from [^\"]*" "$BUNDLE_ROUTE_LOG" | head -1 || true
     fail "the log does not name the pinned artifact bundle as the route"
   fi
   BUNDLE_ROUTE_CONFIG="$(find "$BUNDLE_ROUTE_SCRATCH/plugins/outputs" -path "*/.sourceryConfigs/*" -type f 2>/dev/null | head -1)"

@@ -2195,3 +2195,39 @@ diagnostic naming the requirement. §2.1's backtick rule here is unaffected.
 scratch) and `Tests/Examples/ExampleProjectSpm/test-ios.sh` at 20 tests, 0 failures — its log read
 rather than its exit status. `run-xcode-checks.sh` was not run. The skill body measures ~4.9k tokens
 on invoke at 208 lines, unchanged by P12's one-row edit, against 002 §3.1's 5,000-token floor.
+
+### Correction, and the two lane defects fixed
+
+Supersedes the "Two lane defects found" list in P12's entry above, and the "not fixed" line in §11's
+P10 entry.
+
+**1. `Tests/Examples/ExampleProjectSpm/test-ios.sh` is not defective.** The claim that it exits 0 on
+a failed build is wrong: the failing run exited **65**. What reported 0 was the shell compound the
+run was wrapped in — `./test-ios.sh > log 2>&1; echo "exit=$?"` — whose own status is the `echo`'s,
+and the status printed into the log was read as the script's. `set -eo pipefail` at `:21` and the
+`xcodebuild test | xcbeautify` pipeline already carry the build's status out. Nothing was changed
+there.
+
+**2. `run-plugin-checks.sh` — three edits, and both failure modes reproduced before and after.**
+
+- **A run that fails downstream of generation broke the next run.** `:150-161` deleted
+  `$FIXTURE_SCRATCH/plugins/outputs` and left llbuild's `build.db` naming those files, and the
+  plugin is re-run only when something it reads has changed — so a following run that changes a
+  fixture source and nothing else failed with `couldn't build … because of missing inputs` naming
+  the two generated files. `build.db` is now deleted with the outputs. **Red control, run by hand:**
+  reintroduce `mock.profileID = "id"` in `PluginFixture/Tests/AppTests/AppTests.swift`, run (exit 1,
+  "the fixture package did not build"), restore it, run again — exit 0, where before the fix the
+  second run failed on missing inputs.
+- **The bundle-route gate needed a cold build and did not get one.** `$WORK_DIR/bundle-route` was
+  reused, so a second invocation's warm build never ran the plugin, and the remark the gate greps
+  for was absent. It is now removed before that build unless `--keep`. **Control:** two consecutive
+  invocations, both `ALL PLUGIN CHECKS PASSED` (cold 37s / 38s, warm 1s), where the second used to
+  exit 1 printing nothing.
+- **Three failure branches could end the run before `fail` recorded anything.** `diff … | head -20`
+  at `:259`, `grep … | head -10` at `:493` and `grep -o … | head -1` at `:500` each return non-zero
+  exactly in the case that branch exists for, and `set -eo pipefail` turns that into an exit. Each
+  takes `|| true`. This is the mechanism §11 recorded as "takes the script down before `fail` can
+  name it", and it is why the bundle-route failure printed no diagnostic.
+
+No automated control covers the failed-run-then-recover sequence; it was run by hand, and the result
+is recorded here.
