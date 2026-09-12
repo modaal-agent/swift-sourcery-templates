@@ -18,9 +18,11 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
-## Unreleased — a mock member is the declared name plus a suffix
+## 0.9.0 — 2026-09-12
 
-Ships in the same release as the annotation-name entry below.
+Two entries, one release.
+
+### A mock member is the declared name plus a suffix
 
 **Generated output.** The bookkeeping prefix is now the member's declared name with backticks
 removed, and nothing else — no case change, no underscore removal, no first-word lowercasing. It was
@@ -146,11 +148,10 @@ declaration.
 
 The rule is stated in `README.md` §"Generated Mock API", in the skill's
 `references/generated-api.md` and `references/stream-members.md`, in every generated file, and built
-in one place, `templates/Mocks/MockNaming.swift`. `specs/004-mock-member-naming/spec.md` is what measured it.
+in one place, `templates/Mocks/MockNaming.swift`. `specs/004-mock-member-naming/spec.md` is what
+measured it.
 
----
-
-## Unreleased — annotation names are matched exactly, and the selectors are renamed
+### Annotation names are matched exactly, and the selectors are renamed
 
 **Generated output:** unchanged for a source that spells its annotations the way `README.md` spells
 them. Both reference consumers and every fixture regenerate byte-identically. What changes is what
