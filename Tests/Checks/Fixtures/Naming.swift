@@ -89,3 +89,18 @@ public protocol NamingReturnTypeBase: AnyObject {
 public protocol NamingReturnTypes: NamingReturnTypeBase {
   func data() -> [String: Any]
 }
+
+/// Two overloads with the same parameter count, one of them unlabelled. The
+/// tie-break inside an overload group — `areInAscendingOrder` in
+/// `MockMethod.swift` — prefers the one the caller writes with no label, so
+/// `send(_:)` keeps the plain prefix and `send(to:)` takes the long form.
+///
+/// It is here because `kotlin-ksp-mocks` breaks the same tie by the joined
+/// rendered parameter types (its §11.2 item 5), and neither repository had a
+/// declaration that shows which name its generator picks (`spec.md` §12.5, D21).
+///
+/// sourcery: ProtocolMock
+public protocol NamingUnlabelledOverload: AnyObject {
+  func send(_ value: String)
+  func send(to target: String)
+}

@@ -1065,6 +1065,37 @@ final class NamingUnderscoresMock: NamingUnderscores {
     var perform2_0Handler: ((_ value: Int) -> ())? = nil
 }
 
+// MARK: - NamingUnlabelledOverload
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// Not named after their declaration:
+//   `send(to:)` members are named `sendTo*` — overload of `send`, argument labels appended
+final class NamingUnlabelledOverloadMock: NamingUnlabelledOverload {
+
+    // MARK: - Methods
+    func send(_ value: String) {
+        sendCallCount += 1
+        sendArgs.append(value)
+        if let __sendHandler = self.sendHandler {
+            __sendHandler(value)
+        }
+    }
+    var sendCallCount: Int = 0
+    var sendArgs: [String] = []
+    var sendHandler: ((_ value: String) -> ())? = nil
+    // `send(to:)` members are named `sendTo*` — overload of `send`, argument labels appended
+    func send(to target: String) {
+        sendToCallCount += 1
+        sendToArgs.append(target)
+        if let __sendToHandler = self.sendToHandler {
+            __sendToHandler(target)
+        }
+    }
+    var sendToCallCount: Int = 0
+    var sendToArgs: [String] = []
+    var sendToHandler: ((_ target: String) -> ())? = nil
+}
+
 // MARK: - NamingUppercase
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
 // `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.

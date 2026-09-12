@@ -101,6 +101,7 @@ carry a naming comment, so they are what the naming-comment gate reads.
 | an overload group — argument labels appended, fewest parameters keeps the plain name | `NamingOverloads` |
 | `methodName` — a prefix that appears in no declaration | `NamingAnnotated` |
 | overloads the labels do not separate, so the return type does | `NamingReturnTypes` |
+| an overload group's tie-break — same parameter count, one of them unlabelled | `NamingUnlabelledOverload` |
 
 [`Properties.swift`](Fixtures/Properties.swift) declares every branch of
 `MockVar.mockImpl` once.
