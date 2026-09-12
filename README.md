@@ -52,7 +52,9 @@ first-word lowercasing. `func perform1_0()` gives `perform1_0CallCount`, `func I
 `IDCallCount`, ``func `do`()`` gives `doCallCount`, `var setting4_2: Int` gives `setting4_2GetCount`.
 An overload is the one case where the prefix is not the declared name: the overload with the fewest
 parameters keeps it, and every other one appends the capitalized argument label of each parameter,
-or the parameter name where there is none.
+or the parameter name where there is none. The generated file states the rule at its top and under
+every `// MARK: - <Protocol>`, and every member whose prefix is not its declared name carries a
+comment naming both spellings — above the witness, and in an index under that class's `MARK:`.
 
 | suffix | on | emitted when |
 | --- | --- | --- |

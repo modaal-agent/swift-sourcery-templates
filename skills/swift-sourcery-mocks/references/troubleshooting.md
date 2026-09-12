@@ -108,6 +108,18 @@ name, and the requirement set includes what the protocol inherits, so a refineme
 requirement into an overload group that its own declaration does not show. `/// sourcery: methodName
 = "customName"` pins a member's name.
 
+**The generated file states every one of these.** A member whose prefix is not its declared name
+carries a comment above the witness and an entry under that class's `// MARK:` line, each naming
+both spellings:
+
+```swift
+// `end(at:)` members are named `endAt*` — overload of `end`, argument labels appended
+func end(at fieldValues: [String]) {
+```
+
+Search the generated file for either spelling — the declaration as written, or the prefix a member
+carries.
+
 ## A property's `<var>GetCount` moved and the test did not read it
 
 Every property requirement counts its reads, so an assertion that reads `mock.draft` moves
@@ -159,6 +171,20 @@ is on the test's side rather than the mock's.
 
 Mock classes are `final`. Set a handler instead — every method and every property has one, and a
 handler can hold whatever a subclass would have overridden.
+
+## The generated file is not in the repository
+
+On the plugin lane it never is: it is a build product under the build root, and no committed copy
+exists. Find it, on either lane, with
+
+```bash
+find "$BUILD_ROOT" -path '*/SourcerySwiftCodegenPlugin/.generatedFiles/*' -name '*.generated.swift'
+```
+
+where `$BUILD_ROOT` is `.build` for a package and derived data for an Xcode project. If that comes
+back empty the plugin did not run or did not write: the build log names the directory it supplied,
+which [spm-plugin.md](spm-plugin.md) quotes. On the CLI lane the file is committed at the `output:`
+the config names.
 
 ## The build succeeds and the committed generated file is stale
 

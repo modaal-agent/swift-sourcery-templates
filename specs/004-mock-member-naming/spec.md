@@ -1733,3 +1733,132 @@ header (D14b), the class index (D15b), and the line above the witness (D15a) —
 and its red control. `MockGenerator` emits the first three, `MockMethod` the fourth, and every
 string comes from `MockNaming`. The `methodName` fixture §10.4 names is still added, because no
 fixture in the tree carries that annotation today.
+
+---
+
+## 11. What landed: P10 and P11
+
+### P10 — the naming comments, and the gate that reads them back
+
+`MockNaming` gained `MethodPrefix`, a second `methodPrefix` overload returning it, the two comment
+line spellings, the index header and the two header blocks. `MockMethod.mockedPrefix` calls it once
+and `mockedMethodName` reads `.prefix` off the result, so the name and the comment come from one
+call. `MockGenerator` emits the file header, the per-class header and the class's index;
+`MockMethod.mockImpl` emits the line above the witness.
+
+**What decides that a comment is written is the prefix against the declared name, not which branch
+produced it.** `useShortName: false` on a method with no parameters appends nothing, so the flags
+would have claimed a rename that did not happen; `/// sourcery: methodName` may also repeat the
+declared name. Both cases are `prefix == declaredName` and get no comment.
+
+**Two wordings changed from the drafts in D15.** The return-type cause reads ``overload of `data`
+returning `[String: Any]?` `` rather than "differing only in return type": a class whose index holds
+both members of such a group would otherwise carry the same line twice, with only the prefix telling
+them apart. And `SourceryRuntime.Method.selectorName` is `refresh` for a method that takes nothing
+and `end(at:)` for one that does, so `methodPrefix` appends `()` where it is absent — the spelling
+the comment carries is then the declaration's in both cases.
+
+Because the return type is what the comment shows, `methodPrefix` takes `returnTypeName:` and
+derives the discriminator itself. `MockMethod.returnTypeDiscriminator` is gone; the token in the
+name and the type in the comment are now one input.
+
+**Fixtures.** `Naming.swift` gained `NamingAnnotated` (`methodName`, which no fixture carried) and
+the `NamingReturnTypeBase` / `NamingReturnTypes` pair, so all three causes are in the fast lane's
+snapshot rather than two of them in `Tests/Examples/`. `Tests/Checks/README.md` gained a table for
+`Naming.swift` and one for `Properties.swift`, which P2 and P5 added without listing.
+
+**The gate (D16(b))** is `run-checks.sh`'s fifth, `naming-comments`, and the earlier typecheck and
+behaviour gates are renumbered 6 and 7. It reads every `` `X` members are named `Y*` `` line out of
+the generated file: a line inside a class must sit above a `func` whose first statement is
+`<prefix>CallCount += 1`, and each class's index must be exactly the set of lines commented inside it. Two
+red controls, both on a copy of the generated file: one renames a prefix in a comment, one deletes
+an index entry.
+
+| measured | count |
+| --- | --- |
+| renamed members in the fixture snapshot | 7 — 4 overload long forms, 2 return-type discriminators, 1 `methodName` |
+| lines added to the fixture snapshot | 140, all comments |
+| `modaal-firebase-wrappers`, regenerated from this tree | 2934 → **3148 lines**, +214 |
+| where those 214 go | 7 files × (1 blank + 5 header), 34 classes × 2, 10 index headers, 47 index entries, 47 witness lines |
+| renamed members in the consumer | **47, in 10 of its 34 classes** — §10.1's count, confirmed |
+| generated code changed | none — the diff against P9's regeneration is comments and seven blank lines |
+
+`CHANGELOG.md`'s entry takes the new paragraph, the 3148, and a table row for the 214 lines.
+`README.md`, `CONTRIBUTING.md` §"Design rules already decided", `SKILL.md`, `references/generated-api.md`
+and `references/troubleshooting.md` each state it once. `generated-api.md` was at its 250-line cap,
+so two sentences there were tightened to pay for the new one.
+
+### P11 — finding the generated file (D17(a), (a2))
+
+`references/spm-plugin.md` gained `## Finding the generated file on disk`: both lanes' path shapes,
+what the config stem is, the `find` over
+`*/SourcerySwiftCodegenPlugin/.generatedFiles/*`, the `xcodebuild -showBuildSettings` line for
+relocated derived data, and the plugin's own remark naming the directory — which was in every build
+log and documented nowhere. `references/troubleshooting.md` gained
+`## The generated file is not in the repository`. `SKILL.md`'s plugin lane gained **Finding what it
+wrote**, with the `find`.
+
+No template, plugin or CLI change, so no snapshot moved. **D17(f) is not implemented**, per §10.5:
+the lane-comparison line was not ruled.
+
+### Lanes
+
+`run-checks.sh` (snapshot recorded after reading the diff), `run-skill-checks.sh`,
+`run-annotation-checks.sh`, `run-cli-checks.sh`, `run-plugin-checks.sh` and
+`Tests/Examples/ExampleProjectSpm/test-ios.sh` — 20 tests, 0 failures. `run-xcode-checks.sh` was not
+run.
+
+**One lane defect found, not fixed and not caused by this phase.** `run-plugin-checks.sh` exits 1 on
+a second run without printing a failure: its artifact-bundle section reuses
+`$WORK_DIR/bundle-route` as the scratch path (line 489), the warm build does not re-run the plugin,
+the remark it greps for is absent, and the `grep -o … | head -1` in that else branch takes the
+script down under `set -eo pipefail` before `fail` can name it. Deleting that scratch directory and
+re-running is green.
+
+### The skill body against the compaction floor
+
+`specs/002-annotation-registry-and-agent-skill/spec.md` §3.1 records that auto-compaction keeps the
+first 5,000 tokens of each loaded skill, and its §15.2 left `SKILL.md` at 250 lines and 13,654 bytes,
+reported at **~4.8k on invoke**. P8, P10 and P11 each added to that body. Measured with 002 §15.1's
+procedure — `claude plugin marketplace add ./`, `claude plugin install swift-sourcery-mocks --scope
+local`, `claude plugin details swift-sourcery-mocks`, Claude Code 2.1.268:
+
+| state | lines | bytes | on invoke |
+| --- | ---: | ---: | ---: |
+| `master` (002 §15.2) | 250 | 13,654 | ~4.8k |
+| P8 | 282 | 16,361 | — |
+| after P10 and P11 | 297 | 17,180 | **~6.1k** |
+| after the trim | 208 | 13,988 | **~4.9k** |
+
+P8 crossed the floor on its own; P10 and P11 added ~0.3k on top. Always-on is unchanged at ~290 —
+the description was not touched, and SC4 reports it at 740 characters.
+
+**Four moves, on 002 §15.3's pattern: material a reference already carries in full leaves the body.**
+
+1. The CLI `generate` invocation. `references/cli-lane.md` §"The script shape worth copying" has the
+   same flags in a loop over modules; the body names each flag and points at it.
+2. The `protocol DataService { … }` snippet and the external-protocol extension block.
+   `references/writing-testable-protocols.md` §"What to annotate" carries both.
+3. The `## Publishers are subject-backed` section, folded into §"What the generated mock gives a
+   test" as the two-line subscribe-then-send example plus the `PassthroughSubject` rule. The
+   paragraph on when a publisher's handler is read went with it —
+   `references/stream-members.md` states both, and the body's link now says so.
+4. `## When it goes wrong` re-formed from a three-column table to a list of the same nine entries,
+   which drops the column scaffolding.
+
+The rest is prose compression. No instruction was removed, every one of the nine `mock-templates`
+flags is still named (SC7), every reference is still linked at its point of need (SC8), and the
+block between the annotation markers was not touched (AC6 reports all three rendered blocks
+current). All thirteen skill checks pass.
+
+**Measurement cleanup.** The install reads the working tree, so it was made local-scope and then
+undone: plugin uninstalled, marketplace removed, and the `.claude/settings.local.json` the local
+install wrote deleted. State before and after: one marketplace (`claude-plugins-official`), no
+local plugin.
+
+**The third sighting of the gap 002 §15.6 names.** No check measures the token budget: SC5 counts
+lines, 400 for the body, and 002 §15.6 records the line budget passing on both occasions the token
+budget was breached — ~5.1k at 258 lines, ~5.5k at 273 lines. This is the third: SC5 passed at 297
+lines while the body was ~1.1k over the floor, and nothing in CI said so. `claude plugin details` is
+still the only thing that reads the figure, and it needs `claude` and an install on the runner —
+which is the reason 002 §15.6 gives for `run-skill-checks.sh` not doing it.

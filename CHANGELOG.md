@@ -82,12 +82,25 @@ A property getter with no handler set now traps with `<var>GetHandler expected t
 wording the method form already used and the one `kotlin-ksp-mocks` matches; it was
 `` `<var>GetHandler` must be set! ``.
 
+**Every generated file says how its members are named.** Five lines at the top state the rule, every
+`// MARK: - <Protocol>` restates it in two, and a member whose prefix is not its declared name
+carries a comment naming both spellings — above the witness, and in an index under that class's
+`MARK:`:
+
+```swift
+// `end(at:)` members are named `endAt*` — overload of `end`, argument labels appended
+func end(at fieldValues: [String]) {
+```
+
+Comments only: no member moves and no generated code changes. Search a generated file for either
+spelling, the declaration as written or the prefix its members carry.
+
 **Breaking.** Every test naming a renamed member stops compiling. Regenerate and fix what the
 compiler names — each error names the member and the type, which is why no deprecated aliases are
 emitted: keeping them would mean keeping both naming rules in the generator.
 
 Measured against `modaal-firebase-wrappers`, regenerated against `master` from its pinned 0.2.15:
-**7 files, 1706 lines → 2934**, 274 generated members → 515.
+**7 files, 1706 lines → 3148**, 274 generated members → 515.
 
 | category | count |
 | --- | --- |
@@ -95,6 +108,7 @@ Measured against `modaal-firebase-wrappers`, regenerated against `master` from i
 | members renamed by the prefix rule | 0 — no protocol there declares a method name carrying an underscore or leading capitals |
 | property members added | 168, over 56 requirements: `GetCount`, `GetHandler` and `_<var>` each |
 | `<method>Args` added | 73 — from the version bump itself, not from this change; that repository is pinned before argument recording |
+| naming comments | 214 lines — 5 per file, 2 per class, and 47 members carrying one above the witness and one in their class's index, in 10 of its 34 classes |
 | its own tests that stop compiling | **9 references in 2 files**, all naming `setDataDataForDocumentDocumentMerge*`, `setDataDataForDocumentDocumentMergeFields*` or `signInWithEmailEmailPasswordCompletionHandler` |
 
 The remaining renames land only in the committed generated files and in whatever repository imports
@@ -116,8 +130,8 @@ declaration.
    sees that.
 
 The rule is stated in `README.md` §"Generated Mock API", in the skill's
-`references/generated-api.md` and `references/stream-members.md`, and built in one place,
-`templates/Mocks/MockNaming.swift`. `specs/004-mock-member-naming/spec.md` is what measured it.
+`references/generated-api.md` and `references/stream-members.md`, in every generated file, and built
+in one place, `templates/Mocks/MockNaming.swift`. `specs/004-mock-member-naming/spec.md` is what measured it.
 
 ---
 

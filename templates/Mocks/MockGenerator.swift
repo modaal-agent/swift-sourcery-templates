@@ -42,6 +42,10 @@ class MockGenerator {
         }
         var topScope = TopScope()
 
+        // The naming rule, stated once at the top of the file (D14(a)).
+        topScope += Constants.NEWL
+        topScope += MockNaming.fileNamingHeaderLines
+
         for type in types {
             let mockVars = MockVar.from(type)
             let variablesToInit = mockVars.filter { $0.provideValueInInitializer }.map { (mockedVariableName: $0.mockedVariableName, variable: $0.variable, defaultValue: try? $0.variable.typeName.defaultValue()) }
@@ -49,6 +53,17 @@ class MockGenerator {
 
             topScope += Constants.NEWL
             topScope += "// MARK: - \(type.name)"
+
+            // The rule again, in the slice an agent lands in (D14(b)), and then
+            // this class's index of the members that do not follow it (D15(b)).
+            // Both lines of the index and the line above the witness come from
+            // one call per method, so they cannot disagree.
+            topScope += MockNaming.classNamingHeaderLines
+            let namingComments = mockMethods.compactMap { $0.namingComment }
+            if !namingComments.isEmpty {
+                topScope += MockNaming.namingIndexHeaderLine
+                topScope += namingComments.map { MockNaming.namingIndexLine($0) }
+            }
 
             let genericTypes: [GenericTypeInfo] = (type.genericTypes + mockMethods.flatMap { $0.genericTypes }).merged()
 

@@ -42,6 +42,13 @@ class MockMethod {
 }
 
 extension MockMethod {
+    /// The line recording that this method's members are not named after its
+    /// declaration, or `nil` when they are. `MockMethod` emits it above the
+    /// witness and `MockGenerator` repeats it in the class's index (D15(c)).
+    var namingComment: String? {
+        return mockedPrefix.comment
+    }
+
     var isVoid: Bool {
         return method.returnTypeName.isVoid
     }
@@ -60,20 +67,22 @@ extension MockMethod {
         return method.annotations(for: AnnotationRegistry.methodName).first
     }
 
-    fileprivate var mockedMethodName: String {
-        if let annotatedMethodName = annotatedMethodName {
-            return annotatedMethodName
-        }
+    /// The prefix this method's members carry, and — when that prefix is not
+    /// the declared name — the comment that records it. One call produces both,
+    /// which is what stops the comment and the member disagreeing (D16).
+    fileprivate var mockedPrefix: MockNaming.MethodPrefix {
         return MockNaming.methodPrefix(
+            selectorName: method.selectorName,
             callName: method.callName,
             longFormComponents: useShortName ? [] : method.parameters.map {
                 MockNaming.overloadComponent(argumentLabel: $0.argumentLabel, parameterName: $0.name)
             },
-            returnTypeDiscriminator: useReturnTypeInName ? returnTypeDiscriminator : nil)
+            returnTypeName: useReturnTypeInName ? method.returnTypeName.name : nil,
+            annotatedName: annotatedMethodName)
     }
 
-    fileprivate var returnTypeDiscriminator: String {
-        return MockNaming.returnTypeDiscriminator(forTypeNamed: method.returnTypeName.name)
+    fileprivate var mockedMethodName: String {
+        return mockedPrefix.prefix
     }
 
     /// `nonisolated` is restated on the mock only when the mock class carries a
@@ -152,6 +161,9 @@ extension MockMethod {
         }
 
         var result = TopScope()
+        if let namingComment = namingComment {
+            result += MockNaming.namingCommentLine(namingComment)
+        }
         result += methodImpl
         result += mockMethodHandlers.nested
         return result.nested

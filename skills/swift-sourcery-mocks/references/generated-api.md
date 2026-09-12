@@ -10,8 +10,9 @@ backticks dropped and nothing else changed: `func perform1_0()` gives `perform1_
 
 ## The file
 
-A generated file opens with a `// Generated using Sourcery` banner and `// DO NOT EDIT`, then the
-imports the parsed sources needed, then one class per annotated protocol:
+A generated file opens with a `// Generated using Sourcery` banner and `// DO NOT EDIT`, the imports
+the parsed sources needed, and a comment block stating how members are named. Then one class per
+annotated protocol:
 
 ```swift
 final class DataServiceMock: DataService {
@@ -203,8 +204,8 @@ Adding a wider overload later therefore does not rename members an existing test
 **The requirement set includes what the protocol inherits, so a refinement can move a name.** A
 protocol declaring `func data() -> [String: Any]?` keeps `dataCallCount`; one refining it and
 overriding the return type has two requirements, and both take step 3's suffix —
-`dataStringAnyOptionalCallCount` and `dataStringAnyCallCount`. Nothing in either declaration says
-so; `/// sourcery: methodName = "customName"` is how a member's name is pinned.
+`dataStringAnyOptionalCallCount` and `dataStringAnyCallCount`. Neither declaration says so; the
+generated file does, above the witness. `/// sourcery: methodName = "customName"` pins a name.
 
 ## What is not recorded
 
@@ -214,8 +215,7 @@ so; `/// sourcery: methodName = "customName"` is how a member's name is pinned.
 - the method is generic — a stored property can only name the class's generic parameters;
 - `skipArgumentRecording` is on the method, or on the protocol, which applies it to every method.
 
-A method with no parameters gets no `<method>Args` either. Symptoms and fixes are in
-[troubleshooting.md](troubleshooting.md).
+A method with no parameters gets none either. See [troubleshooting.md](troubleshooting.md).
 
 ## The same vocabulary in the Kotlin twin
 

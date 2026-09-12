@@ -228,6 +228,14 @@ return-type suffix, and one that still collides after that fails generation nami
 The suffix set and the rule are in `specs/004-mock-member-naming/spec.md` §2, and
 `templates/Mocks/MockNaming.swift` is where they live.
 
+**A prefix that is not the declared name is stated in the generated file.**
+`MockNaming.methodPrefix` returns the prefix and the comment recording it from one call, so a
+comment that disagrees with the member under it cannot be produced. `MockGenerator` emits the file
+header, the per-class header and the class's index of those members; `MockMethod` emits the line
+above the witness. `run-checks.sh`'s naming-comment gate reads them back out of the generated file
+and holds each to the `<prefix>CallCount` the witness increments, with a red control for a wrong
+prefix and one for an index missing a member.
+
 **Every property requirement is accessors over a `_<var>` store.** A stored property cannot observe
 a read, so `<var>GetCount` and `<var>GetHandler` are emitted for every requirement and the generated
 initializer seeds the store — construction moves no counter, and a test that does not want to move

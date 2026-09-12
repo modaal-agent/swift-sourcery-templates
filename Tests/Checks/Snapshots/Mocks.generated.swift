@@ -5,7 +5,15 @@
 import Combine
 import Foundation
 
+// Mock member names are the requirement's declared name plus a suffix: `func load()` gives
+// `loadCallCount`, `loadArgs` and `loadHandler`; `var name` gives `nameGetCount`, `nameSetCount`,
+// `nameGetHandler` and the store `_name`. Where a prefix is not the declared name — an overload,
+// a return-type discriminator, `sourcery: methodName` — a comment carrying both spellings
+// sits above the witness and in the index under that class's `// MARK:` line.
+
 // MARK: - AnalyticsTracking
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class AnalyticsTrackingMock: AnalyticsTracking, @unchecked Sendable {
 
     // MARK: - Methods
@@ -40,6 +48,8 @@ final class AnalyticsTrackingMock: AnalyticsTracking, @unchecked Sendable {
 }
 
 // MARK: - AppServicesAPNSHandlerRegistering
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 @MainActor
 final class AppServicesAPNSHandlerRegisteringMock: AppServicesAPNSHandlerRegistering {
 
@@ -63,6 +73,8 @@ final class AppServicesAPNSHandlerRegisteringMock: AppServicesAPNSHandlerRegiste
 }
 
 // MARK: - AppServicesRegistering
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 @MainActor
 final class AppServicesRegisteringMock: AppServicesRegistering {
 
@@ -110,6 +122,8 @@ final class AppServicesRegisteringMock: AppServicesRegistering {
 }
 
 // MARK: - AppServicesURLHandlerRegistering
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 @MainActor
 final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegistering {
 
@@ -133,6 +147,8 @@ final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegisteri
 }
 
 // MARK: - AudioSessionConfiguring
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class AudioSessionConfiguringMock: AudioSessionConfiguring {
 
     // MARK: - Variables
@@ -185,6 +201,8 @@ final class AudioSessionConfiguringMock: AudioSessionConfiguring {
 }
 
 // MARK: - CaptureDependency
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 @MainActor
 final class CaptureDependencyMock: CaptureDependency {
 
@@ -291,6 +309,8 @@ final class CaptureDependencyMock: CaptureDependency {
 }
 
 // MARK: - DetailPresenting
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class DetailPresentingMock: DetailPresenting {
 
     // MARK: - Variables
@@ -351,6 +371,8 @@ final class DetailPresentingMock: DetailPresenting {
 }
 
 // MARK: - DiagnosticsReporting
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 @MainActor
 final class DiagnosticsReportingMock: DiagnosticsReporting {
 
@@ -386,6 +408,8 @@ final class DiagnosticsReportingMock: DiagnosticsReporting {
 }
 
 // MARK: - FrameRetaining
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class FrameRetainingMock: FrameRetaining {
 
     // MARK: - Variables
@@ -440,6 +464,8 @@ final class FrameRetainingMock: FrameRetaining {
 }
 
 // MARK: - FrameStreaming
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class FrameStreamingMock: FrameStreaming {
 
     // MARK: - Variables
@@ -519,6 +545,8 @@ final class FrameStreamingMock: FrameStreaming {
 }
 
 // MARK: - MainDependency
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class MainDependencyMock: MainDependency {
 
     // MARK: - Variables
@@ -609,6 +637,8 @@ final class MainDependencyMock: MainDependency {
 }
 
 // MARK: - MediaStaging
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class MediaStagingMock: MediaStaging {
 
     // MARK: - Methods
@@ -655,6 +685,8 @@ final class MediaStagingMock: MediaStaging {
 }
 
 // MARK: - MemoryEventStreaming
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class MemoryEventStreamingMock: MemoryEventStreaming {
 
     // MARK: - Variables
@@ -686,6 +718,8 @@ final class MemoryEventStreamingMock: MemoryEventStreaming {
 }
 
 // MARK: - MemoryRepositoryProtocol
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
 
     // MARK: - Variables
@@ -849,7 +883,36 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
     lazy var tokenSubject = CurrentValueSubject<String, Error>("")
 }
 
+// MARK: - NamingAnnotated
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// Not named after their declaration:
+//   `refresh()` members are named `reloadNow*` — `/// sourcery: methodName = "reloadNow"`
+final class NamingAnnotatedMock: NamingAnnotated {
+
+    // MARK: - Methods
+    // `refresh()` members are named `reloadNow*` — `/// sourcery: methodName = "reloadNow"`
+    func refresh() {
+        reloadNowCallCount += 1
+        if let __reloadNowHandler = self.reloadNowHandler {
+            __reloadNowHandler()
+        }
+    }
+    var reloadNowCallCount: Int = 0
+    var reloadNowHandler: (() -> ())? = nil
+    func reset() {
+        resetCallCount += 1
+        if let __resetHandler = self.resetHandler {
+            __resetHandler()
+        }
+    }
+    var resetCallCount: Int = 0
+    var resetHandler: (() -> ())? = nil
+}
+
 // MARK: - NamingKeywords
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class NamingKeywordsMock: NamingKeywords {
 
     // MARK: - Variables
@@ -893,6 +956,8 @@ final class NamingKeywordsMock: NamingKeywords {
 }
 
 // MARK: - NamingManyToOne
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class NamingManyToOneMock: NamingManyToOne {
 
     // MARK: - Methods
@@ -915,6 +980,13 @@ final class NamingManyToOneMock: NamingManyToOne {
 }
 
 // MARK: - NamingOverloads
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// Not named after their declaration:
+//   `end(at:)` members are named `endAt*` — overload of `end`, argument labels appended
+//   `end(atDocument:)` members are named `endAtDocument*` — overload of `end`, argument labels appended
+//   `reference(forURL:)` members are named `referenceForURL*` — overload of `reference`, argument labels appended
+//   `reference(withPath:)` members are named `referenceWithPath*` — overload of `reference`, argument labels appended
 final class NamingOverloadsMock: NamingOverloads {
 
     // MARK: - Methods
@@ -926,6 +998,7 @@ final class NamingOverloadsMock: NamingOverloads {
     }
     var endCallCount: Int = 0
     var endHandler: (() -> ())? = nil
+    // `end(at:)` members are named `endAt*` — overload of `end`, argument labels appended
     func end(at fieldValues: [String]) {
         endAtCallCount += 1
         endAtArgs.append(fieldValues)
@@ -936,6 +1009,7 @@ final class NamingOverloadsMock: NamingOverloads {
     var endAtCallCount: Int = 0
     var endAtArgs: [[String]] = []
     var endAtHandler: ((_ fieldValues: [String]) -> ())? = nil
+    // `end(atDocument:)` members are named `endAtDocument*` — overload of `end`, argument labels appended
     func end(atDocument document: String) {
         endAtDocumentCallCount += 1
         endAtDocumentArgs.append(document)
@@ -946,6 +1020,7 @@ final class NamingOverloadsMock: NamingOverloads {
     var endAtDocumentCallCount: Int = 0
     var endAtDocumentArgs: [String] = []
     var endAtDocumentHandler: ((_ document: String) -> ())? = nil
+    // `reference(forURL:)` members are named `referenceForURL*` — overload of `reference`, argument labels appended
     func reference(forURL url: String) {
         referenceForURLCallCount += 1
         referenceForURLArgs.append(url)
@@ -956,6 +1031,7 @@ final class NamingOverloadsMock: NamingOverloads {
     var referenceForURLCallCount: Int = 0
     var referenceForURLArgs: [String] = []
     var referenceForURLHandler: ((_ url: String) -> ())? = nil
+    // `reference(withPath:)` members are named `referenceWithPath*` — overload of `reference`, argument labels appended
     func reference(withPath path: String) {
         referenceWithPathCallCount += 1
         referenceWithPathArgs.append(path)
@@ -968,7 +1044,40 @@ final class NamingOverloadsMock: NamingOverloads {
     var referenceWithPathHandler: ((_ path: String) -> ())? = nil
 }
 
+// MARK: - NamingReturnTypes
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// Not named after their declaration:
+//   `data()` members are named `dataStringAny*` — overload of `data` returning `[String: Any]`
+//   `data()` members are named `dataStringAnyOptional*` — overload of `data` returning `[String: Any]?`
+final class NamingReturnTypesMock: NamingReturnTypes {
+
+    // MARK: - Methods
+    // `data()` members are named `dataStringAny*` — overload of `data` returning `[String: Any]`
+    func data() -> [String: Any] {
+        dataStringAnyCallCount += 1
+        if let __dataStringAnyHandler = self.dataStringAnyHandler {
+            return __dataStringAnyHandler()
+        }
+        return [:]
+    }
+    var dataStringAnyCallCount: Int = 0
+    var dataStringAnyHandler: (() -> ([String: Any]))? = nil
+    // `data()` members are named `dataStringAnyOptional*` — overload of `data` returning `[String: Any]?`
+    func data() -> [String: Any]? {
+        dataStringAnyOptionalCallCount += 1
+        if let __dataStringAnyOptionalHandler = self.dataStringAnyOptionalHandler {
+            return __dataStringAnyOptionalHandler()
+        }
+        return nil
+    }
+    var dataStringAnyOptionalCallCount: Int = 0
+    var dataStringAnyOptionalHandler: (() -> ([String: Any]?))? = nil
+}
+
 // MARK: - NamingUnderscores
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class NamingUnderscoresMock: NamingUnderscores {
 
     // MARK: - Variables
@@ -1012,6 +1121,8 @@ final class NamingUnderscoresMock: NamingUnderscores {
 }
 
 // MARK: - NamingUppercase
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class NamingUppercaseMock: NamingUppercase {
 
     // MARK: - Methods
@@ -1036,6 +1147,8 @@ final class NamingUppercaseMock: NamingUppercase {
 }
 
 // MARK: - NotificationSignalling
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class NotificationSignallingMock: NotificationSignalling {
 
     // MARK: - Variables
@@ -1092,6 +1205,8 @@ final class NotificationSignallingMock: NotificationSignalling {
 }
 
 // MARK: - PlaybackObserving
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class PlaybackObservingMock: PlaybackObserving {
 
     // MARK: - Methods
@@ -1116,6 +1231,8 @@ final class PlaybackObservingMock: PlaybackObserving {
 }
 
 // MARK: - PlaybackRetaining
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class PlaybackRetainingMock: PlaybackRetaining {
 
     // MARK: - Methods
@@ -1138,6 +1255,8 @@ final class PlaybackRetainingMock: PlaybackRetaining {
 }
 
 // MARK: - PropertyEffectful
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class PropertyEffectfulMock: PropertyEffectful {
 
     // MARK: - Variables
@@ -1212,6 +1331,8 @@ final class PropertyEffectfulMock: PropertyEffectful {
 }
 
 // MARK: - PropertyShaped
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class PropertyShapedMock: PropertyShaped {
 
     // MARK: - Variables
@@ -1304,6 +1425,8 @@ final class PropertyShapedMock: PropertyShaped {
 }
 
 // MARK: - PushNotificationRepositoryProtocol
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 @MainActor
 final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryProtocol {
 
@@ -1406,10 +1529,14 @@ final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryPr
 }
 
 // MARK: - RootDependency
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class RootDependencyMock: RootDependency {
 }
 
 // MARK: - TimelineBuildable
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class TimelineBuildableMock: TimelineBuildable {
 
     // MARK: - Methods
@@ -1427,6 +1554,8 @@ final class TimelineBuildableMock: TimelineBuildable {
 }
 
 // MARK: - TimelineDependency
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class TimelineDependencyMock: TimelineDependency {
 
     // MARK: - Variables
@@ -1517,6 +1646,8 @@ final class TimelineDependencyMock: TimelineDependency {
 }
 
 // MARK: - UploadScheduling
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class UploadSchedulingMock: UploadScheduling {
 
     // MARK: - Methods
@@ -1533,6 +1664,8 @@ final class UploadSchedulingMock: UploadScheduling {
 }
 
 // MARK: - UserRepositoryProtocol
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 @MainActor
 final class UserRepositoryProtocolMock: UserRepositoryProtocol {
 
@@ -1621,6 +1754,8 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
 }
 
 // MARK: - VocabularyCanonical
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class VocabularyCanonicalMock: VocabularyCanonical {
 
     // MARK: - Variables
@@ -1652,6 +1787,8 @@ final class VocabularyCanonicalMock: VocabularyCanonical {
 }
 
 // MARK: - VocabularyLegacyObjc
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class VocabularyLegacyObjcMock: NSObject, VocabularyLegacyObjc {
 
     // MARK: - Methods
@@ -1666,6 +1803,8 @@ final class VocabularyLegacyObjcMock: NSObject, VocabularyLegacyObjc {
 }
 
 // MARK: - VocabularyObjc
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
 final class VocabularyObjcMock: NSObject, VocabularyObjc {
 
     // MARK: - Methods

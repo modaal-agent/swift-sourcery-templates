@@ -65,3 +65,27 @@ public protocol NamingOverloads: AnyObject {
   func reference(withPath path: String)
   func reference(forURL url: String)
 }
+
+/// A requirement whose members are named outright. `methodName` replaces the
+/// derived prefix, so nothing in the declaration spells `reloadNow` — the third
+/// of the three causes §10.1 counts, and the one no rule can derive.
+///
+/// sourcery: ProtocolMock
+public protocol NamingAnnotated: AnyObject {
+  /// sourcery: methodName = "reloadNow"
+  func refresh()
+  func reset()
+}
+
+/// Two overloads a refining protocol leaves sharing their name, their parameter
+/// list and their labels, so only the return type separates them (§2.2 step 3).
+/// Neither prefix appears in either declaration, and the declaration a reader
+/// has in front of them does not show that the other one exists.
+public protocol NamingReturnTypeBase: AnyObject {
+  func data() -> [String: Any]?
+}
+
+/// sourcery: ProtocolMock
+public protocol NamingReturnTypes: NamingReturnTypeBase {
+  func data() -> [String: Any]
+}

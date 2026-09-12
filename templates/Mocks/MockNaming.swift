@@ -103,6 +103,114 @@ enum MockNaming {
         return sanitized.camelCased().uppercasedFirstLetter()
     }
 
+    // MARK: - Naming comments
+    //
+    // Three cases leave a prefix a reader cannot derive from the declaration in
+    // front of them (`spec.md` §10.1): an overload's long form, the return-type
+    // discriminator, and `/// sourcery: methodName`. 47 of the 152 methods in
+    // the reference consumer are one of the three, in 10 of its 34 mock
+    // classes. Each gets a comment carrying both spellings — the selector as
+    // declared and the prefix its members take — above the witness and in its
+    // class's index (D15(c)).
+    //
+    // The comment comes from the call that produces the name, so a comment that
+    // disagrees with the member below it cannot be written (D16(a)), and
+    // `Tests/Checks/run-checks.sh`'s naming-comment gate reads both back out of
+    // the generated file (D16(b)).
+
+    /// A method's prefix, and the comment recording it when it is not the
+    /// declared name.
+    struct MethodPrefix {
+        let prefix: String
+        /// `nil` when the prefix is the declared name, which is the case for
+        /// most members.
+        let comment: String?
+    }
+
+    /// The prefix a method's members carry, with that comment.
+    ///
+    /// - Parameters:
+    ///   - selectorName: the requirement as declared — `end(at:)`. One of the
+    ///     two spellings the comment carries, so a search for either finds it.
+    ///   - callName: the method's declared name.
+    ///   - longFormComponents: empty for the overload that keeps the plain
+    ///     name; otherwise one component per parameter, from `overloadComponent`.
+    ///   - returnTypeName: the return type, when the long form left two
+    ///     overloads sharing a name and the discriminator is what separates
+    ///     them; `nil` otherwise. The discriminator is derived from it here, so
+    ///     the token in the name and the type in the comment are one input.
+    ///   - annotatedName: the value of `/// sourcery: methodName`, which
+    ///     replaces the derived prefix outright.
+    static func methodPrefix(
+        selectorName: String,
+        callName: String,
+        longFormComponents: [String] = [],
+        returnTypeName: String? = nil,
+        annotatedName: String? = nil
+    ) -> MethodPrefix {
+        let declaredName = callName.withoutBackticks
+        let prefix: String
+        let cause: String
+        if let annotatedName = annotatedName {
+            prefix = annotatedName
+            cause = "`/// sourcery: \(AnnotationRegistry.methodName.name) = \"\(annotatedName)\"`"
+        } else {
+            prefix = methodPrefix(
+                callName: callName,
+                longFormComponents: longFormComponents,
+                returnTypeDiscriminator: returnTypeName.map { returnTypeDiscriminator(forTypeNamed: $0) })
+            cause = returnTypeName.map { "overload of `\(declaredName)` returning `\($0)`" }
+                ?? "overload of `\(declaredName)`, argument labels appended"
+        }
+        // What decides whether a comment is written is the prefix against the
+        // declared name, not which branch produced it: a method with no
+        // parameters put into long form by its overload group derives the plain
+        // name anyway, and an annotation may repeat the declared name.
+        guard prefix != declaredName else {
+            return MethodPrefix(prefix: prefix, comment: nil)
+        }
+        // `selectorName` is `refresh` for a method that takes nothing and
+        // `end(at:)` for one that does. The comment shows the parentheses
+        // either way, so the spelling it carries is the declaration's.
+        let selector = selectorName.contains("(") ? selectorName : "\(selectorName)()"
+        return MethodPrefix(
+            prefix: prefix,
+            comment: "`\(selector)` members are named `\(prefix)*` — \(cause)")
+    }
+
+    /// The comment as it is emitted above the witness, inside the class.
+    static func namingCommentLine(_ comment: String) -> String { return "// \(comment)" }
+
+    /// The same comment as it is emitted in its class's index. The indent is
+    /// what separates an index entry from the class header sharing its column,
+    /// for a reader and for the gate alike.
+    static func namingIndexLine(_ comment: String) -> String { return "//   \(comment)" }
+
+    /// Introduces the index, and is emitted only for a class that has one.
+    static let namingIndexHeaderLine = "// Not named after their declaration:"
+
+    /// The rule, stated once at the top of a generated file (D14(a)).
+    static var fileNamingHeaderLines: [String] {
+        return [
+            "// Mock member names are the requirement's declared name plus a suffix: `func load()` gives",
+            "// `loadCallCount`, `loadArgs` and `loadHandler`; `var name` gives `nameGetCount`, `nameSetCount`,",
+            "// `nameGetHandler` and the store `_name`. Where a prefix is not the declared name — an overload,",
+            "// a return-type discriminator, `sourcery: \(AnnotationRegistry.methodName.name)` — a comment carrying both spellings",
+            "// sits above the witness and in the index under that class's `// MARK:` line.",
+        ]
+    }
+
+    /// The rule again, under every class's `MARK:` line (D14(b)). A generated
+    /// file is read in slices — the consumer's is 2934 lines — and the file
+    /// header is not in the slice. The same two lines for every class, with
+    /// nothing interpolated from the protocol.
+    static var classNamingHeaderLines: [String] {
+        return [
+            "// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,",
+            "// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.",
+        ]
+    }
+
     // MARK: - Method members
 
     static func callCount(_ prefix: String) -> String { return "\(prefix)CallCount" }
