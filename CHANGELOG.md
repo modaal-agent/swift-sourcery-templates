@@ -59,6 +59,11 @@ var draftSetCount: Int = 0
 var _draft: String = ""
 ```
 
+**A `{ get }` requirement's witness is get-only**, as the requirement is, and `mock._<var> = value`
+is how a test seeds one — the same expression `kotlin-ksp-mocks` writes. A read-only requirement was
+emitted as a settable stored property before, so `mock.draft = x` compiled and moved no counter.
+`<var>SetCount` is still emitted for a `{ get set }` requirement only.
+
 **A property requirement declared `{ get async }`, `{ get throws }` or `{ get async throws }`**
 generates the accessor it declares, with the same effects on `<var>GetHandler`. It generated a plain
 stored property before, which does not satisfy the requirement.
@@ -95,12 +100,18 @@ func end(at fieldValues: [String]) {
 Comments only: no member moves and no generated code changes. Search a generated file for either
 spelling, the declaration as written or the prefix its members carry.
 
-**Breaking.** Every test naming a renamed member stops compiling. Regenerate and fix what the
+**Breaking, twice.** Every test naming a renamed member stops compiling. Regenerate and fix what the
 compiler names — each error names the member and the type, which is why no deprecated aliases are
 emitted: keeping them would mean keeping both naming rules in the generator.
 
+Every assignment to a `{ get }` requirement on a mock stops compiling too, with
+`cannot assign to property: … is a get-only property`. The fix at each site is `_<var>`:
+`mock.documentID = "d1"` becomes `mock._documentID = "d1"`. No deprecation window is available —
+`@available(*, deprecated)` marks a property, not one accessor. Nothing assigns such a requirement
+through the protocol, so every site is code holding the concrete `<Type>Mock`.
+
 Measured against `modaal-firebase-wrappers`, regenerated against `master` from its pinned 0.2.15:
-**7 files, 1706 lines → 3148**, 274 generated members → 515.
+**7 files, 1706 lines → 2803**, 274 generated members → 515.
 
 | category | count |
 | --- | --- |
@@ -109,6 +120,8 @@ Measured against `modaal-firebase-wrappers`, regenerated against `master` from i
 | property members added | 168, over 56 requirements: `GetCount`, `GetHandler` and `_<var>` each |
 | `<method>Args` added | 73 — from the version bump itself, not from this change; that repository is pinned before argument recording |
 | naming comments | 214 lines — 5 per file, 2 per class, and 47 members carrying one above the witness and one in their class's index, in 10 of its 34 classes |
+| witnesses that became get-only | 69, over 52 distinct names; 4 `{ get set }` witnesses keep their setter |
+| its own tests that stop compiling on an assignment | **12 sites in 5 files** — `FirebaseAuthCombineTests` (4), `DocumentReferenceCombineTests` (4), `QueryDocumentSnapshotProtocolTests` (2), `FirestoreCombineTests` (1), `QueryCombineTests` (1); each becomes `_<var>` |
 | its own tests that stop compiling | **9 references in 2 files**, all naming `setDataDataForDocumentDocumentMerge*`, `setDataDataForDocumentDocumentMergeFields*` or `signInWithEmailEmailPasswordCompletionHandler` |
 
 The remaining renames land only in the committed generated files and in whatever repository imports
@@ -125,7 +138,9 @@ declaration.
    block changes with the body.
 3. **A property read starts counting.** An assertion that reads `mock.draft` moves `draftGetCount`
    itself. Read and seed `mock._draft` to leave the counters where they are.
-4. **A publisher member gains six members and a handler.** Driving `<name>Subject` is unchanged, and
+4. **Seed a `{ get }` requirement through `_<var>`.** `mock.documentID = "d1"` no longer compiles;
+   `mock._documentID = "d1"` is the replacement, and it is the same expression on the Kotlin side.
+5. **A publisher member gains six members and a handler.** Driving `<name>Subject` is unchanged, and
    a value sent while nobody is subscribed still goes nowhere — `<name>OutputCount` is how a test
    sees that.
 

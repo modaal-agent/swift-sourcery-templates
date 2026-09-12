@@ -239,8 +239,10 @@ prefix and one for an index missing a member.
 **Every property requirement is accessors over a `_<var>` store.** A stored property cannot observe
 a read, so `<var>GetCount` and `<var>GetHandler` are emitted for every requirement and the generated
 initializer seeds the store — construction moves no counter, and a test that does not want to move
-one reads and seeds `_<var>`. The witness stays settable wherever it was settable before that
-change; `const` and `handler` were not settable and are not now.
+one reads and seeds `_<var>`. **The witness declares what the requirement declares:** a `{ get }`
+requirement is get-only on the mock, so `mock._<var> = value` is the one way a test seeds it, and it
+is the expression `kotlin-ksp-mocks` writes for the same purpose (`spec.md` §12.2 item 2, D18). P5
+emitted an uncounted setter there; D18 retired it.
 
 **An effectful property requirement generates the accessor it declares.** `{ get async }`,
 `{ get throws }` and `{ get async throws }` carry through to the accessor and to

@@ -164,24 +164,25 @@ extension MockVar {
                     : SourceCode("return \(MockNaming.store(mockedVariableName))")
             ]
 
-            // The witness stays settable wherever it is settable today: a
-            // read-only requirement backed by a `var` store was emitted as a
-            // settable stored property, and a test re-seeds it by assignment.
-            // `const` and `handler` are the two that were not — the first has a
-            // `let`, the second has no storage at all.
+            // The witness declares what the requirement declares: a `{ get }`
+            // requirement is get-only on the mock, and `_<var>` is how a test
+            // seeds it (§12.2 item 2, D18). P5 emitted a setter for a read-only
+            // requirement — uncounted, so `mock.draft = x` compiled and moved
+            // nothing — which `kotlin-ksp-mocks` §12.4 asked this side to drop,
+            // so that `mock._<var> = value` is the one seed expression on both
+            // platforms. `const` and `handler` were already get-only.
             //
             // `<var>SetCount` counts a write to a `{ get set }` requirement, and
-            // only that (§2.3): a re-seed of a read-only requirement was
-            // uncounted before this change and stays uncounted.
-            // An effectful requirement is get-only: Swift has no effectful
-            // setter, so there is nothing for a mutable form to witness.
-            let hasSetter = !hasEffects && (variable.isMutable || !(variable.isAnnotatedConst || variable.isAnnotatedHandler))
-            var setterImplementation: [SourceCode] = []
-            if variable.isMutable {
-                // `didSet` on a stored property was the old shape, and a stored
-                // property cannot count a read.
-                setterImplementation += [SourceCode("\(MockNaming.setCount(mockedVariableName)) += 1")]
-            }
+            // only that (§2.3). An effectful requirement is get-only too: Swift
+            // has no effectful setter, so there is nothing for a mutable form to
+            // witness.
+            let hasSetter = !hasEffects && variable.isMutable
+            // Only a `{ get set }` requirement reaches the setter now, so the
+            // count is unconditional in it. `didSet` on a stored property was
+            // the old shape, and a stored property cannot count a read.
+            var setterImplementation: [SourceCode] = [
+                SourceCode("\(MockNaming.setCount(mockedVariableName)) += 1")
+            ]
             if !variable.isAnnotatedHandler {
                 setterImplementation += [SourceCode("\(MockNaming.store(mockedVariableName)) = newValue")]
             }
@@ -192,7 +193,7 @@ extension MockVar {
 
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getCount(mockedVariableName)): Int = 0"
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (()\(effectsDecl) -> \(variable.typeName.declaredName))? = nil"
-            if variable.isMutable && hasSetter {
+            if hasSetter {
                 mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.setCount(mockedVariableName)): Int = 0"
             }
             if !variable.isAnnotatedHandler {

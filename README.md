@@ -63,7 +63,7 @@ comment naming both spellings — above the witness, and in an index under that 
 | `Handler` | method | always |
 | `GetCount`, `GetHandler` | property | always |
 | `SetCount` | property | the requirement is `{ get set }` |
-| `_<var>` | property | the stored value, seeded and read without moving a counter |
+| `_<var>` | property | the stored value, seeded and read without moving a counter — and the only way to seed a `{ get }` requirement, whose witness is get-only |
 | `Subject` | both | `AnyPublisher`, `Observable`, `Single` |
 | `SubscribeCount`, `SubscribeCancelCount` | both | `AnyPublisher` — the code under test subscribed, and cancelled |
 | `OutputCount`, `Outputs`, `OutputHandler` | both | `AnyPublisher` — values the member delivered |

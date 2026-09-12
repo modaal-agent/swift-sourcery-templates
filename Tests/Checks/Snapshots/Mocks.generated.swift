@@ -153,16 +153,11 @@ final class AudioSessionConfiguringMock: AudioSessionConfiguring {
 
     // MARK: - Variables
     var recordPermission: RecordPermission {
-        get {
-            recordPermissionGetCount += 1
-            if let handler = recordPermissionGetHandler {
-                return handler()
-            }
-            return _recordPermission
+        recordPermissionGetCount += 1
+        if let handler = recordPermissionGetHandler {
+            return handler()
         }
-        set {
-            _recordPermission = newValue
-        }
+        return _recordPermission
     }
     var recordPermissionGetCount: Int = 0
     var recordPermissionGetHandler: (() -> RecordPermission)? = nil
@@ -208,16 +203,11 @@ final class CaptureDependencyMock: CaptureDependency {
 
     // MARK: - Variables
     var analytics: AnalyticsTracking {
-        get {
-            analyticsGetCount += 1
-            if let handler = analyticsGetHandler {
-                return handler()
-            }
-            return _analytics
+        analyticsGetCount += 1
+        if let handler = analyticsGetHandler {
+            return handler()
         }
-        set {
-            _analytics = newValue
-        }
+        return _analytics
     }
     var analyticsGetCount: Int = 0
     var analyticsGetHandler: (() -> AnalyticsTracking)? = nil
@@ -240,31 +230,21 @@ final class CaptureDependencyMock: CaptureDependency {
     var draftSetCount: Int = 0
     var _draft: String = ""
     nonisolated var installationId: String {
-        get {
-            installationIdGetCount += 1
-            if let handler = installationIdGetHandler {
-                return handler()
-            }
-            return _installationId
+        installationIdGetCount += 1
+        if let handler = installationIdGetHandler {
+            return handler()
         }
-        set {
-            _installationId = newValue
-        }
+        return _installationId
     }
     nonisolated(unsafe) var installationIdGetCount: Int = 0
     nonisolated(unsafe) var installationIdGetHandler: (() -> String)? = nil
     nonisolated(unsafe) var _installationId: String = ""
     var memoryRepository: MemoryRepositoryProtocol {
-        get {
-            memoryRepositoryGetCount += 1
-            if let handler = memoryRepositoryGetHandler {
-                return handler()
-            }
-            return _memoryRepository
+        memoryRepositoryGetCount += 1
+        if let handler = memoryRepositoryGetHandler {
+            return handler()
         }
-        set {
-            _memoryRepository = newValue
-        }
+        return _memoryRepository
     }
     var memoryRepositoryGetCount: Int = 0
     var memoryRepositoryGetHandler: (() -> MemoryRepositoryProtocol)? = nil
@@ -315,31 +295,21 @@ final class DetailPresentingMock: DetailPresenting {
 
     // MARK: - Variables
     var policy: (any DetailSheet & DetailPolicy)? {
-        get {
-            policyGetCount += 1
-            if let handler = policyGetHandler {
-                return handler()
-            }
-            return _policy
+        policyGetCount += 1
+        if let handler = policyGetHandler {
+            return handler()
         }
-        set {
-            _policy = newValue
-        }
+        return _policy
     }
     var policyGetCount: Int = 0
     var policyGetHandler: (() -> (any DetailSheet & DetailPolicy)?)? = nil
     var _policy: (any DetailSheet & DetailPolicy)? = nil
     var restoredSheet: (any DetailSheet)? {
-        get {
-            restoredSheetGetCount += 1
-            if let handler = restoredSheetGetHandler {
-                return handler()
-            }
-            return _restoredSheet
+        restoredSheetGetCount += 1
+        if let handler = restoredSheetGetHandler {
+            return handler()
         }
-        set {
-            _restoredSheet = newValue
-        }
+        return _restoredSheet
     }
     var restoredSheetGetCount: Int = 0
     var restoredSheetGetHandler: (() -> (any DetailSheet)?)? = nil
@@ -551,76 +521,51 @@ final class MainDependencyMock: MainDependency {
 
     // MARK: - Variables
     var analytics: AnalyticsTracking {
-        get {
-            analyticsGetCount += 1
-            if let handler = analyticsGetHandler {
-                return handler()
-            }
-            return _analytics
+        analyticsGetCount += 1
+        if let handler = analyticsGetHandler {
+            return handler()
         }
-        set {
-            _analytics = newValue
-        }
+        return _analytics
     }
     var analyticsGetCount: Int = 0
     var analyticsGetHandler: (() -> AnalyticsTracking)? = nil
     var _analytics: AnalyticsTracking
     var memoryRepository: MemoryRepositoryProtocol {
-        get {
-            memoryRepositoryGetCount += 1
-            if let handler = memoryRepositoryGetHandler {
-                return handler()
-            }
-            return _memoryRepository
+        memoryRepositoryGetCount += 1
+        if let handler = memoryRepositoryGetHandler {
+            return handler()
         }
-        set {
-            _memoryRepository = newValue
-        }
+        return _memoryRepository
     }
     var memoryRepositoryGetCount: Int = 0
     var memoryRepositoryGetHandler: (() -> MemoryRepositoryProtocol)? = nil
     var _memoryRepository: MemoryRepositoryProtocol
     var pushNotificationRepository: PushNotificationRepositoryProtocol {
-        get {
-            pushNotificationRepositoryGetCount += 1
-            if let handler = pushNotificationRepositoryGetHandler {
-                return handler()
-            }
-            return _pushNotificationRepository
+        pushNotificationRepositoryGetCount += 1
+        if let handler = pushNotificationRepositoryGetHandler {
+            return handler()
         }
-        set {
-            _pushNotificationRepository = newValue
-        }
+        return _pushNotificationRepository
     }
     var pushNotificationRepositoryGetCount: Int = 0
     var pushNotificationRepositoryGetHandler: (() -> PushNotificationRepositoryProtocol)? = nil
     var _pushNotificationRepository: PushNotificationRepositoryProtocol
     var themeProvider: ThemeProviding {
-        get {
-            themeProviderGetCount += 1
-            if let handler = themeProviderGetHandler {
-                return handler()
-            }
-            return _themeProvider
+        themeProviderGetCount += 1
+        if let handler = themeProviderGetHandler {
+            return handler()
         }
-        set {
-            _themeProvider = newValue
-        }
+        return _themeProvider
     }
     var themeProviderGetCount: Int = 0
     var themeProviderGetHandler: (() -> ThemeProviding)? = nil
     var _themeProvider: ThemeProviding
     var userRepository: UserRepositoryProtocol {
-        get {
-            userRepositoryGetCount += 1
-            if let handler = userRepositoryGetHandler {
-                return handler()
-            }
-            return _userRepository
+        userRepositoryGetCount += 1
+        if let handler = userRepositoryGetHandler {
+            return handler()
         }
-        set {
-            _userRepository = newValue
-        }
+        return _userRepository
     }
     var userRepositoryGetCount: Int = 0
     var userRepositoryGetHandler: (() -> UserRepositoryProtocol)? = nil
@@ -1285,16 +1230,11 @@ final class PropertyEffectfulMock: PropertyEffectful {
     var loaderGetHandler: (() async -> ThemeProviding)? = nil
     var _loader: ThemeProviding
     var plain: String {
-        get {
-            plainGetCount += 1
-            if let handler = plainGetHandler {
-                return handler()
-            }
-            return _plain
+        plainGetCount += 1
+        if let handler = plainGetHandler {
+            return handler()
         }
-        set {
-            _plain = newValue
-        }
+        return _plain
     }
     var plainGetCount: Int = 0
     var plainGetHandler: (() -> String)? = nil
@@ -1379,16 +1319,11 @@ final class PropertyShapedMock: PropertyShaped {
     var draftSetCount: Int = 0
     var _draft: String = ""
     var identifier: String {
-        get {
-            identifierGetCount += 1
-            if let handler = identifierGetHandler {
-                return handler()
-            }
-            return _identifier
+        identifierGetCount += 1
+        if let handler = identifierGetHandler {
+            return handler()
         }
-        set {
-            _identifier = newValue
-        }
+        return _identifier
     }
     var identifierGetCount: Int = 0
     var identifierGetHandler: (() -> String)? = nil
@@ -1403,16 +1338,11 @@ final class PropertyShapedMock: PropertyShaped {
     var snapshotGetCount: Int = 0
     var snapshotGetHandler: (() -> [String: Int])? = nil
     var themeProvider: ThemeProviding {
-        get {
-            themeProviderGetCount += 1
-            if let handler = themeProviderGetHandler {
-                return handler()
-            }
-            return _themeProvider
+        themeProviderGetCount += 1
+        if let handler = themeProviderGetHandler {
+            return handler()
         }
-        set {
-            _themeProvider = newValue
-        }
+        return _themeProvider
     }
     var themeProviderGetCount: Int = 0
     var themeProviderGetHandler: (() -> ThemeProviding)? = nil
@@ -1432,46 +1362,31 @@ final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryPr
 
     // MARK: - Variables
     var authorizationStatus: RecordPermission {
-        get {
-            authorizationStatusGetCount += 1
-            if let handler = authorizationStatusGetHandler {
-                return handler()
-            }
-            return _authorizationStatus
+        authorizationStatusGetCount += 1
+        if let handler = authorizationStatusGetHandler {
+            return handler()
         }
-        set {
-            _authorizationStatus = newValue
-        }
+        return _authorizationStatus
     }
     var authorizationStatusGetCount: Int = 0
     var authorizationStatusGetHandler: (() -> RecordPermission)? = nil
     var _authorizationStatus: RecordPermission
     nonisolated var installationId: String {
-        get {
-            installationIdGetCount += 1
-            if let handler = installationIdGetHandler {
-                return handler()
-            }
-            return _installationId
+        installationIdGetCount += 1
+        if let handler = installationIdGetHandler {
+            return handler()
         }
-        set {
-            _installationId = newValue
-        }
+        return _installationId
     }
     nonisolated(unsafe) var installationIdGetCount: Int = 0
     nonisolated(unsafe) var installationIdGetHandler: (() -> String)? = nil
     nonisolated(unsafe) var _installationId: String = ""
     var isNotificationsEnabled: Bool {
-        get {
-            isNotificationsEnabledGetCount += 1
-            if let handler = isNotificationsEnabledGetHandler {
-                return handler()
-            }
-            return _isNotificationsEnabled
+        isNotificationsEnabledGetCount += 1
+        if let handler = isNotificationsEnabledGetHandler {
+            return handler()
         }
-        set {
-            _isNotificationsEnabled = newValue
-        }
+        return _isNotificationsEnabled
     }
     var isNotificationsEnabledGetCount: Int = 0
     var isNotificationsEnabledGetHandler: (() -> Bool)? = nil
@@ -1560,76 +1475,51 @@ final class TimelineDependencyMock: TimelineDependency {
 
     // MARK: - Variables
     var analytics: AnalyticsTracking {
-        get {
-            analyticsGetCount += 1
-            if let handler = analyticsGetHandler {
-                return handler()
-            }
-            return _analytics
+        analyticsGetCount += 1
+        if let handler = analyticsGetHandler {
+            return handler()
         }
-        set {
-            _analytics = newValue
-        }
+        return _analytics
     }
     var analyticsGetCount: Int = 0
     var analyticsGetHandler: (() -> AnalyticsTracking)? = nil
     var _analytics: AnalyticsTracking
     var audioSessionConfigurer: AudioSessionConfiguring {
-        get {
-            audioSessionConfigurerGetCount += 1
-            if let handler = audioSessionConfigurerGetHandler {
-                return handler()
-            }
-            return _audioSessionConfigurer
+        audioSessionConfigurerGetCount += 1
+        if let handler = audioSessionConfigurerGetHandler {
+            return handler()
         }
-        set {
-            _audioSessionConfigurer = newValue
-        }
+        return _audioSessionConfigurer
     }
     var audioSessionConfigurerGetCount: Int = 0
     var audioSessionConfigurerGetHandler: (() -> AudioSessionConfiguring)? = nil
     var _audioSessionConfigurer: AudioSessionConfiguring
     var memoryRepository: MemoryRepositoryProtocol {
-        get {
-            memoryRepositoryGetCount += 1
-            if let handler = memoryRepositoryGetHandler {
-                return handler()
-            }
-            return _memoryRepository
+        memoryRepositoryGetCount += 1
+        if let handler = memoryRepositoryGetHandler {
+            return handler()
         }
-        set {
-            _memoryRepository = newValue
-        }
+        return _memoryRepository
     }
     var memoryRepositoryGetCount: Int = 0
     var memoryRepositoryGetHandler: (() -> MemoryRepositoryProtocol)? = nil
     var _memoryRepository: MemoryRepositoryProtocol
     var themeProvider: ThemeProviding {
-        get {
-            themeProviderGetCount += 1
-            if let handler = themeProviderGetHandler {
-                return handler()
-            }
-            return _themeProvider
+        themeProviderGetCount += 1
+        if let handler = themeProviderGetHandler {
+            return handler()
         }
-        set {
-            _themeProvider = newValue
-        }
+        return _themeProvider
     }
     var themeProviderGetCount: Int = 0
     var themeProviderGetHandler: (() -> ThemeProviding)? = nil
     var _themeProvider: ThemeProviding
     var userRepository: UserRepositoryProtocol {
-        get {
-            userRepositoryGetCount += 1
-            if let handler = userRepositoryGetHandler {
-                return handler()
-            }
-            return _userRepository
+        userRepositoryGetCount += 1
+        if let handler = userRepositoryGetHandler {
+            return handler()
         }
-        set {
-            _userRepository = newValue
-        }
+        return _userRepository
     }
     var userRepositoryGetCount: Int = 0
     var userRepositoryGetHandler: (() -> UserRepositoryProtocol)? = nil
@@ -1760,16 +1650,11 @@ final class VocabularyCanonicalMock: VocabularyCanonical {
 
     // MARK: - Variables
     var identifier: String {
-        get {
-            identifierGetCount += 1
-            if let handler = identifierGetHandler {
-                return handler()
-            }
-            return _identifier
+        identifierGetCount += 1
+        if let handler = identifierGetHandler {
+            return handler()
         }
-        set {
-            _identifier = newValue
-        }
+        return _identifier
     }
     var identifierGetCount: Int = 0
     var identifierGetHandler: (() -> String)? = nil

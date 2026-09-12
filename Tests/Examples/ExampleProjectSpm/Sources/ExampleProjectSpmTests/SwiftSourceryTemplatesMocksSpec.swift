@@ -94,7 +94,7 @@ class SwiftSourceryTemplatesMocksSpec: QuickSpec {
         }
       } // context("save() called")
       it("still carries the refining protocol's own requirement") {
-        sut.profileID = "abc"
+        sut._profileID = "abc"
         expect(sut.profileID) == "abc"
       }
     } // describe("mock of a protocol refining another module's protocol")

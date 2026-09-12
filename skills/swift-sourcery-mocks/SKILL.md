@@ -152,7 +152,7 @@ class's index. Search for either spelling.
 | `<method>Args` | method | what each call was passed, in order: `[T]` for one recordable parameter, `[(first: A, second: B)]` for more, labelled with the parameter names |
 | `<method>Handler` | method | the closure the test sets to decide the return value and the side effects; `async` and `throws` carry through to it |
 | `<var>GetCount` / `<var>GetHandler` | property | every property requirement counts its reads; the handler supplies the value |
-| `<var>SetCount` / `_<var>` | property | writes to a `{ get set }` requirement, and the stored value — seed or read `_<var>` to leave the counters where they are |
+| `<var>SetCount` / `_<var>` | property | writes to a `{ get set }` requirement, and the store — `_<var>` reads and seeds without moving a counter, and is the only way to seed a `{ get }` one |
 | `<name>Subject` | both | the subject behind an `AnyPublisher` or RxSwift member, which the test drives with `send` |
 | `<name>SubscribeCount` / `<name>SubscribeCancelCount` / `<name>CompletionCount` | both | an `AnyPublisher` member: the code under test subscribed, cancelled, saw the stream end |
 | `<name>OutputCount` / `<name>Outputs` / `<name>OutputHandler` | both | an `AnyPublisher` member: what it **delivered** — counted, recorded, handed to the handler |

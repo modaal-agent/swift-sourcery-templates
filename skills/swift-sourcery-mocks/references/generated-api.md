@@ -128,14 +128,14 @@ var draftSetCount: Int = 0
 var _draft: String = ""
 ```
 
-`_<var>` is what a test seeds and reads when it does not want to move a counter. `<var>SetCount` is
-emitted for a `{ get set }` requirement only — a read-only requirement's witness is still settable,
-and re-seeding it counts nothing, as it always did. A requirement with no synthesizable default is
-an initializer parameter, keeps its own name there, and seeding it at construction moves no counter.
+`_<var>` is what a test seeds and reads without moving a counter, and for a `{ get }` requirement it
+is the only way to seed one: the witness is get-only, as the requirement is, and `<var>SetCount` is
+emitted for a `{ get set }` requirement only. `mock._<var> = value` is the same expression on the
+Kotlin side. A requirement with no synthesizable default is an initializer parameter, keeps its name
+there, and seeding it at construction moves no counter.
 
-`/// sourcery: const` makes the store a `let` and the witness get-only. `/// sourcery: handler` drops
-the store: the getter runs `<var>GetHandler` and traps with `<var>GetHandler expected to be set.`
-when the test set none.
+`/// sourcery: const` makes the store a `let`, fixed at construction. `/// sourcery: handler` drops
+the store: the getter runs `<var>GetHandler` and traps with that string when the test set none.
 
 An effectful requirement generates the accessor it declares, and its handler carries the same
 effects:

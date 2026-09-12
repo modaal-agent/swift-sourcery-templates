@@ -120,6 +120,14 @@ func end(at fieldValues: [String]) {
 Search the generated file for either spelling — the declaration as written, or the prefix a member
 carries.
 
+## `cannot assign to property: 'x' is a get-only property`
+
+The witness declares what the requirement declares, so a `{ get }` requirement is get-only on the
+mock too. Seed it through the store: `mock.documentID = "d1"` becomes `mock._documentID = "d1"`,
+which moves no counter and is the same expression on the Kotlin side. Older releases emitted a
+settable stored property for a read-only requirement, so the assignment compiled and counted
+nothing. `<var>SetCount` is emitted for a `{ get set }` requirement only.
+
 ## A property's `<var>GetCount` moved and the test did not read it
 
 Every property requirement counts its reads, so an assertion that reads `mock.draft` moves

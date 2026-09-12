@@ -42,8 +42,8 @@ func checkCallCountingAndHandlers() {
   mock.requestRecordPermission { captured.append($0) }
   expectEqual(captured, [true], "@escaping completion is captured and invoked")
 
-  mock.recordPermission = .granted
-  expect(mock.recordPermission == .granted, "a read-only requirement is settable on the mock")
+  mock._recordPermission = .granted
+  expect(mock.recordPermission == .granted, "a read-only requirement is seeded through its store")
 
   struct Boom: Error {}
   mock.activateRecordingHandler = { throw Boom() }
@@ -107,7 +107,7 @@ actor Gate {
 @MainActor
 func checkNonisolatedMembers() async {
   let mock = PushNotificationRepositoryProtocolMock(authorizationStatus: .granted)
-  mock.installationId = "install-1"
+  mock._installationId = "install-1"
 
   // The point of the `nonisolated` modifier surviving into the mock: this call
   // is legal from a context that is not the main actor.
@@ -527,7 +527,7 @@ func checkComponentMutationAndEffects() async {
   let parent = CaptureDependencyMock(
     analytics: AnalyticsTrackingMock(),
     memoryRepository: MemoryRepositoryProtocolMock())
-  parent.installationId = "install-7"
+  parent._installationId = "install-7"
 
   let component = CaptureComponent(dependency: parent)
 
