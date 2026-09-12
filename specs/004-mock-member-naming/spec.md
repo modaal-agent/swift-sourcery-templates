@@ -2084,3 +2084,114 @@ in §12.6 is superseded. What that settles:
 
 P12, P13 and P14 are §12.7 as written. P12 and P13 close §9's P9 amendment; P14 does not block the
 tag and lands with them because it is one fixture and a re-record.
+
+---
+
+## 13. What landed: P12, P13 and P14
+
+### P12 — the get-only witness (D18 (a))
+
+`MockVar.swift:178` is now `let hasSetter = !hasEffects && variable.isMutable`; the `<var>SetCount`
+guard at `:195` reduces to `hasSetter`; the `if variable.isMutable` guard inside the setter body is
+gone, because only a `{ get set }` requirement reaches a setter at all. The comment at `:167-177`
+that recorded why P5 kept the witness settable is replaced by the rule it retires.
+
+The emitted-rule table in §9's P5 entry takes one new value: `{ get }` gives a witness with `get`
+only, and `<var>SetCount` is still not emitted. Every other row stands — `const` and `handler` were
+get-only already, and an effectful requirement has no setter to lose.
+
+| measured | value |
+| --- | --- |
+| snapshot | 92 lines added, 207 removed; 23 witnesses become a bare computed body, no member name moved |
+| `modaal-firebase-wrappers`, regenerated from this tree | 3148 → **2803 lines**; 73 → **4** `set` blocks, the 69 §12.3 predicted |
+| assignment sites in this repository | **5**, each now `_<var>` |
+
+**§12.3 measured three of those five, and it was reading one file.** The other two are outside
+`Tests/Checks/Behaviour/Main.swift`: `sut.profileID` in the example project's
+`SwiftSourceryTemplatesMocksSpec.swift`, and `mock.profileID` in
+`Tests/Checks/PluginFixture/Tests/AppTests/AppTests.swift`. Both were found by a lane rather than by
+the grep, which is what the lanes are for; the consumer figure of 12 is from a grep over the same
+kind of tree and carries the same risk of missing one.
+
+`Main.swift:46` asserted `"a read-only requirement is settable on the mock"`. It now reads
+`"a read-only requirement is seeded through its store"` and seeds `_recordPermission`.
+
+**Documents.** `CHANGELOG.md` states it as the second source break in this release, with `_<var>` as
+the fix at each site, the new 2803 total and two measured rows; `Adopting` gains a fourth step.
+`CONTRIBUTING.md` §"Design rules already decided", `README.md`'s member table, `SKILL.md`'s member
+table and `references/generated-api.md` each restate the rule.
+`references/troubleshooting.md` gains `## cannot assign to property: 'x' is a get-only property`.
+
+**Two lane defects found, neither caused by this phase and neither fixed.**
+
+1. **`Tests/Examples/ExampleProjectSpm/test-ios.sh` exits 0 when the build fails.** Its log carried
+   `Testing failed: Cannot assign to property: 'profileID' is a get-only property`,
+   `Testing cancelled because the build failed.` and `** TEST FAILED **`, and the script still
+   returned 0. A lane that cannot fail is a lane CI cannot gate on: read the log, not the status.
+2. **`run-plugin-checks.sh` leaves its fixture scratch unusable after a failed run.** The next
+   invocation fails with `couldn't build … because of missing inputs` naming the two generated
+   files. `rm -rf .build/plugin-checks` and re-running is green. This is the second thing that
+   directory does to a second run — §11 records the bundle-route warm-scratch defect.
+
+### P13 — the twin table (D19 (a))
+
+`references/generated-api.md`'s Swift → Kotlin table now says what item 1 of their §12.3 gives:
+`<prop>GetCount` and `<prop>GetHandler` on **every** property there rather than on a `Flow` property
+only; `<prop>SetCount` on a `var` requirement; `_<var>` → `_<prop>`, named as the only way to seed a
+read-only requirement on either side; the six stream counters on a `Flow`-returning function or a
+read-only `Flow` property; and `<name>Subject` against `<fn>Channel` with what separates them,
+broadcast against single-consumer.
+
+Two rows left "Members with no counterpart there" because they now have one. One row joined it: a
+method whose handler supplies the publisher counts nothing here and is wrapped there, which is the
+divergence D20 (a) leaves for a later release.
+
+The transitional row their §12.3 item 1 describes — a settable witness for a `{ get }` requirement —
+was never written, because P12 landed in the same branch.
+
+No template change, so no snapshot moved. The file is back at 249 lines against SC5's 250, paid for
+by dropping a sentence P12 had duplicated into the table, and it carries no version literal (SC9).
+
+### P14 — the overload tie-break in the snapshot (D21 (a))
+
+`NamingUnlabelledOverload` declares `send(_ value: String)` and `send(to target: String)` — the same
+parameter count, one of them unlabelled, which is the input `areInAscendingOrder` decides and no
+fixture in either repository had. The snapshot shows `send(_:)` keeping `send*` and `send(to:)`
+taking `sendTo*`, with P10's comment above the second. 47 added lines, nothing else moved.
+`Tests/Checks/README.md` gains the row.
+
+### The record 004 owes (item 4 of their §12.3)
+
+It is written here rather than in a follow-up file, because 004 is still being worked on and this
+repository's rule is that a spec in flight takes new sections.
+
+- **§8's closing paragraph** reads "Until it lands, its stored-property branch emits `SetCount`
+  alone (`MockRenderer.kt:127-140`)". That is superseded: `kotlin-ksp-mocks`' P1 to P3 landed
+  `<prop>GetCount`, `<prop>GetHandler`, `<prop>SetCount` and `_<prop>` on every property, and the
+  six stream counters. §2.5 is adopted there, by its own D2, with `override val` where this side had
+  `var` until D18.
+- **P8's row** for `kotlin-ksp-mocks/skills/kotlin-ksp-mocks/references/generated-api.md` — and the
+  "Not done here, and why" paragraph under P8 — describe the two tables as out of step until a
+  follow-up lands in that repository. Half of that is now closed from this side: P13 corrected this
+  repository's table. The other half is their §12.2, which is their work.
+
+### What §9's P9 amendment still gates on
+
+P12 and P13 are this repository's half. The tag also waits on `kotlin-ksp-mocks`' §12.2 — its D16
+(a) file header and per-member comment, and its D17 (a) `find` in `SKILL.md` — because a published
+version there is immutable, so both land before its 0.3.0 rather than after. Nothing in this
+repository blocks on them; the amendment's wording is "re-align with the kotlin-ksp repo", and the
+re-alignment is one ruling set applied on both sides.
+
+Open after this branch, and neither is a gate: **D20 (a)**, wrapping a method's handler-supplied
+publisher, recorded in their §11.7 as well; and their **D18 (c)**, which leaves a Kotlin interface
+declaring a keyword-named requirement generating a file that fails its consumer's compile with no
+diagnostic naming the requirement. §2.1's backtick rule here is unaffected.
+
+### Lanes
+
+`run-checks.sh` (snapshot re-recorded twice, after each diff was read), `run-skill-checks.sh`,
+`run-annotation-checks.sh`, `run-cli-checks.sh`, `run-plugin-checks.sh` (cold, after clearing its
+scratch) and `Tests/Examples/ExampleProjectSpm/test-ios.sh` at 20 tests, 0 failures — its log read
+rather than its exit status. `run-xcode-checks.sh` was not run. The skill body measures ~4.9k tokens
+on invoke at 208 lines, unchanged by P12's one-row edit, against 002 §3.1's 5,000-token floor.
