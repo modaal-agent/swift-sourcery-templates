@@ -8,6 +8,9 @@
 to `SKILL.md` kept to the command and one sentence (§7.2, which supersedes §2.4's `SKILL.md` bullet); D1
 to D4, D6 and D7 as recommended.
 
+**Landed on 2026-09-13 — §8:** P1 to P5 on `spec/005-print-mock-without-build`. §8 names what it
+supersedes in §1.9, §2.3, D6 and §7.2.
+
 **Measurements:** every number, path and quoted line in §1 was produced on 2026-09-12 on macOS (Darwin
 25.5.0) with Xcode 26.6 (17F113), Swift 6.3.3 (swiftlang-6.3.3.1.3), Sourcery 2.3.0 and
 swift-sourcery-templates 0.9.0 resolved by URL, against `master` at `b743b17`. Times are the `real`
@@ -234,6 +237,9 @@ whose name `.Sourcery.Mocks.yml` is a dotfile, and `find` on a missing directory
 - `ci.yml`'s `skills` lane runs on `ubuntu-latest` (`:90-100`); `plugin` (`:230-252`) and `xcode`
   (`:261-286`) on `macos-15`.
 
+**Superseded in part by §8.3 and §8.4:** the first bullet's ~4.8k (measured ~4.9k at 208 lines), and
+the last bullet, which read the lanes and not `ci.yml`'s change filter.
+
 ---
 
 ## 2. The shape this proposes
@@ -308,6 +314,9 @@ The four variables are what the Xcode half of the plugin exports: `SOURCERY_PROJ
 A run reads the sources in the directories the last build's config lists, as they are now. A source
 directory added to the target, a changed config or a new package dependency reaches it after the next
 build.
+
+**Superseded in part by §8.2:** step 3's `$SOURCERY_ENGINE` is `PRINT_MOCKS_ENGINE`, and each lookup
+in steps 2 and 3 that can find nothing ends `|| true`.
 
 ### 2.4 What the skill text says
 
@@ -405,6 +414,9 @@ None is ruled. Each lists the option recommended first.
   a toolchain that changes D1 (a)'s behaviour is reported by an adopter.
 - **(c) None.**
 
+**Superseded in part by §8.3:** (a)'s last bullet. `ci.yml`'s change filter changed so that a push
+changing only a skill script runs the plugin and xcode lanes.
+
 ### D7 — an eval case
 
 - **(a) A seventh case, `Tests/Evals/print-a-mock/` (recommended).** Prompt: which members the mock of a
@@ -431,6 +443,8 @@ All on `spec/005-print-mock-without-build`, after the rulings; each phase one co
 - **P5** — this spec takes a section recording what landed and what was measured on the way.
 
 §7.3 states what P3 carries after §7.2.
+
+§8.1 records the commit each phase landed in.
 
 No release: no template, plugin or CLI byte changes, and the skill installs from this repository
 (`README.md:706-713`).
@@ -501,8 +515,139 @@ Supersedes §2.4's `SKILL.md` bullet.
 - D7's case carries the `skill-fired` grader. If it fails in the with-plugin arm, the unchanged
   `description` is the text to edit, and this spec takes a section recording the run and the edit.
 
+**Superseded in part by §8.4:** the first bullet's "at most five lines" (five lines and a blank line
+landed) and the body's figure before P3 (~4.9k, not ~4.8k).
+
 ### 7.3 What the phases carry
 
 - **P1, P2, P4 and P5** as §4 states them.
 - **P3:** §7.2's lines in `SKILL.md`, and §2.4's three reference bullets — `references/printing-mocks.md`,
   the `references/troubleshooting.md` entry and the `references/spm-plugin.md` line.
+
+---
+
+## 8. What landed, 2026-09-13
+
+Measured on macOS (Darwin 25.5.0) with Xcode 26.6 (17F113), Swift 6.3.3 and Claude Code 2.1.268.
+
+### 8.1 The commits
+
+| phase | commit | files |
+| --- | --- | --- |
+| P1 | `d63bde7` | `skills/swift-sourcery-mocks/scripts/print-mocks.sh` |
+| P2 | `6398ac7` | `Tests/Checks/run-plugin-checks.sh` §13, `run-xcode-checks.sh` §9, `run-skill-checks.sh` (SC6, SC9, SC14, five red controls), `.github/workflows/ci.yml`, and §8.2's fix to the script |
+| P3 | `ad2670e` | `SKILL.md`, `references/printing-mocks.md`, `references/troubleshooting.md`, `references/spm-plugin.md` |
+| P4 | `df86e3b` | `AGENTS.md` and `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `Tests/Evals/print-a-mock/`, `Tests/Evals/README.md` |
+| P5 | the commit adding this section | this file |
+
+Nothing is pushed, so no `ci.yml` lane has run any of it.
+
+### 8.2 The script
+
+201 lines. Three differences from §2:
+
+- **The Xcode engine override is `PRINT_MOCKS_ENGINE`. Supersedes §2.3 step 3's `$SOURCERY_ENGINE`.**
+  Since P2, SC6 reads the script, and it fails on a `SOURCERY_*` name that
+  `SourcerySwiftCodegenPlugin.swift` does not export.
+- **Each lookup that can find nothing ends `|| true`** (`print-mocks.sh:145-159`).
+  `run-xcode-checks.sh` found the defect at P2. `XcodeFixture/App/.Sourcery.Mocks.yml` names its
+  template as `${GIT_ROOT}/templates/Mocks.swifttemplate`, which the plugin leaves unquoted, so step
+  3's `grep` for a quoted path matched nothing, the pipeline failed under `pipefail`, and `set -e`
+  ended the run with exit 1 and no output. Every probe config of §1.8 names a quoted path, so no P1
+  row reached it.
+- **`find | head -1` is `find | awk 'NR == 1'`.** awk reads to the end of its input, so `find` gets
+  no `SIGPIPE` for `pipefail` to turn into an exit.
+
+§1.8's rows, re-run at P1:
+
+| probe | invocation | real | result |
+| --- | --- | --- | --- |
+| `spm-probe` | `FeatureTests` | 2.94 s, then 0.55 s | exit 0; the body after `// <path>` is the plugin's file (`cmp`) |
+| `spm-probe` | `FeatureTests DataService` | 0.53 s | exit 0, the 62-line block |
+| `spm-probe` | `FeatureTests DataService Nope` | 0.51 s | exit 1, `print-mocks: 1 of 2 protocols have no mock in FeatureTests's generated files` |
+| `spm-probe` | `NoSuchTarget` | 0.52 s | exit 1, `print-mocks: NoSuchTarget generated no file — …` |
+| `spm-probe` | no argument | 0.00 s | exit 2, the usage line |
+| the scratchpad, holding neither | `FeatureTests` | 0.01 s | exit 1, `print-mocks: run from the directory holding Package.swift or the .xcodeproj` |
+| `xcode-probe` | `DERIVED_DATA=<DD> … ExampleTests` | 4.31 s, then 0.14 s | exit 0; identical to the build's file (`cmp`) |
+| `xcode-probe` | `DERIVED_DATA_ROOT=<the three derived data directories>` | 0.17 s | exit 0, from `DD3`, the newest |
+| `xcode-probe` | `DERIVED_DATA_ROOT=<an empty directory>` | 0.01 s | exit 1, `print-mocks: no configs the plugin synthesized for ExampleTests under …` |
+| `xcode-probe` | `SOURCERY_PROJECT=/nonexistent` | 0.06 s | exit 1, the engine's `'/nonexistent/Sources' does not exist or is not readable.`, then `print-mocks: the engine failed on .Sourcery.Mocks.yml for ExampleTests` |
+| `xcode-probe` | `PRINT_MOCKS_ENGINE=/nonexistent` | 0.02 s | exit 1, `print-mocks: no Sourcery engine found for <DD> — set PRINT_MOCKS_ENGINE` |
+| `ex-copy` | `ExampleProjectSpmTests Buildable` | 8.38 s | exit 0, the 6-line block |
+
+**The engine in `XcodeFixture`.** Neither of step 3's routes finds it: the template path is under this
+checkout, and the lane's `-clonedSourcePackagesDirPath` keeps `SourcePackages` outside the derived
+data. `Build/Intermediates.noindex/XCBuildData/` — `build.db`, each `manifest.json` and the
+attachments — does not carry the engine's path; the `xcodebuild` log does, and `run-xcode-checks.sh`
+§9 passes it as `PRINT_MOCKS_ENGINE`. `references/printing-mocks.md` tells an adopter to set it for a
+build with `-clonedSourcePackagesDirPath` or a template named under `${GIT_ROOT}`.
+
+### 8.3 The gate
+
+| script | where | gates | the lane's run |
+| --- | --- | --- | --- |
+| `run-plugin-checks.sh` | §13, `:530` | `App`'s two generated files, each after its path, byte for byte; `ProfilePersisting`'s block, compared with a `sed` range over the file; `App ProfilePersisting NoSuchProtocol` exits 1 with the stdout and the stderr line; `Leaf`, which applies no plugin, exits 1 | 89 s, all pass |
+| `run-xcode-checks.sh` | §9, `:362` | `App`'s generated file byte for byte; the printed path under `PrintMocks/App/`; the build's file unchanged; `ProfilePersisting`'s block; `PRINT_MOCKS_ENGINE` empty exits 1 naming it; `Core` exits 1 naming the derived data | first run: three gates failed, which is how §8.2's defect was found; after the fix and the no-engine gate, 33 s, all pass |
+| `run-skill-checks.sh` | SC6, SC9, SC14 at `:610` | SC6 and SC9 read `skills/*/scripts/*`. SC14: each `scripts/<name>` the tree names exists, each script is executable, and each quoted `<script>: …` line equals one of that script's `fail "…"` strings, with a `<placeholder>` and a `$name` or `${…}` each read as one wildcard — 3 mentions and 9 quoted lines. Red controls `SC6_script`, `SC9_script`, `SC14_missing`, `SC14_mode` and `SC14_quote`, each red | seconds, all pass |
+
+**`ci.yml` changed. Supersedes D6 (a)'s last bullet.** The `changes` job's filter,
+`grep -vE '\.md$|^\.claude-plugin/|^skills/'`, counted every path under `skills/` as documentation, so a
+push changing only `print-mocks.sh` would have skipped the plugin and xcode lanes that run it. §1.9 read
+the lanes' line ranges and not the filter. The filter now adds back `^skills/[^/]+/scripts/`
+(`ci.yml:159`), and the two comments describing `skills/` as documentation name the exception.
+
+`ci.yml` pins Xcode 26.3 on `macos-15`. The script and both gates ran on Xcode 26.6 only.
+
+### 8.4 The skill text
+
+| state | `SKILL.md` lines | bytes | on invoke |
+| --- | ---: | ---: | ---: |
+| before P3 | 208 | 14,017 | ~4.9k |
+| with §7.2's lines | 214 | 14,289 | ~5k |
+| after the trim, committed | 211 | 13,994 | ~4.9k |
+
+`claude plugin details swift-sourcery-mocks` after a local-scope install from the working tree (002
+§15.1); always-on ~290 throughout. Afterwards the plugin was uninstalled, the marketplace removed and
+the `.claude/` directory the install wrote deleted. Plugin state before and after: one marketplace
+(`claude-plugins-official`) and one user-scope plugin (`swift-lsp`).
+
+- **Supersedes §1.9's first bullet.** The body read ~4.9k at 208 lines, not ~4.8k. The 004 paragraph
+  §1.9 cites (§"Lanes", `specs/004-mock-member-naming/spec.md:2196-2197`) reads ~4.9k too.
+- **Supersedes §7.2's "at most five lines".** `SKILL.md:184-188` is five lines — the sentence wraps to
+  two and the block is three — and a blank line separates them from §"When it goes wrong", so
+  `wc -l` counts six more at that point.
+- "~5k" covers 4,950 to 5,049, so §7.2's trim ran. Two cuts, each of a fact the body states elsewhere:
+  the sentence saying closure, generic and `skipArgumentRecording` parameters are not recorded (the
+  "`<method>Args` does not exist" bullet and the annotation table's `skipArgumentRecording` row), and
+  "subscribe first or annotate the member `subject = "CurrentValue"`" in the `PassthroughSubject`
+  paragraph (the code comment above it and the "a Combine test hangs" bullet).
+- `references/printing-mocks.md` is 94 lines against §2.4's 120.
+- `references/troubleshooting.md` §"The build succeeds and the committed generated file is stale" said
+  "the plugin regenerates on every build", which §1.4 measured false for SwiftPM. It now points to the
+  new entry above it. §6 question 1 stays open for 001 and for `SKILL.md`'s step 3.
+
+### 8.5 The eval cases
+
+`claude plugin eval . --case print-a-mock` answered "`plugin eval` is currently in early access" and
+ran nothing. The arms ran by hand as `Tests/Evals/README.md` gives them —
+`-p --restricted --strict-mcp-config --allowedTools "Read,Glob,Grep,Skill"`, each from its own
+`mktemp -d` directory under `/var/folders`, whose path does not name this repository — one run per
+arm, graded by reading the answer against the case's graders:
+
+| case | arm | tools used | graders |
+| --- | --- | --- | --- |
+| `print-a-mock` | with `--plugin-dir` | Skill; Read of `references/printing-mocks.md`; Glob; Grep | `script-named` pass, `no-build-first` pass, `skill-fired` pass. The answer gives `print-mocks.sh PaymentsTests RefundService`, run from the package root |
+| `print-a-mock` | without | Glob; Grep | `script-named` fail, `no-build-first` fail. Its first option is `swift build --target PaymentsTests`, its second a hand-run `sourcery --config` |
+| `publisher-hangs` | with `--plugin-dir`, after P3's cut to the `PassthroughSubject` paragraph | Skill; Grep | `correct-diagnosis` pass — the subject keeps no copy; subscribe first, or annotate `subject = "CurrentValue"` — `subject-annotation` pass, `skill-fired` pass |
+
+The other five cases were not re-run after P3.
+
+### 8.6 Not measured
+
+§5's list stands, and:
+
+- the plugin and xcode lanes on `ci.yml`'s Xcode 26.3 and `macos-15`, and the change filter on a push;
+- `claude plugin eval`'s scoring with its judge model — §8.5's grades come from reading one run per
+  arm;
+- either eval case without `--restricted`, where Bash is available and the with-arm could run the
+  script.
