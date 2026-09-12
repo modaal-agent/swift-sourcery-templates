@@ -1862,3 +1862,225 @@ budget was breached — ~5.1k at 258 lines, ~5.5k at 273 lines. This is the thir
 lines while the body was ~1.1k over the floor, and nothing in CI said so. `claude plugin details` is
 still the only thing that reads the figure, and it needs `claude` and an install on the runner —
 which is the reason 002 §15.6 gives for `run-skill-checks.sh` not doing it.
+
+---
+
+## 12. Aligning with `kotlin-ksp-mocks`: what its §11 and §12 ask of this repository
+
+Read on 2026-09-12 from
+`/Volumes/DATA01/Projects/kotlin-ksp-mocks/specs/002-property-accessors-and-stream-counters/spec.md`
+§11 and §12. That section was written against this branch at `c332601` — its P1 to P11 — and rules
+four decisions on its own side: **D15 (c), D16 (a), D17 (a), D18 (c)**. Its §12.3 hands four items
+to this repository.
+
+This section extracts those four, states each against the current tree with the line numbers checked
+here, adds what they cost measured on this repository and on `modaal-firebase-wrappers`, and
+proposes D18 to D21. **Nothing here is implemented and nothing is ruled.** §9's P9 amendment makes
+the Kotlin re-alignment the gate on the tag; this is that work in progress, not its close — the gate
+lifts when D18 to D21 are ruled and whatever they take has landed.
+
+### 12.1 What the comparison confirms
+
+Its §11.1 reports the two generators agreeing on every member name a test writes — `CallCount`,
+`Args`, `Handler`, `GetCount`, `GetHandler`, `SetCount`, `_<prop>`, the six stream words — and on
+the `"<fn>Handler expected to be set."` string, which is §2.4's wording byte for byte. Four shapes
+agree beyond the names: the property accessor's statement order and the order its members are
+emitted in, the stream member order, the overload long form, and refusing generation on a collision
+by reading the names back out of the emitted declarations. `<name>Subject` against `<fn>Channel` is
+the one name that differs by decision, as §9's twin table already records.
+
+### 12.2 The four items its §12.3 hands here
+
+**1. The twin table is stale in three rows** (`references/generated-api.md:226-245`). It describes
+that processor as it was before its P1 to P3, and `run-skill-checks.sh` reads this repository's
+renderer and not that one, so nothing goes red on it. Their §12.3 item 1 gives the replacement rows:
+`<var>GetCount` / `<var>GetHandler` map to `<prop>GetCount` / `<prop>GetHandler` **on every
+property**; `<var>SetCount` to `<prop>SetCount` on a `var` requirement; `_<var>` to `_<prop>`; and
+the six stream members map across on a `Flow`-returning function or a read-only `Flow` property. Two
+rows leave the "no counterpart" table — `:241` and `:242` — and the `AnyObserver`,
+`AnyCancellable` / `Disposable` and per-declaration-annotation rows stay. Two prose claims move with
+them: `references/generated-api.md:131-132` ("a read-only requirement's witness is still settable")
+and `CONTRIBUTING.md:242-243` ("The witness stays settable wherever it was settable before that
+change"), both of which state the rule item 2 replaces.
+
+**2. D15 (c) — the witness of a `{ get }` requirement becomes get-only.** Their D2 (a) emits
+`override val` and keeps `mock._<prop> = value` as the seed path; ruling (c) asks this side to
+match, so that **`mock._<prop> = value` is the only assignment that seeds a read-only requirement,
+and it is the same expression on both platforms** (their §12.4). The edit is two lines:
+`MockVar.swift:178` becomes `let hasSetter = !hasEffects && variable.isMutable`, and the
+`if variable.isMutable && hasSetter` guard at `:195` reduces to `hasSetter`. `const` and `handler`
+are already get-only and do not move; the store stays `var _<var>` for everything but `const`.
+
+What it supersedes here is not §2.5 — §2.5 never stated it — but the rule P5 decided against a
+measurement, in §9's P5 entry: "the witness stays settable wherever it is settable today", the table
+under it, and the comment at `MockVar.swift:167-177` recording why. Their §12.4 argues the break
+lands only on code holding the concrete `<Type>Mock`: a `{ get }` requirement exposes no setter
+through an existential or a generic parameter, so nothing assigns one through the protocol.
+Measured in §12.3.
+
+**3. Wrap a method's handler-supplied publisher** (their §12.3 item 3, their §9 and D6). A method
+returning `AnyPublisher` returns the handler's publisher before the `Deferred` / `handleEvents`
+chain — `Snapshots/Mocks.generated.swift:441-455` is the emitted shape — so a seeded method stream
+moves no `SubscribeCount`, `OutputCount` or `CompletionCount`, while the property branch reads its
+handler *inside* the `Deferred` and is counted. Their §2.3 wraps both. Ruled on neither side.
+Combine counts a subscription inside the `Deferred` closure, so adopting it means giving the
+handler's publisher a `Deferred` of its own —
+`Deferred { self?.<name>SubscribeCount += 1; return handler(args) }` — ahead of the existing chain.
+Until it lands, `<name>OutputCount` means "values delivered" on both platforms for a property and
+for a channel-backed method, and "values delivered by the subject only" for a handler-seeded method
+here.
+
+**4. The record 004 owes.** Under this repository's append-only rule it goes in a follow-up file
+beside 004 rather than into the sections it corrects: §8's closing paragraph ("Until it lands, its
+stored-property branch emits `SetCount` alone") and P8's row for that repository's
+`references/generated-api.md` are both superseded by its P1 to P4, and D15 (c) supersedes the
+settable-witness rule P5 decided.
+
+### 12.3 What D15 (c) costs here, measured on 2026-09-12
+
+Their §12.4 leaves the consumer count unmeasured. It is measured here against the output this branch
+generates at `c332601`. A witness that loses its setter is one whose `set` block carries no
+`<var>SetCount` — a read-only requirement backed by a store:
+
+| | witnesses that become get-only | `{ get set }` witnesses, unaffected |
+| --- | ---: | ---: |
+| `Tests/Checks/Snapshots/Mocks.generated.swift` | **23** | 5 |
+| `modaal-firebase-wrappers`, 7 modules regenerated | **69** | 4 |
+
+What stops compiling, by grep for an assignment to one of the 52 distinct names those 69 witnesses
+carry, over that repository's `Tests/` and `Examples/`:
+
+| | sites | where |
+| --- | ---: | --- |
+| `modaal-firebase-wrappers`' own tests | **12** | `FirebaseAuthCombineTests` (4), `DocumentReferenceCombineTests` (4), `QueryDocumentSnapshotProtocolTests` (2), `FirestoreCombineTests` (1), `QueryCombineTests` (1) |
+| this repository's `Tests/Checks/Behaviour/Main.swift` | **3** | `recordPermission` at `:45`, `installationId` at `:110` and `:530` — P5 recorded the third as `:422`, before P6 and P7 grew the file |
+
+Every receiver at those 12 sites is a `<Protocol>Mock` — `newDocMock.documentID`, `mock.count`,
+`userMock.uid`, `snapshot.documents` — so the grep's one false-positive risk, a non-mock receiver
+with a member of the same name, does not occur. Each site becomes `_<var>`.
+
+**One assertion inverts rather than moving.** `Main.swift:46` reads
+`expect(mock.recordPermission == .granted, "a read-only requirement is settable on the mock")`. It
+is the behaviour-harness form of the rule D15 (c) retires, so it is deleted or rewritten rather than
+re-pointed at `_recordPermission`.
+
+**No deprecation window exists.** `@available(*, deprecated)` marks a property and not one accessor,
+so a release that keeps the setter and warns on it cannot be written. The change lands as
+`cannot assign to property: … is a get-only property` at each site.
+
+### 12.4 Three divergences that ask nothing of this repository
+
+- **The collision diagnostic text** (their §11.2 item 3). Theirs names the two declarations behind
+  the name; `MockError.collidingMemberNames` (`MockGenerator.swift:202-209`) names the type, the
+  member and `/// sourcery: methodName`, which has no counterpart there. Neither string is part of
+  the shared contract — the member names and `"<fn>Handler expected to be set."` are.
+- **`skipArgumentRecording` has no counterpart** (their §11.2 item 4, their D9). It turns
+  `<var>Outputs` off as well as `<method>Args` here, so this side can generate a stream member that
+  counts without recording. §9's twin table already carries the annotation row.
+- **D18 (c), keyword-named requirements.** Their §11.3 measured that a Kotlin interface declaring
+  ``val `object` `` generates a file that fails the consumer's compile with 48 errors, and ruled
+  (c): each language's reserved words stop at its own boundary, and such an interface is the
+  adopter's to rename. §2.1's backtick rule here is unaffected — `object` and `in` are ordinary
+  Swift identifiers, `func` and `guard` are the reverse.
+
+### 12.5 One divergence neither side has measured
+
+Their §11.2 item 5: inside an overload group both sides order by parameter count first, and then
+differ. Here `areInAscendingOrder` (`MockMethod.swift:391-403`) prefers the overload whose first
+parameter has no argument label; there, their spec reports `MockRenderer.kt:161-178` ordering by the
+joined rendered parameter types. Two overloads with the same parameter count can therefore keep the
+plain name on one platform and take the long form on the other. No fixture in either repository
+declares such a pair, so neither side has a generated file showing which name it produces.
+`Naming.swift`'s `NamingOverloads` is where one would go: `reference(withPath:)` and
+`reference(forURL:)` already have equal parameter counts, but both carry labels, so they exercise
+the fallback rather than the tie-break. D21.
+
+### 12.6 Decisions this section proposes
+
+**D18 — does a `{ get }` requirement's witness become get-only?**
+
+**Ruled (a) — §12.8.**
+
+- **(a) Adopt D15 (c) (recommended).** `mock._<var> = value` becomes the one seed path, the same
+  expression a test writes on both platforms, and the mock stops offering a setter the protocol does
+  not declare. Cost, from §12.3: 23 fixture witnesses and 69 consumer witnesses change shape, 12
+  consumer assignment sites and 3 of this repository's own stop compiling, and one behaviour
+  assertion inverts. It is a second source break, and this is the release to take it in: a consumer
+  is already fixing compile errors from §2.1's renames, and `_<var>` is named in each new one.
+- (b) Keep the settable witness and ask the Kotlin side to reconsider D15 (c). Their §11.6 listed
+  that as its own option (c) and ruled against it; re-opening it costs a second round and leaves
+  `mock.<prop> = value` compiling on one platform only.
+- (c) Adopt it behind an annotation — a `/// sourcery:` verb that keeps the setter. It adds a record
+  to `AnnotationRegistry.swift` and a verb to every rendered table, for a migration aid D6 already
+  ruled against for names.
+
+**D19 — when the twin table is corrected.**
+
+**Ruled (a) — §12.8.**
+
+- **(a) In this branch, before the tag (recommended).** The rows describe a processor that has
+  already shipped its P1 to P3, and `CHANGELOG.md`'s entry points a reader at
+  `references/generated-api.md` for the Kotlin map. If D18 (a) is taken, the transitional row their
+  §12.3 item 1 names is never needed: both changes land together.
+- (b) In a follow-up file and a separate documentation push after the tag. It leaves the tag
+  shipping a table that is wrong in three rows.
+
+**D20 — wrapping a method's handler-supplied publisher.**
+
+**Ruled (a) — §12.8.**
+
+- **(a) Not in this release (recommended).** It is unruled on both sides, it changes what
+  `<name>SubscribeCount` and `<name>OutputCount` mean for a handler-seeded method, and §2.7's
+  refusal and P7's construct are what this release already asks a consumer to absorb. Record it as
+  open here and in their §11.7.
+- (b) Take it now, so `<name>OutputCount` means "values delivered" for every member on both
+  platforms. One `Deferred` around the handler's publisher in `MockMethod`'s branch, a behaviour
+  check that a seeded method stream moves `SubscribeCount`, and a snapshot re-record.
+
+**D21 — the overload tie-break (§12.5).**
+
+**Ruled (a) — §12.8.**
+
+- **(a) Add the fixture, then decide (recommended).** Two overloads with equal parameter counts
+  where one has no argument label — `func send(_ value: String)` and `func send(to target: String)`
+  — put the rule in `Snapshots/Mocks.generated.swift`, where the Kotlin side can read what this one
+  produces. One fixture protocol, and it is what a comparison needs before either side changes.
+- (b) Make the two rules one rule now, in both repositories, with no fixture on either side.
+- (c) Record it as a known divergence in both twin tables and leave it. A protocol that hits it gets
+  different member names on the two platforms, and nothing says so.
+
+### 12.7 Phasing, if these are taken
+
+**P12 — the get-only witness (D18).** `MockVar.swift:178` and `:195`; the three assignments and the
+one assertion in `Tests/Checks/Behaviour/Main.swift`; `references/generated-api.md:131-132` and
+`CONTRIBUTING.md:242-243` restated; `CHANGELOG.md` gains it as a second source break, with `_<var>`
+as the one-line fix and the 12 measured sites in the consumer. Gates: `run-checks.sh` with the
+snapshot re-recorded after the diff is read, both language modes, and the example lane.
+
+**P13 — the twin table (D19).** `references/generated-api.md:226-245` takes the rows their §12.3
+item 1 gives. No template change, so no snapshot moves. Gate: `run-skill-checks.sh` for the line
+budget. The table is in a reference and not in the body, so the skill's token figure does not move.
+
+**P14 — the overload tie-break fixture (D21 (a)).** One protocol in
+`Tests/Checks/Fixtures/Naming.swift` and a re-record. Independent of the tag.
+
+P12 and P13 land before the tag, and closing §9's P9 amendment is what they are for. P14 and D20 do
+not block it.
+
+### 12.8 Ruled
+
+Ruled 2026-09-12: **D18 (a), D19 (a), D20 (a), D21 (a)** — each section's recommendation, so nothing
+in §12.6 is superseded. What that settles:
+
+- **D18 (a).** A `{ get }` requirement's witness becomes get-only, and `mock._<var> = value` is the
+  one way a test seeds it — the same expression `kotlin-ksp-mocks` writes. It lands in this release,
+  beside §2.1's renames.
+- **D19 (a).** The twin table is corrected in this branch, before the tag. D18 (a) landing with it
+  means the transitional row their §12.3 item 1 describes is never written.
+- **D20 (a).** A method's handler-supplied publisher is not wrapped in this release. It stays open
+  here and in their §11.7, and `<name>OutputCount` keeps the two meanings §12.2 item 3 names.
+- **D21 (a).** The overload tie-break gets a fixture, so the name this generator produces is in the
+  snapshot for the Kotlin side to read. Nothing about the rule changes yet.
+
+P12, P13 and P14 are §12.7 as written. P12 and P13 close §9's P9 amendment; P14 does not block the
+tag and lands with them because it is one fixture and a re-record.
