@@ -43,7 +43,7 @@ Tests/                              # everything that verifies the product — s
   Examples/
     ExampleProjectSpm/              # full lane — RxSwift, RIBs, type erasure, the plugin
     ExampleProjectXcode/            # the adopter's shape, by URL at a tag — not a lane
-  Evals/                            # the skill's behavioural gate — six prompts, run with it and without
+  Evals/                            # the skill's behavioural gate — seven prompts, run with it and without
 Scripts/
   assemble-release.sh               # builds the release assets — see Cutting a release
   engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
@@ -217,6 +217,10 @@ silence.
    cannot live under `skills/`: that is the plugin's skill component directory, and the runner
    refuses a case directory inside one. `.claude-plugin/plugin.json` names it in
    `experimental.evals`, and `Tests/Evals/README.md` gives the two ways to run it
+8. `scripts/print-mocks.sh` is code, and changes on a branch. `run-plugin-checks.sh` and
+   `run-xcode-checks.sh` run it against their fixtures and compare what it prints with the files the
+   build wrote, and `ci.yml`'s change filter counts `skills/<name>/scripts/` as code so both lanes
+   run. A line the skill quotes from it has to be one of its `fail "…"` strings (SC14)
 
 ## Design rules already decided
 
@@ -383,7 +387,7 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | xcode | `Tests/Checks/run-xcode-checks.sh` | Xcode, `xcodegen` and, once, the network; ~35s |
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
-`Tests/Evals/` is not a lane. It is the skill's behavioural gate: each of six prompts run once with
+`Tests/Evals/` is not a lane. It is the skill's behavioural gate: each of seven prompts run once with
 the plugin loaded and once without, and the two answers compared — `claude plugin eval . --ablation
 with-without`, or the pair of `claude -p` invocations in `Tests/Evals/README.md`. It spends model
 calls and a few minutes, the runner is in early access, and no CI job runs it. Run it when the
@@ -455,11 +459,11 @@ external-annotation pattern, type erasure, and the plugin itself.
 | fast | `Tests/Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
 | annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
-| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11); every eval case under the directory `experimental.evals` names carrying a prompt and at least one grader the runner would accept (SC13). `--self-test` is its red control: one seeded violation per check |
+| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11); every eval case under the directory `experimental.evals` names carrying a prompt and at least one grader the runner would accept (SC13); every script the skill names present, every script executable, and every line the skill quotes from a script one that script prints (SC14). SC6 and SC9 read `skills/*/scripts/` as well as the Markdown. `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
-| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match; and `skills/swift-sourcery-mocks/scripts/print-mocks.sh` over the green fixture — App's generated files printed byte for byte, one protocol's block, exit 1 on a protocol with no mock and on a target with no plugin |
 | plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
-| xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here; and `print-mocks.sh`'s engine re-run on App's synthesized config — the generated file printed byte for byte, the build's own file unchanged, one protocol's block, exit 1 with no engine to be found and on a target with no plugin |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |

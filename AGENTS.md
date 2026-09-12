@@ -97,9 +97,9 @@ Habits to avoid (common LLM-isms):
   spec directory. The feature's code then lands on the same branch. A follow-up file beside a closed
   spec follows this rule too when it plans new work.
 - A change touching no code may go straight to `master`: a note, README or CHANGELOG wording, the
-  skill tree under `skills/` or a `.claude-plugin/` manifest, or an addition to a spec whose branch
-  has already merged. `templates/`, `Sources/`, `Plugins/`, `Tests/`, `Scripts/` and `.github/` are
-  code.
+  skill's Markdown under `skills/` or a `.claude-plugin/` manifest, or an addition to a spec whose
+  branch has already merged. `templates/`, `Sources/`, `Plugins/`, `Tests/`, `Scripts/`,
+  `skills/**/scripts/` and `.github/` are code.
 - Branch when the work starts. If code is ready and the checkout is `master`, ask which branch.
 - Pushing, opening a PR and merging one each need their own go-ahead.
 
@@ -179,9 +179,13 @@ templates. `Tests/Checks/run-skill-checks.sh` gates every rule below that a scri
   cross-agent CLI parsing the file at all.
 - **`SKILL.md` stays under 400 lines and each `references/*.md` under 250.** The body is resident
   for every turn after the skill is invoked; a reference costs nothing until the agent opens it.
+- **Its `scripts/` is code, and the skill quotes only what a script prints.** A change to
+  `scripts/print-mocks.sh` goes through a pull request, and the plugin and xcode lanes run it against
+  their fixtures. SC14 fails on a `print-mocks:` line the skill quotes that the script does not
+  print, and SC6 and SC9 read the script as they read the Markdown.
 - **The skill's behavioural gate is `Tests/Evals/`, and it does not live under `skills/`** — the
   runner refuses a case directory inside a plugin's component directory, so
-  `.claude-plugin/plugin.json` names the suite in `experimental.evals`. Each of the six prompts is
+  `.claude-plugin/plugin.json` names the suite in `experimental.evals`. Each of the seven prompts is
   run once with the plugin loaded and once without, in fresh sessions, and the two answers compared.
   A with-arm answer that is wrong is a defect in the skill's text: edit the skill and run that case
   again. It spends model calls and no CI job runs it; SC13 only checks that each case would parse.

@@ -1,7 +1,8 @@
 # Eval cases for the agent skill
 
-Five prompts, from spec 002 §7.1. Each is a question an adopter asks in a repository that uses these
-templates, and each has one correct lane or one correct diagnosis. Every case is run twice — once
+Seven prompts: five from spec 002 §7.1, `member-names` from spec 004 and `print-a-mock` from spec
+005. Each is a question an adopter asks in a repository that uses these templates, and each has one
+correct lane or one correct diagnosis. Every case is run twice — once
 with `swift-sourcery-mocks` loaded and once without it — and the two answers are compared. That
 comparison is the only measure of whether `skills/swift-sourcery-mocks/SKILL.md` changes what an
 agent does; a prompt whose with-skill answer is wrong is a defect in the skill's text, so edit the
@@ -15,6 +16,7 @@ skill and run that case again.
 | `does-not-conform` | why `PaymentsMock` does not conform to `Refunding` | the refined protocol was not among the parsed sources |
 | `publisher-hangs` | why a test awaiting the mock's publisher hangs | the backing `PassthroughSubject` does not replay |
 | `member-names` | which members a mock gives for underscored names and an overload group | the declared name verbatim; the fewest-parameter overload keeps it, the rest take their argument labels |
+| `print-a-mock` | which members a mock has, in a package whose library does not compile at the moment | `print-mocks.sh`, or `--print-manifest-job-graph` and the file it writes, before any build |
 
 ## Running them
 
