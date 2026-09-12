@@ -142,7 +142,9 @@ xcode() {
   # The engine: beside the shipped templates a config names by absolute path — an artifact bundle
   # holds both, and a package checkout's SourcePackages holds the bundle under artifacts/ — else
   # under this derived data's own SourcePackages.
-  template="$(grep -ho '"[^"]*/templates/[^"/]*\.swifttemplate"' "${config_files[@]}" 2>/dev/null | first | tr -d '"')"
+  # Each lookup ends `|| true`: a grep that matches nothing, or a find on a directory that is not
+  # there, fails the pipeline, and `set -e` would end the script with no message.
+  template="$(grep -ho '"[^"]*/templates/[^"/]*\.swifttemplate"' "${config_files[@]}" 2>/dev/null | first | tr -d '"' || true)"
   templates_dir="${template:+$(dirname "$template")}"
   engine="${PRINT_MOCKS_ENGINE:-}"
   if [ -z "$engine" ] && [ -n "$templates_dir" ]; then
@@ -151,10 +153,10 @@ xcode() {
       engine="$root/sourcery/bin/sourcery"
     else
       packages="${root%/checkouts/*}"
-      engine="$(find "$packages/artifacts" -path '*/sourcery/bin/sourcery' -type f 2>/dev/null | first)"
+      engine="$(find "$packages/artifacts" -path '*/sourcery/bin/sourcery' -type f 2>/dev/null | first || true)"
     fi
   fi
-  [ -n "$engine" ] || engine="$(find "$dd/SourcePackages/artifacts" -path '*/sourcery/bin/sourcery' -type f 2>/dev/null | first)"
+  [ -n "$engine" ] || engine="$(find "$dd/SourcePackages/artifacts" -path '*/sourcery/bin/sourcery' -type f 2>/dev/null | first || true)"
   [ -n "$engine" ] && [ -x "$engine" ] || fail "no Sourcery engine found for $dd — set PRINT_MOCKS_ENGINE"
   if [ -z "$templates_dir" ] && [ -d "$(dirname "$engine")/../../templates" ]; then
     templates_dir="$(cd "$(dirname "$engine")/../../templates" && pwd)"

@@ -527,6 +527,59 @@ else
   fi
 fi
 
+# ── 13. print-mocks.sh ────────────────────────────────────────────
+# The skill's script, SwiftPM lane (spec 005 §2.2), over the green fixture's
+# scratch path. It plans the build and compiles nothing, so what it prints has to
+# be the files the builds above wrote, byte for byte. `Leaf` applies no plugin
+# and is the red control. A toolchain on which `--print-manifest-job-graph` stops
+# running prebuild commands fails the first gate here.
+echo ""
+echo "── print-mocks.sh ──"
+PRINT_MOCKS="$GIT_ROOT/skills/swift-sourcery-mocks/scripts/print-mocks.sh"
+PRINTED="$WORK_DIR/print-mocks"
+print_mocks() {   # name target [protocol...]
+  local name="$1"; shift
+  ( cd "$FIXTURE_DIR" && SCRATCH_PATH="$FIXTURE_SCRATCH" "$PRINT_MOCKS" "$@" ) > "$PRINTED-$name" 2> "$PRINTED-$name.err"
+}
+
+APP_COMPONENT="$(generated App Sourcery.App Component.generated.swift)"
+for file in "$APP_COMPONENT" "$APP_MOCK"; do echo "// $file"; cat "$file"; echo; done > "$PRINTED-whole.expected"
+if print_mocks whole App && cmp -s "$PRINTED-whole" "$PRINTED-whole.expected"; then
+  pass "App's two generated files, each after its path, byte for byte"
+else
+  cat "$PRINTED-whole.err"
+  diff "$PRINTED-whole.expected" "$PRINTED-whole" | head -10 || true
+  fail "print-mocks.sh App did not print the files the build wrote"
+fi
+
+{ sed -n '/^\/\/ MARK: - ProfilePersisting$/,/^}/p' "$APP_MOCK"; echo; } > "$PRINTED-one.expected"
+if print_mocks one App ProfilePersisting && cmp -s "$PRINTED-one" "$PRINTED-one.expected"; then
+  pass "one protocol: its // MARK: - line through the class's closing brace"
+else
+  cat "$PRINTED-one.err"
+  diff "$PRINTED-one.expected" "$PRINTED-one" | head -10 || true
+  fail "print-mocks.sh App ProfilePersisting did not print that mock's block"
+fi
+
+if print_mocks missing App ProfilePersisting NoSuchProtocol; then
+  fail "a protocol with no mock exited 0"
+elif grep -qx '// NoSuchProtocol: no mock generated for App' "$PRINTED-missing" \
+     && grep -qxF "print-mocks: 1 of 2 protocols have no mock in App's generated files" "$PRINTED-missing.err"; then
+  pass "a protocol with no mock: named on stdout, counted on stderr, exit 1"
+else
+  cat "$PRINTED-missing" "$PRINTED-missing.err"
+  fail "a protocol with no mock was not reported as the script documents"
+fi
+
+if print_mocks leaf Leaf; then
+  fail "Leaf, which applies no plugin, exited 0"
+elif grep -qF 'print-mocks: Leaf generated no file' "$PRINTED-leaf.err"; then
+  pass "Leaf applies no plugin: exit 1, naming the target"
+else
+  cat "$PRINTED-leaf.err"
+  fail "Leaf failed, but not with the message the script documents"
+fi
+
 # ── Result ────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILURES" = "0" ]; then
