@@ -30,8 +30,8 @@ let package = Package(
     // templates/ is not the commit's.
     .binaryTarget(
       name: "sourcery",
-      url: "https://github.com/modaal-agent/swift-sourcery-templates/releases/download/templates-0.9.0/swift-sourcery-templates-0.9.0.artifactbundle.zip",
-      checksum: "e2b4e8c92e4afb10e0d1ce94aab04ea6a1dfbf5a7c6d75fa77b6418266b7af8d"
+      url: "https://github.com/modaal-agent/swift-sourcery-templates/releases/download/templates-0.10.0/swift-sourcery-templates-0.10.0.artifactbundle.zip",
+      checksum: "51b9355227fad3a28c93d0832b9183e3048eaaa62b729f48147d21e9cbfce505"
     ),
     .plugin(
       name: "SourcerySwiftCodegenPlugin",
