@@ -1182,6 +1182,8 @@ gate (item 2); §8.4 steps 1 and 3 (items 5 and 6); §7.3's P7 rendering (item 9
 
 **§11.4's first item, updated by §12:** `ci.yml` ran once on the branch, and its Plugin job failed.
 
+**§11.4's second item, updated by §13:** `modaal-firebase-wrappers` regenerated, `templates-0.10.0` published and pinned.
+
 ---
 
 ## 12. CI's first run, 2026-09-13
@@ -1239,3 +1241,45 @@ planned.
 ### 12.5 Not done
 
 - `ci.yml` on the change of §12.4.
+
+**§12.5, updated by §13.1:** `ci.yml` passed on the change of §12.4.
+
+---
+
+## 13. The release, 2026-09-13
+
+**Updates:** §11.4's second item (R) and §12.5.
+
+### 13.1 CI
+
+| run | commit | result |
+| --- | --- | --- |
+| `34770955279` | `db564b9`, the branch with §12.4 | nine jobs passed; the Plugin job printed the three sandboxed `ok:` lines and `ALL PLUGIN CHECKS PASSED (cold 110s, warm 4s)` |
+| `34771751729` | `3d9305a`, the merge of pull request 20 into `master`; its tree is `db564b9`'s | passed |
+
+### 13.2 The consumer regenerate
+
+`modaal-firebase-wrappers` at `1f5cf93`, cloned into a scratch directory and left unchanged in its own
+checkout. Its `scripts/generate-mocks.sh` ran with `TEMPLATES_DIR` set and the Sourcery 2.3.0 of
+`Scripts/engine-pin.sh` on `PATH`; each template tree was taken with `git archive`.
+
+| templates | compared with | files | lines | mocks | diff |
+| --- | --- | --- | --- | --- | --- |
+| tag `0.9.0` | the committed output, generated at 0.2.15 | 7 | 2803 | 34 | +1370 / −273, the 1706 → 2803 lines of the 0.9.0 entry |
+| `3d9305a` | the row above | 7 | 2803 | 34 | none |
+
+Its sources outside `Generated/` hold no `#if`, and the `--args` its script passes carry no
+`// if canImport` item. `CHANGELOG.md`'s 0.10.0 entry records the second row.
+
+### 13.3 The artifact bundle and the pin
+
+- `templates-0.10.0`, on `3d9305a`, published as a prerelease. `swift-sourcery-templates-0.10.0.artifactbundle.zip`
+  is 22693503 bytes with SHA-256 `51b9355227fad3a28c93d0832b9183e3048eaaa62b729f48147d21e9cbfce505`: the
+  release notes' block, `shasum -a 256 -c` against the published `.sha256`, and
+  `swift package compute-checksum` give the same value.
+- `Package.swift`'s `sourcery` binaryTarget names that URL and checksum. `Scripts/check-pinned-templates.sh`
+  with that pin: `the pinned bundle's templates/ is this commit's templates/`.
+
+### 13.4 Not done
+
+- The `0.10.0` tag, and its release run's by-URL example job.
