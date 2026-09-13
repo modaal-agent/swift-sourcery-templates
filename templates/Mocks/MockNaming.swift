@@ -4,22 +4,18 @@ import SourceryRuntime
 /// The one place a generated mock member's name is built.
 ///
 /// `MockMethod`, `MockVar`, `MockGenerator` and `SourceryRuntimeExtensions` ask
-/// for a name here instead of interpolating a suffix where the member is
-/// emitted. That is what keeps the vocabulary one vocabulary: the method trap
-/// string and the property trap string came to differ by three words and a pair
-/// of backticks because each was written at its own site
-/// (`specs/004-mock-member-naming/spec.md` §1.8).
+/// for a name here. Add a new member's name here too; do not interpolate a
+/// suffix where the member is emitted.
 ///
 /// A member name is a **prefix**, derived from the declaration, and a
-/// **suffix** naming what the member records. `spec.md` §2 states the rule;
-/// `AGENTS.md` §"State a rule once" names this file as its home.
+/// **suffix** naming what the member records.
 enum MockNaming {
 
     // MARK: - Prefixes
 
     /// The prefix every generated member of a method carries: the declared name
     /// with backticks removed, and nothing else — no case change, no underscore
-    /// removal, no first-word lowercasing (`spec.md` §2.1). `func perform1_0()`
+    /// removal, no first-word lowercasing. `func perform1_0()`
     /// gives `perform1_0`, `func ID()` gives `ID`, `` func `do`() `` gives `do`.
     ///
     /// - Parameters:
@@ -41,9 +37,9 @@ enum MockNaming {
         return components.joined()
     }
 
-    /// One parameter's contribution to an overload's long-form prefix (§2.2
-    /// step 2): the capitalized argument label, or the capitalized parameter
-    /// name when the parameter has no label.
+    /// One parameter's contribution to an overload's long-form prefix: the
+    /// capitalized argument label, or the capitalized parameter name when the
+    /// parameter has no label.
     ///
     /// The label is what the caller writes, so `func end(atDocument document:)`
     /// gives `endAtDocument` rather than `endAtDocumentDocument`. Where label
@@ -59,8 +55,8 @@ enum MockNaming {
         return shortName.withoutBackticks
     }
 
-    /// The prefix every generated member of a property carries, under §2.1's
-    /// one rule: `var setting4_2: Int` gives `setting4_2`. A keyword-named
+    /// The prefix every generated member of a property carries, by the rule a
+    /// method's follows: `var setting4_2: Int` gives `setting4_2`. A keyword-named
     /// requirement keeps its backticks where it is *declared* — `` var `default`:
     /// Int `` is the witness — and drops them here, because `` `default`GetCount ``
     /// is not an identifier.
@@ -105,18 +101,13 @@ enum MockNaming {
 
     // MARK: - Naming comments
     //
-    // Three cases leave a prefix a reader cannot derive from the declaration in
-    // front of them (`spec.md` §10.1): an overload's long form, the return-type
-    // discriminator, and `/// sourcery: methodName`. 47 of the 152 methods in
-    // the reference consumer are one of the three, in 10 of its 34 mock
-    // classes. Each gets a comment carrying both spellings — the selector as
-    // declared and the prefix its members take — above the witness and in its
-    // class's index (D15(c)).
-    //
-    // The comment comes from the call that produces the name, so a comment that
-    // disagrees with the member below it cannot be written (D16(a)), and
-    // `Tests/Checks/run-checks.sh`'s naming-comment gate reads both back out of
-    // the generated file (D16(b)).
+    // An overload's long form, the return-type discriminator and
+    // `/// sourcery: methodName` each give a prefix that is not the declared
+    // name. Such a method gets a comment carrying both spellings — the selector
+    // as declared and the prefix its members take — above the witness and in its
+    // class's index. `methodPrefix(selectorName:…)` returns the comment with the
+    // prefix, built from the same inputs, and `Tests/Checks/run-checks.sh`'s
+    // naming-comment gate reads both back out of the generated file.
 
     /// A method's prefix, and the comment recording it when it is not the
     /// declared name.
@@ -189,7 +180,7 @@ enum MockNaming {
     /// Introduces the index, and is emitted only for a class that has one.
     static let namingIndexHeaderLine = "// Not named after their declaration:"
 
-    /// The rule, stated once at the top of a generated file (D14(a)).
+    /// The rule, stated once at the top of a generated file.
     static var fileNamingHeaderLines: [String] {
         return [
             "// Mock member names are the requirement's declared name plus a suffix: `func load()` gives",
@@ -200,10 +191,9 @@ enum MockNaming {
         ]
     }
 
-    /// The rule again, under every class's `MARK:` line (D14(b)). A generated
-    /// file is read in slices — the consumer's is 2934 lines — and the file
-    /// header is not in the slice. The same two lines for every class, with
-    /// nothing interpolated from the protocol.
+    /// The rule again, under every class's `MARK:` line, for a reader who opens
+    /// the file at a class and not at its header. The same two lines for every
+    /// class, with nothing interpolated from the protocol.
     static var classNamingHeaderLines: [String] {
         return [
             "// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,",
@@ -227,15 +217,14 @@ enum MockNaming {
     static func getHandler(_ prefix: String) -> String { return "\(prefix)GetHandler" }
     static func setCount(_ prefix: String) -> String { return "\(prefix)SetCount" }
 
-    /// The stored value behind a property requirement's accessors (§2.5). A test
+    /// The stored value behind a property requirement's accessors. A test
     /// seeds and reads it without moving a counter, and the generated
     /// initializer assigns it.
     ///
     /// The underscore is what the generator already uses for a name it owns —
     /// `__<name>Handler` is the handler local inside every generated method — and
     /// a protocol that declares `_draft` itself is caught by
-    /// `checkForCollisions` rather than emitting a file that does not compile
-    /// (D9).
+    /// `checkForCollisions` rather than emitting a file that does not compile.
     static func store(_ prefix: String) -> String { return "_\(prefix)" }
 
     // MARK: - Stream members
@@ -256,7 +245,7 @@ enum MockNaming {
     //
     // The suffix is the name of the call the returned token exposes:
     // `AnyCancellable.cancel()` gives `Cancel*`, RxSwift's `Disposable.dispose()`
-    // gives `Dispose*` (`spec.md` D4).
+    // gives `Dispose*`.
 
     static func cancelCallCount(_ prefix: String) -> String { return "\(prefix)CancelCallCount" }
     static func cancelHandler(_ prefix: String) -> String { return "\(prefix)CancelHandler" }
@@ -266,11 +255,7 @@ enum MockNaming {
     // MARK: - Diagnostics
     //
     // The text a generated member traps with, in one wording for a method and a
-    // property alike (§2.4). The property form read
-    // `` `<var>GetHandler` must be set! `` until P4 — three words and a pair of
-    // backticks away from the method's, because each string was written where
-    // its own member was emitted. `kotlin-ksp-mocks` matches this text byte for
-    // byte.
+    // property alike: the property form calls the method form.
 
     static func handlerExpectedMessage(handlerName: String) -> String {
         return "\(handlerName) expected to be set."
@@ -282,12 +267,11 @@ enum MockNaming {
 
     // MARK: - Collisions
     //
-    // Nothing checked a generated property name before this. `MockMethod.from`
-    // guarded duplicate *method* prefixes and `MockVar.from` uniqued the
-    // requirements by name and no further, so a protocol declaring both `draft`
-    // and `draftSetCount` emitted `var draftSetCount` twice and the generated
-    // file did not compile, with nothing from the template saying why
-    // (`spec.md` D9). The check below reads back what the class declares.
+    // A protocol declaring both `draft` and `draftSetCount` gives its mock two
+    // `var draftSetCount` declarations. The check below reads back the property
+    // names the class declares and fails generation naming the member, where the
+    // generated file would otherwise not compile. `Tests/Checks/run-checks.sh`
+    // runs that protocol as a refusal case.
 
     /// The name a generated member declaration declares, or `nil` when the line
     /// declares no property.
@@ -318,9 +302,9 @@ enum MockNaming {
     /// A declaration between `#if <condition>` and `#endif` is counted under
     /// that condition. The one repeat accepted is a name whose every declaration
     /// sits inside a condition that differs from each other's: one requirement
-    /// name declared with a different type in each clause of an `#if` (spec 006
-    /// §8.4 step 3). Two such conditions true on one platform are reported by
-    /// the compiler.
+    /// name declared with a different type in each clause of an `#if`. Two such
+    /// conditions that are true on one platform are left to the compiler, which
+    /// reports an invalid redeclaration.
     ///
     /// - Parameters:
     ///   - lines: the class's member declarations and directives, in emission order.
@@ -349,7 +333,8 @@ enum MockNaming {
 
 private extension String {
     /// Backticks escape a keyword at the declaration and are not part of the
-    /// name. They are the whole of §2.1's transform.
+    /// name. Removing them is the whole transform from a declared name to a
+    /// plain prefix.
     var withoutBackticks: String {
         return replacingOccurrences(of: "`", with: "")
     }
