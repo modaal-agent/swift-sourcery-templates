@@ -192,10 +192,9 @@ templates. `Tests/Checks/run-skill-checks.sh` gates every rule below that a scri
 
 ## Do not tag without measuring the consumer
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md#cutting-a-release) in order. Its most-skipped step:
-regenerate `modaal-firebase-wrappers` against `master` and record the size and shape of its diff in
-the `CHANGELOG.md` entry. Write that entry **before** tagging — a consumer reads it to decide
-whether to bump.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md#cutting-a-release) in order. Its most-skipped step is the
+consumer regenerate: record the size and shape of the regenerated diff in the `CHANGELOG.md` entry.
+Write that entry **before** tagging — a consumer reads it to decide whether to bump.
 
 ## What goes in which document
 

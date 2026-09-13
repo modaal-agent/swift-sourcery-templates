@@ -178,7 +178,8 @@ Every assignment to a `{ get }` requirement on a mock stops compiling too, with
 `@available(*, deprecated)` marks a property, not one accessor. Nothing assigns such a requirement
 through the protocol, so every site is code holding the concrete `<Type>Mock`.
 
-Measured against `modaal-firebase-wrappers`, regenerated against `master` from its pinned 0.2.15:
+Measured on a consumer repository, regenerated against `master` from its pinned 0.2.15
+(`specs/004-mock-member-naming/spec.md` P9, §12.3 and §13):
 **7 files, 1706 lines → 2803**, 274 generated members → 515.
 
 | category | count |
@@ -189,7 +190,7 @@ Measured against `modaal-firebase-wrappers`, regenerated against `master` from i
 | `<method>Args` added | 73 — from the version bump itself, not from this change; that repository is pinned before argument recording |
 | naming comments | 214 lines — 5 per file, 2 per class, and 47 members carrying one above the witness and one in their class's index, in 10 of its 34 classes |
 | witnesses that became get-only | 69, over 52 distinct names; 4 `{ get set }` witnesses keep their setter |
-| its own tests that stop compiling on an assignment | **12 sites in 5 files** — `FirebaseAuthCombineTests` (4), `DocumentReferenceCombineTests` (4), `QueryDocumentSnapshotProtocolTests` (2), `FirestoreCombineTests` (1), `QueryCombineTests` (1); each becomes `_<var>` |
+| its own tests that stop compiling on an assignment | **12 sites in 5 files**; each becomes `_<var>` |
 | its own tests that stop compiling | **9 references in 2 files**, all naming `setDataDataForDocumentDocumentMerge*`, `setDataDataForDocumentDocumentMergeFields*` or `signInWithEmailEmailPasswordCompletionHandler` |
 
 The remaining renames land only in the committed generated files and in whatever repository imports
@@ -220,7 +221,8 @@ measured it.
 ### Annotation names are matched exactly, and the selectors are renamed
 
 **Generated output:** unchanged for a source that spells its annotations the way `README.md` spells
-them. Both reference consumers and every fixture regenerate byte-identically. What changes is what
+them. Every fixture regenerates byte-identically, and so do both consumer repositories measured for
+this release. What changes is what
 happens to a source that does not.
 
 Every annotation verb is now declared once, in `templates/Annotations/AnnotationRegistry.swift`, and
@@ -272,8 +274,8 @@ asked for.
 - **`ObjcProtocol` on its own now generates a mock.** It used to mean nothing without `CreateMock`
   beside it: the protocol was not in the mock template's filter, so it generated nothing. As an
   alias of the `ObjcProtocolMock` selector it selects the template itself, so a protocol carrying
-  only it produces a new type in the consumer's build. Neither reference consumer uses `ObjcProtocol`
-  at all. A protocol carrying `CreateMock` **and** `ObjcProtocol` — the pair a consumer writes today
+  only it produces a new type in the consumer's build. Neither consumer repository measured for this
+  release uses `ObjcProtocol` at all. A protocol carrying `CreateMock` **and** `ObjcProtocol` — the pair a consumer writes today
   — generates exactly what it generated before.
 
 **Adopting:** run a regenerate and read the build log. A misspelling that used to be silent now says
@@ -436,9 +438,8 @@ their own loses the runtime that serves it — name the engine yourself if that 
 **Adopting:** nothing to do. A config naming templates by path keeps working unchanged; a bare name
 is new capability, not a change to an existing one.
 
-**Measured on the reference consumer.** `modaal-firebase-wrappers` regenerated against this release
-with its own `scripts/generate-mocks.sh` and Sourcery 2.3.0 — 34 mocks across 7 modules — produces
-output **byte-identical** to what 0.7.0's templates produce, in all seven files. The only template
+**Measured on a consumer repository.** Regenerated against this release with its own generation script
+and Sourcery 2.3.0 — 34 mocks across 7 modules — it produces output **byte-identical** to what 0.7.0's templates produce, in all seven files. The only template
 change since 0.7.0 is a doc comment inside `templates/Mocks/MockMethod.swift`, which is template
 source and not emitted. Bumping from 0.7.0 and regenerating gives an empty diff.
 
@@ -446,7 +447,7 @@ That repository is pinned at 0.2.15, so its own diff on bumping is larger and sp
 7 files, 218 insertions, no deletions and no modifications. Every added line is the recorded-argument
 feature — one `var <name>Args` per method and one `<name>Args.append(...)` inside it. Existing
 `<name>CallCount` and `<name>Handler` members are untouched, so tests written against them keep
-compiling.
+compiling. `specs/003-consumer-pin-drift/spec.md` §1.4 records both measurements.
 
 Design record: [`specs/001-plugin-source-discovery/spec.md`](specs/001-plugin-source-discovery/spec.md)
 and, for the Xcode path,
@@ -523,7 +524,7 @@ unannotated source, must write a file, and that file is snapshotted
 ### Generated output
 
 Byte-identical for every scan that matches at least one annotated protocol. The fast lane's matched
-snapshots are unchanged, and regenerating the reference consumer under 0.6.1 and under this tag
+snapshots are unchanged, and regenerating a consumer repository under 0.6.1 and under this tag
 produces byte-identical output across all 7 of its generated files (34 mocks). Only the zero-match
 case changes: a file where there was none.
 
@@ -673,8 +674,8 @@ Any assignment of a fresh subject changes type: `CurrentValueSubject(…)` → `
 
 ### Adopting
 
-Bump the tag and regenerate. `modaal-firebase-wrappers` regenerates to an **empty diff** for this
-change — it declares no `AnyPublisher` members at all.
+Bump the tag and regenerate. A consumer repository measured for this release regenerates to an
+**empty diff** — it declares no `AnyPublisher` members at all.
 
 ---
 
@@ -770,9 +771,9 @@ Then consider what the arrays replace. For the consumer app that adopted 0.3.1 t
 hand-written `ArgumentLog<Value>` wired into a handler in each spec; the file is deleted and its call
 sites read the arrays directly.
 
-Measured on `modaal-firebase-wrappers` (7 modules, 33 mocks): **+218 lines, 0 deletions** — 109
-arrays and 109 appends, and no existing line changed. `ModaalFirebaseMocks` builds for iOS from that
-diff with zero warnings, over element types the fixtures do not have: `[Any]`, `[String: Any]`,
+Measured on a consumer repository (7 modules, 33 mocks): **+218 lines, 0 deletions** — 109 arrays
+and 109 appends, and no existing line changed. Its mocks module builds for iOS from that diff with
+zero warnings, over element types the fixtures do not have: `[Any]`, `[String: Any]`,
 `[String: NSObject]?` and Firestore's `Filter`.
 
 ---
@@ -815,7 +816,7 @@ None.
 
 ### Adopting
 
-Bump the tag and regenerate. Measured: `modaal-firebase-wrappers` (7 modules, 33 mocks) regenerates
+Bump the tag and regenerate. Measured: a consumer repository (7 modules, 33 mocks) regenerates
 with **an empty diff** — no mocked signature there contains an optional existential. A consumer whose
 does gets one hunk per occurrence, and a build that failed on it starts passing.
 
@@ -885,9 +886,8 @@ boilerplate is not a decision a template should make.
 ### Breaking
 
 Nothing. The template is additive and reads a new annotation. A repository with no `DuetComponent`
-annotation generates exactly what it generated at 0.2.15 — measured on the reference consumer
-(`modaal-firebase-wrappers`, 34 mocks across 7 modules): regenerated against this release, its diff is
-**empty**.
+annotation generates exactly what it generated at 0.2.15 — measured on a consumer repository (34
+mocks across 7 modules): regenerated against this release, its diff is **empty**.
 
 ### Adopting
 
@@ -986,9 +986,8 @@ behaviour, but it surfaces the first time a consumer adopts `async` mocks.
 
 ### Adopting
 
-Bump the tag and regenerate. In the reference consumer
-(`modaal-firebase-wrappers`, 34 mocks across 7 modules) the entire diff was `class X` → `final class
-X` — 34 lines, nothing else — because none of its protocols use the constructs above. Its library
+Bump the tag and regenerate. In a consumer repository (34 mocks across 7 modules) the entire diff was
+`class X` → `final class X` — 34 lines, nothing else — because none of its protocols use the constructs above. Its library
 targets build and its suite passes on the regenerated mocks, measured before this tag was cut.
 
 ### Also

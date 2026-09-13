@@ -39,6 +39,8 @@ turned the question from hypothetical into a live condition).
    Measuring the release delta takes two generations and a diff between them, which is what was done
    for the 0.8.0 entry.
 
+**Item 3, updated by §6.1:** `CONTRIBUTING.md` no longer calls any repository the reference consumer.
+
 ---
 
 ## 1. Measured
@@ -177,6 +179,8 @@ For the 0.8.0 entry the release delta was measured instead, by generating twice 
 generations and a `diff -r` rather than one generation and a `git diff`, and nothing in
 `CONTRIBUTING.md` says to do it.
 
+**Updated by §6.1:** step 2 and the `AGENTS.md` rule quoted above no longer name a repository.
+
 ---
 
 ## 2. Not measured
@@ -241,3 +245,61 @@ Option 2 is the one that survives the consumer drifting again.
 3. **Does anything gate the artifact bundle's layout on `duet`'s side?** §1.3. Three pieces of
    software now depend on the same layout, and only this repository's
    `Tests/Checks/PluginFixtureBundleRoute` asserts any of it.
+
+---
+
+## 6. Consumers taken out of the rules, CONTRIBUTING, CHANGELOG and CI, 2026-09-13
+
+**Updates:** §0 item 3 and §1.5, which quote `CONTRIBUTING.md` naming the reference consumer. §4's options
+stay open: the new step 2 does not say which delta to measure.
+
+On 2026-09-13 the maintainer ruled that no adopting repository is named in `AGENTS.md`/`CLAUDE.md`,
+`CONTRIBUTING.md`, `CHANGELOG.md` or the CI workflow; an analysis section in a spec is where one is named.
+This section records what those files said before that day's edit.
+
+### 6.1 `CONTRIBUTING.md`, `AGENTS.md`, `Tests/Checks/README.md` and `ci.yml`
+
+| where | before | after |
+| --- | --- | --- |
+| `CONTRIBUTING.md`, after "The SPM plugin" | "`modaal-firebase-wrappers` uses the other mode: `sourcery` invoked from a script, output committed, so its consumers need no Sourcery installation." | "The other mode is `sourcery` invoked from a script with its output committed, so a repository consuming that output needs no Sourcery installation." |
+| `CONTRIBUTING.md`, the pitfall on a refinement across modules | "the Duet reference app's `scripts/generate-mocks.sh` derives the set from `swift package dump-package` (every path dependency, plus the framework at its exact pin)" | "a generation script can derive the set from `swift package dump-package` (every path dependency, plus a framework at its exact pin)" |
+| `CONTRIBUTING.md`, "Cutting a release" step 2 | "Regenerate the reference consumer (`modaal-firebase-wrappers`) against `master` and record the size and shape of its diff." | "Regenerate a consumer repository against `master` and record the size and shape of its diff." |
+| `AGENTS.md`, "Do not tag without measuring the consumer" | "Its most-skipped step: regenerate `modaal-firebase-wrappers` against `master` and record the size and shape of its diff in the `CHANGELOG.md` entry." | "Its most-skipped step is the consumer regenerate: record the size and shape of the regenerated diff in the `CHANGELOG.md` entry." |
+| `Tests/Checks/README.md`, "What the fixtures cover" | "mirror the Duet reference app" | "mirror one app's composition" |
+| `.github/workflows/ci.yml`, the example-project lane | "teach test-ios.sh a `-derivedDataPath` and cache it, the way the modaal-firebase-wrappers workflow caches `.build/DerivedData`" | "teach test-ios.sh a `-derivedDataPath` under `.build/DerivedData` and cache that directory with `actions/cache`" |
+
+`CONTRIBUTING.md`'s "Consumers" section, removed whole:
+
+> - **[modaal-firebase-wrappers](https://github.com/modaal-agent/modaal-firebase-wrappers)** — the
+>   reference consumer: 34 mocks across 7 modules, pre-generated and committed. Its
+>   `scripts/generate-mocks.sh` is the adopter pattern worth copying — templates cloned at a pinned
+>   tag, annotations in their own directory, one output file per module, `TEMPLATES_DIR` override for
+>   local iteration. Regenerate it when measuring a release's consumer impact.
+> - **The Duet reference app** — drove 0.2.15 and the Component template. 93 `/// sourcery:
+>   CreateMock` annotations including an `<X>Dependency` protocol at each of its 13 composition
+>   levels, built with `-strict-concurrency=complete`; the `Tests/Checks/Fixtures/` shapes are taken
+>   from it. The shape the Component template emits is specified in `modaal-agent`'s
+>   `specs/100-android-parity/27-duet-composition-shape.md` — §2 for the rule, §13 for the
+>   macro-vs-template measurement behind choosing a template.
+
+### 6.2 The repository behind each `CHANGELOG.md` measurement
+
+| entry | it now reads | the repository | the analysis |
+| --- | --- | --- | --- |
+| 0.10.0, "A declaration generated inside `#if`" | a consumer repository | `modaal-firebase-wrappers` | 006 §13.2 |
+| 0.9.0, "A mock member is the declared name plus a suffix" | a consumer repository; "12 sites in 5 files" | `modaal-firebase-wrappers`; the files are `FirebaseAuthCombineTests` (4), `DocumentReferenceCombineTests` (4), `QueryDocumentSnapshotProtocolTests` (2), `FirestoreCombineTests` (1) and `QueryCombineTests` (1) | 004 P9, §12.3, §13 |
+| 0.9.0, "Annotation names are matched exactly" | both consumer repositories measured for this release | `modaal-firebase-wrappers` and the Duet reference app | 002, the cost paragraph above D13 |
+| 0.8.0 | a consumer repository | `modaal-firebase-wrappers` | §1.4 |
+| 0.6.2 | a consumer repository | `modaal-firebase-wrappers` | none |
+| 0.5.0 | a consumer repository measured for this release | `modaal-firebase-wrappers` | none |
+| 0.4.0 | a consumer repository; its mocks module | `modaal-firebase-wrappers`; `ModaalFirebaseMocks` | none |
+| 0.3.1 | a consumer repository | `modaal-firebase-wrappers` | none |
+| 0.3.0 | a consumer repository | `modaal-firebase-wrappers` | none |
+| 0.2.15 | a consumer repository | `modaal-firebase-wrappers` | none |
+
+### 6.3 Still named outside `specs/`
+
+- `templates/Mocks/MockNaming.swift:111`, a comment: "47 of the 152 methods in the reference consumer". The
+  `templates-0.10.0` bundle holds `templates/` with that comment, and `Scripts/check-pinned-templates.sh`
+  refuses a release whose `templates/` differs from the pinned bundle's, so the comment changes after the
+  `0.10.0` tag.

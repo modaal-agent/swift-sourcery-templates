@@ -88,8 +88,8 @@ exports `SOURCERY_TARGET_*` environment variables for target and dependency sour
 Sourcery per config. Output lands in `$SOURCERY_OUTPUT_DIR` inside DerivedData, never in the source
 tree — which is why `Tests/Checks/Snapshots/` exists at all.
 
-`modaal-firebase-wrappers` uses the other mode: `sourcery` invoked from a script, output committed, so
-its consumers need no Sourcery installation.
+The other mode is `sourcery` invoked from a script with its output committed, so a repository
+consuming that output needs no Sourcery installation.
 
 ## Where to change what
 
@@ -375,9 +375,9 @@ that does not tell the author what to do.
   boundary needs no config change (spec [001](specs/001-plugin-source-discovery/spec.md);
   `Tests/Checks/PluginFixture/Sources/App` is the reproducer, and
   `Tests/Examples/ExampleProjectSpm`'s `ProfilePersisting` is the same shape on the full lane). On
-  the CLI path it stays the caller's job: the Duet reference app's `scripts/generate-mocks.sh`
-  derives the set from `swift package dump-package` (every path dependency, plus the framework at
-  its exact pin) rather than listing paths, so a new refinement needs no change to the script.
+  the CLI path it stays the caller's job: a generation script can derive the set from
+  `swift package dump-package` (every path dependency, plus a framework at its exact pin) rather
+  than listing paths, so a new refinement needs no change to the script.
 - **Sourcery records no `#if`.** Sourcery 2.3.0 visits every clause of an `#if` and attaches no
   condition to what it declares (`SyntaxTreeCollector.swift:289-291` at tag 2.3.0). A member inside
   `#if canImport(UIKit)` reaches the templates as an unconditional requirement, and a type it names
@@ -532,8 +532,8 @@ the assets to the tag's GitHub release.
 ## Cutting a release
 
 1. Run all seven lanes green
-2. Regenerate the reference consumer (`modaal-firebase-wrappers`) against `master` and record the size
-   and shape of its diff. A release whose consumer impact was not measured is not ready to tag
+2. Regenerate a consumer repository against `master` and record the size and shape of its diff. A
+   release whose consumer impact was not measured is not ready to tag
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to
    bump: what the generated output looks like now, what can fail after a regenerate and how to fix it,
    what to do beyond bumping the tag
@@ -577,20 +577,6 @@ the assets to the tag's GitHub release.
 | RxSwift | 6.6.0 | example protocols, smart defaults |
 | RIBs | 0.16.1 | example protocols, external annotation pattern |
 | Alamofire | 4.9.1 | example dependency |
-
-## Consumers
-
-- **[modaal-firebase-wrappers](https://github.com/modaal-agent/modaal-firebase-wrappers)** — the
-  reference consumer: 34 mocks across 7 modules, pre-generated and committed. Its
-  `scripts/generate-mocks.sh` is the adopter pattern worth copying — templates cloned at a pinned
-  tag, annotations in their own directory, one output file per module, `TEMPLATES_DIR` override for
-  local iteration. Regenerate it when measuring a release's consumer impact.
-- **The Duet reference app** — drove 0.2.15 and the Component template. 93 `/// sourcery:
-  CreateMock` annotations including an `<X>Dependency` protocol at each of its 13 composition
-  levels, built with `-strict-concurrency=complete`; the `Tests/Checks/Fixtures/` shapes are taken
-  from it. The shape the Component template emits is specified in `modaal-agent`'s
-  `specs/100-android-parity/27-duet-composition-shape.md` — §2 for the rule, §13 for the
-  macro-vs-template measurement behind choosing a template.
 
 ## Open items
 
