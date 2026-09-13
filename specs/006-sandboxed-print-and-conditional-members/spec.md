@@ -1070,3 +1070,110 @@ says.
    item (§9.3). R's push, pull request, merge and tags each still need their own go-ahead.
 
 **Supersedes:** §6 items 1 and 2, and "None is ruled" in §3's opening line.
+
+---
+
+## 11. What landed, 2026-09-13
+
+Every measurement below was taken on 2026-09-13 on the machine, Xcode, Swift and Sourcery of §1. Nothing is
+pushed: `ci.yml` has not run on the branch.
+
+### 11.1 The commits
+
+| phase | commit | what |
+| --- | --- | --- |
+| rulings | `6c4fbfd` | §9 and §10 |
+| P1 | `056691d` | the plugin's `TMPDIR` under `.sourceryBuild/tmp`; the Xcode lane's assertion |
+| P2 | `bda7bd2` | `print-mocks.sh`: stderr in a variable, `PRINT_MOCKS_DISABLE_SANDBOX`, the retry; `references/printing-mocks.md`; 005 §2.2's pointer; SC14 reads `note "…"` |
+| P3 | `19e3150` | the plugin lane's sandboxed print |
+| P2, P3 | `ca81570` | the retry also on `Plugin ended with exit code 71`; the gate plans a fresh path and then the same path again |
+| P4 | `856b235` | `CompilationConditions.swift`, the `if` record, the Mocks emission, D7's refusal, the import rule, the fixtures and gates, the rendered tables |
+| P5 | `ef6c9d7` | the Components emission; `uniqueByName`; `DuetComponent` on the conditional fixtures |
+| P6 | `da673ca` | type erasure; `ConditionalErasable` and `MacOnlyErasable` in `ExampleProjectSpm` |
+| P7 | `479ce57` | README, CONTRIBUTING, `Tests/Checks/README.md`, the three skill references, CHANGELOG |
+| P8 | `3d3b9c8`, and the commit that adds this section | `3d3b9c8` holds the forward pointers only. Its message describes this section, which a failed step of the command that made it left out |
+
+### 11.2 Where the implementation differs from §2 to §10
+
+1. **The retry key (§2.1 step 2, D2).** SwiftPM caches a manifest by the path it planned it under. On a
+   path it has planned before, the first sandbox it starts inside an outer one is the plugin's, and the
+   plan fails with `error: Plugin ended with exit code 71` and no `sandbox_apply` text. `bda7bd2` retried
+   on `sandbox_apply` only; `ca81570` retries on either text. Measured in `PluginFixture` under
+   `deny-temp+items`, `PRINT_MOCKS_DISABLE_SANDBOX` unset:
+
+   | scratch path | script | exit | real | stderr |
+   | --- | --- | --- | --- | --- |
+   | not planned before, twice | `bda7bd2` | 0 | 40 s | the retry note |
+   | planned before, kept | `bda7bd2` | 1 | 0 s | `Plugin ended with exit code 71`, `print-mocks: planning App failed` |
+   | planned before, deleted and recreated | `bda7bd2` | 1 | 3 s | the same |
+   | planned before, kept | `ca81570` | 0 | 35 s | the retry note; the 50-line block |
+
+   The second print an agent makes in one package, inside its sandbox and without the setting, takes the
+   planned path. The script does not print the first plan's stderr once the retry succeeds, so the gate
+   asserts the note and the block, not SwiftPM's text.
+2. **The gate (§2.4, plugin lane).** `run-plugin-checks.sh` §13 runs the sandboxed print three times: with
+   the setting; without it on a scratch path unique to the lane run; and without it on that path again.
+   A plugin-lane run during P4 failed its sandboxed gate because P3's gate reused one path between lane
+   runs.
+3. **SC14.** `print-mocks.sh` prints the retry line through a `note` helper, and
+   `run-skill-checks.sh` SC14 reads `note "…"` strings as well as `fail "…"`. SC14 had read `fail "…"`
+   only, and failed on the quoted retry line.
+4. **Where the imports are emitted (§9.3, §9.6).** `_header.swifttemplate` keeps the import lines as
+   template text and reads `importSelectors`, which each entry point declares above its
+   `include("_header")`. A header function that `print`ed them wrote the imports above all template text:
+   every generated file differed from its snapshot at line 4.
+5. **A protocol's `if` and its members (§8.4 step 1).** A dump over `/// sourcery: if =
+   "FIXTURE_CONDITION_A"` on a protocol showed no `if` on its members, so a member's condition is its own
+   values; nothing is subtracted.
+6. **The accepted repeat (§8.4 step 3).** `MockNaming.checkForCollisions` receives the directive lines
+   and accepts a repeated property name whose every declaration sits inside a condition different from
+   each other's. That covers §8.4 step 3's case and any other pair of distinct conditions; a repeat with
+   no condition on one side, or the same condition on both, is refused as before. The
+   `conditionalcollision` red control is the first kind.
+7. **`uniqueByName` (P5).** The rule that keeps both properties of step 3 lives in
+   `CompilationConditions.uniqueByName`, which `MockVar.from` and `ComponentGenerator.forwardedVariables`
+   both call.
+8. **`generateAdditionalImports`** compares the modules of `args.import` items, and the modules an `if`
+   value guards, with the `import` annotation's values, so an `import` annotation does not add an
+   unguarded import of a guarded module.
+9. **The rendered tables (§7.3).** `Scripts/render-annotations.sh --write` ran in P4:
+   `run-annotation-checks.sh` AC6 fails from the commit that adds a record until the tables are rendered.
+10. **P1's `TMPDIR`** is in `sharedEnvironmentVars`, which `SourceryConfigSynthesizer.expandEnvironment`
+    (`SourcerySwiftCodegenPlugin.swift:684-690`) also reads to expand a `${NAME}` in a config, so a config
+    naming `${TMPDIR}` receives `.sourceryBuild/tmp`. Read from the code, not measured.
+11. **Type erasure and `{ get set }`.** `_Any<P>Box` assigns `concrete.<name> = newValue` on a
+    `private let concrete`, so a `{ get set }` property of a protocol that is not class-bound does not
+    compile (`cannot assign to property: 'concrete' is a 'let' constant`), with or without a condition.
+    `ConditionalErasable.label` is `{ get }`. The template is unchanged there.
+12. **P3's red controls.** The script before this spec failed on `mktemp: mkstemp failed` and the script
+    without its retry on `sandbox_apply: Operation not permitted`, each under the gate's profile. The
+    plugin without P1 was not re-run; §1.3 row k records it.
+
+**Superseded in part by this section:** §2.1 step 2 and D2 (c)'s retry text (item 1); §2.4's plugin-lane
+gate (item 2); §8.4 steps 1 and 3 (items 5 and 6); §7.3's P7 rendering (item 9); §9.3's "read by
+`_header.swifttemplate`" (item 4).
+
+### 11.3 Measured on the way
+
+- **Byte-identical output.** P4's templates over the fixtures of `19e3150` and over the zero-match source
+  produced all four snapshots byte for byte; P6's `TypeErase.swifttemplate` over
+  `Tests/Examples/ExampleProjectSpm/Sources/ExampleProjectSpm` produced the 184 lines of `19e3150`'s,
+  byte for byte, before `ConditionalErasable` was added.
+- **Snapshot diffs, read before recording.** P4: `Mocks.generated.swift` 254 lines added, none removed —
+  `#if canImport(Combine)` / `#endif` around `import Combine`, and seven mocks. P5:
+  `Components.generated.swift` 123 lines added, none removed — the same guard, and seven Components;
+  `Mocks.generated.swift` unchanged.
+- **Typechecks.** Six per fast-lane run — both language modes, with no flag, `-D FIXTURE_CONDITION_A` and
+  `-D FIXTURE_CONDITION_B` — 0 diagnostics from P4 on.
+- **Type erasure red control.** The erasure of `ConditionalErasable` and `MacOnlyErasable` with its
+  `#if` lines removed, typechecked for `arm64-apple-ios17.0-simulator`: `error: no such module 'AppKit'`.
+  With them: 0 diagnostics for the simulator and for macOS.
+- **The sandboxed rows of §1.3,** re-run with P2's script and P1's plugin: `bda7bd2`'s message.
+- **The full lane:** `Tests/Examples/ExampleProjectSpm/test-ios.sh` at `da673ca`: Test Succeeded, 20 tests, 0 failures; the `TypeErase.generated.swift` it compiled holds both erasures inside their `#if` lines.
+
+### 11.4 Not done
+
+- `ci.yml` on the branch, including the sandboxed gate on `macos-15` (§5). The branch is not pushed.
+- R: the release, `modaal-firebase-wrappers` regenerated, the tags.
+- The lab's round-5 profile with this branch's script and plugin (§5).
+- D9 (c)'s behaviour check under `-D FIXTURE_CONDITION_A`; D9 is ruled (a).
