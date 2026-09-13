@@ -2,7 +2,9 @@
 // DO NOT EDIT
 
 
+#if canImport(Combine)
 import Combine
+#endif
 import Foundation
 
 // Mock member names are the requirement's declared name plus a suffix: `func load()` gives
@@ -287,6 +289,258 @@ final class CaptureDependencyMock: CaptureDependency {
     var stageArgs: [(fileName: String, retries: Int)] = []
     var stageHandler: ((_ fileName: String, _ retries: Int) async throws -> (URL))? = nil
 }
+
+// MARK: - ConditionalBlock
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+final class ConditionalBlockMock: ConditionalBlock {
+
+    // MARK: - Variables
+    #if FIXTURE_CONDITION_B
+    var token: ConditionBToken? {
+        tokenGetCount += 1
+        if let handler = tokenGetHandler {
+            return handler()
+        }
+        return _token
+    }
+    var tokenGetCount: Int = 0
+    var tokenGetHandler: (() -> ConditionBToken?)? = nil
+    var _token: ConditionBToken? = nil
+    #endif
+
+    // MARK: - Methods
+    #if FIXTURE_CONDITION_B
+    func accept(_ token: ConditionBToken) {
+        acceptCallCount += 1
+        acceptArgs.append(token)
+        if let __acceptHandler = self.acceptHandler {
+            __acceptHandler(token)
+        }
+    }
+    var acceptCallCount: Int = 0
+    var acceptArgs: [ConditionBToken] = []
+    var acceptHandler: ((_ token: ConditionBToken) -> ())? = nil
+    #endif
+    func plain() {
+        plainCallCount += 1
+        if let __plainHandler = self.plainHandler {
+            __plainHandler()
+        }
+    }
+    var plainCallCount: Int = 0
+    var plainHandler: (() -> ())? = nil
+}
+
+// MARK: - ConditionalInheriting
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+final class ConditionalInheritingMock: ConditionalInheriting {
+
+    // MARK: - Methods
+    func own() {
+        ownCallCount += 1
+        if let __ownHandler = self.ownHandler {
+            __ownHandler()
+        }
+    }
+    var ownCallCount: Int = 0
+    var ownHandler: (() -> ())? = nil
+    #if FIXTURE_CONDITION_B
+    func receive(_ token: ConditionBToken) {
+        receiveCallCount += 1
+        receiveArgs.append(token)
+        if let __receiveHandler = self.receiveHandler {
+            __receiveHandler(token)
+        }
+    }
+    var receiveCallCount: Int = 0
+    var receiveArgs: [ConditionBToken] = []
+    var receiveHandler: ((_ token: ConditionBToken) -> ())? = nil
+    #endif
+    func refresh() {
+        refreshCallCount += 1
+        if let __refreshHandler = self.refreshHandler {
+            __refreshHandler()
+        }
+    }
+    var refreshCallCount: Int = 0
+    var refreshHandler: (() -> ())? = nil
+}
+
+// MARK: - ConditionalMember
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+final class ConditionalMemberMock: ConditionalMember {
+
+    // MARK: - Variables
+    #if canImport(Combine)
+    var ticks: AnyPublisher<Int, Never> {
+        ticksGetCount += 1
+        return Deferred { [weak self, subject = ticksSubject] () -> AnyPublisher<Int, Never> in
+            self?.ticksSubscribeCount += 1
+            if let handler = self?.ticksGetHandler {
+                return handler()
+            }
+            return subject.eraseToAnyPublisher()
+        }
+        .handleEvents(receiveOutput: { [weak self] value in
+            self?.ticksOutputCount += 1
+            self?.ticksOutputs.append(value)
+            self?.ticksOutputHandler?(value)
+        }, receiveCompletion: { [weak self] _ in self?.ticksCompletionCount += 1 }, receiveCancel: { [weak self] in self?.ticksSubscribeCancelCount += 1 })
+        .eraseToAnyPublisher()
+    }
+    var ticksGetCount: Int = 0
+    var ticksGetHandler: (() -> AnyPublisher<Int, Never>)? = nil
+    var ticksSubscribeCount: Int = 0
+    var ticksSubscribeCancelCount: Int = 0
+    var ticksOutputCount: Int = 0
+    var ticksOutputs: [Int] = []
+    var ticksOutputHandler: ((Int) -> Void)? = nil
+    var ticksCompletionCount: Int = 0
+    lazy var ticksSubject = PassthroughSubject<Int, Never>()
+    #endif
+
+    // MARK: - Methods
+    #if FIXTURE_CONDITION_A
+    func adopt(_ token: ConditionAToken) {
+        adoptCallCount += 1
+        adoptArgs.append(token)
+        if let __adoptHandler = self.adoptHandler {
+            __adoptHandler(token)
+        }
+    }
+    var adoptCallCount: Int = 0
+    var adoptArgs: [ConditionAToken] = []
+    var adoptHandler: ((_ token: ConditionAToken) -> ())? = nil
+    #endif
+    func load() -> Int {
+        loadCallCount += 1
+        if let __loadHandler = self.loadHandler {
+            return __loadHandler()
+        }
+        return 0
+    }
+    var loadCallCount: Int = 0
+    var loadHandler: (() -> (Int))? = nil
+}
+
+// MARK: - ConditionalMerged
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+final class ConditionalMergedMock: ConditionalMerged {
+
+    // MARK: - Methods
+    #if (!FIXTURE_CONDITION_A) || (FIXTURE_CONDITION_A)
+    func render() -> Int {
+        renderCallCount += 1
+        if let __renderHandler = self.renderHandler {
+            return __renderHandler()
+        }
+        return 0
+    }
+    var renderCallCount: Int = 0
+    var renderHandler: (() -> (Int))? = nil
+    #endif
+}
+
+// MARK: - ConditionalStacked
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+final class ConditionalStackedMock: ConditionalStacked {
+
+    // MARK: - Methods
+    #if (FIXTURE_CONDITION_A) && (FIXTURE_CONDITION_B)
+    func pair(_ first: ConditionAToken, _ second: ConditionBToken) {
+        pairCallCount += 1
+        pairArgs.append((first: first, second: second))
+        if let __pairHandler = self.pairHandler {
+            __pairHandler(first, second)
+        }
+    }
+    var pairCallCount: Int = 0
+    var pairArgs: [(first: ConditionAToken, second: ConditionBToken)] = []
+    var pairHandler: ((_ first: ConditionAToken, _ second: ConditionBToken) -> ())? = nil
+    #endif
+    func reset() {
+        resetCallCount += 1
+        if let __resetHandler = self.resetHandler {
+            __resetHandler()
+        }
+    }
+    var resetCallCount: Int = 0
+    var resetHandler: (() -> ())? = nil
+}
+
+// MARK: - ConditionalTwoTypes
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+final class ConditionalTwoTypesMock: ConditionalTwoTypes {
+
+    // MARK: - Variables
+    #if !FIXTURE_CONDITION_B
+    var mode: Int {
+        modeGetCount += 1
+        if let handler = modeGetHandler {
+            return handler()
+        }
+        return _mode
+    }
+    var modeGetCount: Int = 0
+    var modeGetHandler: (() -> Int)? = nil
+    var _mode: Int = 0
+    #endif
+    #if FIXTURE_CONDITION_B
+    var mode: ConditionBToken? {
+        modeGetCount += 1
+        if let handler = modeGetHandler {
+            return handler()
+        }
+        return _mode
+    }
+    var modeGetCount: Int = 0
+    var modeGetHandler: (() -> ConditionBToken?)? = nil
+    var _mode: ConditionBToken? = nil
+    #endif
+}
+
+#if FIXTURE_CONDITION_A
+// MARK: - ConditionalWhole
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+final class ConditionalWholeMock: ConditionalWhole {
+
+    // MARK: - Variables
+    var token: ConditionAToken {
+        tokenGetCount += 1
+        if let handler = tokenGetHandler {
+            return handler()
+        }
+        return _token
+    }
+    var tokenGetCount: Int = 0
+    var tokenGetHandler: (() -> ConditionAToken)? = nil
+    var _token: ConditionAToken
+
+    // MARK: - Initializer
+    init(token: ConditionAToken) {
+        self._token = token
+    }
+
+    // MARK: - Methods
+    func adopt(_ token: ConditionAToken) {
+        adoptCallCount += 1
+        adoptArgs.append(token)
+        if let __adoptHandler = self.adoptHandler {
+            __adoptHandler(token)
+        }
+    }
+    var adoptCallCount: Int = 0
+    var adoptArgs: [ConditionAToken] = []
+    var adoptHandler: ((_ token: ConditionAToken) -> ())? = nil
+}
+#endif
 
 // MARK: - DetailPresenting
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,

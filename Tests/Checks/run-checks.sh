@@ -14,16 +14,20 @@
 #   4. refusal    a construct the templates cannot emit fails generation naming
 #                 the protocol and the member, instead of writing a file the
 #                 consumer's compiler rejects: two members that would carry one
-#                 name, and a requirement declaring `throws(E)`
+#                 name, a requirement declaring `throws(E)`, and a property
+#                 generated inside `#if` that the initializer takes
 #   5. naming     every `… members are named `X*` …` comment matches the member
 #                 below it, and each class's index lists exactly the members
 #                 commented inside it
 #   6. typecheck  they compile clean together under Swift 5 + complete
 #                 concurrency checking, and under the Swift 6 language mode —
-#                 zero warnings, zero errors
+#                 zero warnings, zero errors — each with no flag, with
+#                 -D FIXTURE_CONDITION_A and with -D FIXTURE_CONDITION_B
 #   7. behaviour  they do what a consumer needs: mocks count calls, run handlers
 #                 and deliver values pushed into their subjects; Components
 #                 forward to the parent and hold what the level owns
+#   8. imports    an import item written `<M> // if canImport` is generated
+#                 inside `#if canImport(<M>)`
 #
 # Two templates, one fixture set, one typecheck: a mock and a Component of the
 # same protocol have to agree about which member is `nonisolated` and which class
@@ -240,6 +244,8 @@ COLLISION_CASES=(
   "typedthrowsvar:TypedThrowingProperty:secret"
   "typedthrowsfunc:TypedThrowingMethod:load"
   "effectfulstream:EffectfulStreaming:frames"
+  "conditionalinit:ConditionalInitializer:token"
+  "conditionalcollision:ConditionalCollision:modeGetCount"
 )
 
 mkdir -p "$COLLISION_DIR/bookkeeping"
@@ -304,6 +310,38 @@ import Combine
 /// sourcery: ProtocolMock
 public protocol EffectfulStreaming: AnyObject {
     var frames: AnyPublisher<Int, Never> { get async }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/conditionalinit"
+cat > "$COLLISION_DIR/conditionalinit/ConditionalInit.swift" <<'SWIFT'
+// A property generated inside its own `#if` whose type has no default value.
+// The initializer that takes it is generated once, outside the condition
+// (spec 006 D7).
+#if FIXTURE_CONDITION_A
+public struct ConditionAToken {}
+#endif
+/// sourcery: ProtocolMock
+public protocol ConditionalInitializer: AnyObject {
+    #if FIXTURE_CONDITION_A
+    /// sourcery: if = "FIXTURE_CONDITION_A"
+    var token: ConditionAToken { get }
+    #endif
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/conditionalcollision"
+cat > "$COLLISION_DIR/conditionalcollision/ConditionalCollision.swift" <<'SWIFT'
+// A conditional property's bookkeeping member repeated by a requirement with
+// no condition. A repeat is accepted only when every declaration of the name
+// sits inside a different condition (spec 006 §8.4 step 3).
+/// sourcery: ProtocolMock
+public protocol ConditionalCollision: AnyObject {
+    #if FIXTURE_CONDITION_A
+    /// sourcery: if = "FIXTURE_CONDITION_A"
+    var mode: Int? { get }
+    #endif
+    var modeGetCount: Int { get }
 }
 SWIFT
 
@@ -444,8 +482,16 @@ typecheck() {
 
 echo ""
 echo "── typecheck ──"
-typecheck "swift5-complete" -swift-version 5 -strict-concurrency=complete
-typecheck "swift6" -swift-version 6
+# Fixtures/Conditional.swift declares members and a protocol under
+# FIXTURE_CONDITION_A and FIXTURE_CONDITION_B, each naming a type that exists
+# only under its flag. A generated member emitted outside its condition, or
+# under the wrong one, fails one of the flagged runs.
+for condition in "" FIXTURE_CONDITION_A FIXTURE_CONDITION_B; do
+  flag=(); suffix=""
+  if [ -n "$condition" ]; then flag=(-D "$condition"); suffix="-$condition"; fi
+  typecheck "swift5-complete$suffix" -swift-version 5 -strict-concurrency=complete ${flag[@]+"${flag[@]}"}
+  typecheck "swift6$suffix" -swift-version 6 ${flag[@]+"${flag[@]}"}
+done
 
 # ── 7. Behaviour ──────────────────────────────────────────────────
 echo ""
@@ -462,6 +508,47 @@ if xcrun swiftc -swift-version 6 -o "$BEHAVIOUR_BIN" \
 else
   tail -30 "$WORK_DIR/behaviour-build.log"
   fail "behaviour harness did not build"
+fi
+
+# ── 8. Imports ────────────────────────────────────────────────────
+# An `args.import` or `args.testable` item written `<M> // if canImport` is
+# emitted once inside `#if canImport(<M>)`, and an item with any other text
+# after `//` keeps its full text (spec 006 §9.1, §10.2). The snapshot covers the
+# automatic arm: `ConditionalMember.ticks` carries `if = "canImport(Combine)"`,
+# which guards the `import Combine` this lane configures.
+echo ""
+echo "── imports ──"
+IMPORTS_DIR="$WORK_DIR/imports"
+rm -rf "$IMPORTS_DIR"
+mkdir -p "$IMPORTS_DIR/sources"
+cat > "$IMPORTS_DIR/sources/Manual.swift" <<'SWIFT'
+/// sourcery: ProtocolMock
+public protocol ManualImport: AnyObject {
+    func run()
+}
+SWIFT
+cat > "$IMPORTS_DIR/expected" <<'SWIFT'
+import Combine // kept as written
+#if canImport(Foundation)
+import Foundation
+#endif
+#if canImport(ManualTestable)
+@testable import ManualTestable
+#endif
+SWIFT
+if ! "$SOURCERY" --sources "$IMPORTS_DIR/sources" \
+     --templates "$GIT_ROOT/templates/Mocks.swifttemplate" \
+     --output "$IMPORTS_DIR/Manual.generated.swift" \
+     --args "import=Foundation // if canImport,import=Combine // kept as written,testable=ManualTestable // if canImport" \
+     --disableCache --quiet > "$WORK_DIR/imports.log" 2>&1; then
+  tail -10 "$WORK_DIR/imports.log"
+  fail "a config with manual import items failed generation"
+elif grep -E '^(#if |#endif|import |@testable import )' "$IMPORTS_DIR/Manual.generated.swift" \
+     | diff -u "$IMPORTS_DIR/expected" - > "$WORK_DIR/imports.diff"; then
+  echo "  a manual item is guarded in args.import and args.testable, and other text after // is kept"
+else
+  cat "$WORK_DIR/imports.diff"
+  fail "the import lines of a config with manual items are not the seven expected"
 fi
 
 # ── Result ────────────────────────────────────────────────────────

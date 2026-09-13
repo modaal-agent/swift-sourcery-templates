@@ -266,6 +266,19 @@ else
   diff -u "$FIXTURE_DIR/Sources/Verbatim/.Sourcery.Verbatim.yml" "$VERBATIM_CONFIG" | head -20 || true
   fail "a config declaring everything was rewritten"
 fi
+# Its import item is the manual form, `Foundation // if canImport`, which the
+# templates generate inside `#if canImport(Foundation)` (spec 006 §9.4).
+VERBATIM_MOCK="$(generated Verbatim Sourcery.Verbatim Mocks.generated.swift)"
+if [ -n "$VERBATIM_MOCK" ] && awk '
+     before2 == "#if canImport(Foundation)" && before1 == "import Foundation" && $0 == "#endif" { found = 1 }
+     { before2 = before1; before1 = $0 }
+     END { exit found ? 0 : 1 }
+   ' "$VERBATIM_MOCK" && ! grep -q '^import Foundation //' "$VERBATIM_MOCK"; then
+  pass "the manual import item is generated inside #if canImport(Foundation)"
+else
+  grep -nE '^(#if|#endif|import )' "$VERBATIM_MOCK" 2>/dev/null || true
+  fail "Verbatim's generated mock does not carry the guarded import of its manual item"
+fi
 
 # ── 6. Testable ───────────────────────────────────────────────────
 echo ""

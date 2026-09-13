@@ -18,12 +18,14 @@
   ```
   The pattern implemented here follows this article: https://www.bignerdranch.com/blog/breaking-down-type-erasures-in-swift/
 -%>
+<%_ let importSelectors = [AnnotationRegistry.typeErasure] -%>
 <%- include("_header") -%>
 <%- includeFile("Annotations/AnnotationRegistry") -%>
 <%- includeFile("Annotations/AnnotationAccess") -%>
 <%- includeFile("Utility/Generics") -%>
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
+<%- includeFile("Utility/CompilationConditions") -%>
 <%_
   try AnnotationRegistry.rejectNearMisses(in: types.protocols)
   let typesToProcess = types.protocols.filter { $0.isAnnotated(AnnotationRegistry.typeErasure) }

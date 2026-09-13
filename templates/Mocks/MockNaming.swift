@@ -315,17 +315,34 @@ enum MockNaming {
 
     /// Fails generation when one mock class declares the same property twice.
     ///
+    /// A declaration between `#if <condition>` and `#endif` is counted under
+    /// that condition. The one repeat accepted is a name whose every declaration
+    /// sits inside a condition that differs from each other's: one requirement
+    /// name declared with a different type in each clause of an `#if` (spec 006
+    /// §8.4 step 3). Two such conditions true on one platform are reported by
+    /// the compiler.
+    ///
     /// - Parameters:
-    ///   - lines: the class's member declarations, in emission order.
+    ///   - lines: the class's member declarations and directives, in emission order.
     ///   - typeName: the mocked protocol, for the message.
     static func checkForCollisions(amongMemberDeclarations lines: [String], typeName: String) throws {
-        var seen = Set<String>()
+        var seen: [String: [String?]] = [:]
+        var condition: String? = nil
         for line in lines {
+            if let opened = CompilationConditions.condition(openedBy: line) {
+                condition = opened
+                continue
+            }
+            if line == CompilationConditions.closing {
+                condition = nil
+                continue
+            }
             guard let name = declaredPropertyName(inDeclaration: line) else { continue }
-            guard !seen.contains(name) else {
+            let earlier = seen[name] ?? []
+            guard earlier.isEmpty || (condition != nil && !earlier.contains(where: { $0 == nil || $0 == condition })) else {
                 throw MockError.collidingMemberNames(typeName: typeName, memberName: name)
             }
-            seen.insert(name)
+            seen[name] = earlier + [condition]
         }
     }
 }

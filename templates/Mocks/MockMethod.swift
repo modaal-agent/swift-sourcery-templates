@@ -49,6 +49,11 @@ extension MockMethod {
         return mockedPrefix.comment
     }
 
+    /// The `#if` condition this method's members are generated inside, or `nil`.
+    var condition: String? {
+        return CompilationConditions.condition(of: method)
+    }
+
     var isVoid: Bool {
         return method.returnTypeName.isVoid
     }

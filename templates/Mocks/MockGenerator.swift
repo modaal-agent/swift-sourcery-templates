@@ -22,6 +22,10 @@ case typedThrowsUnsupported(typeName: String, member: String, errorTypeName: Str
 /// The construct it returns reads its handler from inside a synchronous
 /// closure, which cannot await or rethrow (`spec.md` §2.7).
 case effectfulStreamRequirement(typeName: String, member: String)
+/// A property generated inside `#if` of its own that the mock's initializer
+/// takes. The initializer is generated once, outside that condition (spec 006
+/// D7).
+case conditionalInitializerProperty(typeName: String, member: String, condition: String)
 case internalError(message: String)
 }
 
@@ -50,8 +54,21 @@ class MockGenerator {
             let mockVars = MockVar.from(type)
             let variablesToInit = mockVars.filter { $0.provideValueInInitializer }.map { (mockedVariableName: $0.mockedVariableName, variable: $0.variable, defaultValue: try? $0.variable.typeName.defaultValue()) }
             let mockMethods = try MockMethod.from(type, genericTypePrefix: Constants.genericTypePrefix)
+            if let conditional = mockVars.first(where: { $0.provideValueInInitializer && $0.condition != nil }) {
+                throw MockError.conditionalInitializerProperty(
+                    typeName: type.name,
+                    member: conditional.variable.name,
+                    condition: conditional.condition ?? "")
+            }
+
+            // A protocol annotated `if` is generated inside its condition, from
+            // the `// MARK:` line to the class's closing brace.
+            let typeCondition = CompilationConditions.condition(of: type)
 
             topScope += Constants.NEWL
+            if let typeCondition = typeCondition {
+                topScope += CompilationConditions.opening(typeCondition)
+            }
             topScope += "// MARK: - \(type.name)"
 
             // The rule again, in the slice an agent lands in (D14(b)), and then
@@ -86,7 +103,7 @@ class MockGenerator {
             mock += genericTypes.typealiasesDeclarations
 
             // variables
-            let mockVarsFlattened = try mockVars.flatMap { try $0.mockImpl() }
+            let mockVarsFlattened = try mockVars.flatMap { try $0.mockImpl().conditional($0.condition) }
             if !mockVarsFlattened.isEmpty {
                 mock += Constants.NEWL
                 mock += "// MARK: - Variables"
@@ -110,7 +127,7 @@ class MockGenerator {
             }
 
             // methods
-            let mockMethodsFlattened = try mockMethods.flatMap { try $0.mockImpl() }
+            let mockMethodsFlattened = try mockMethods.flatMap { try $0.mockImpl().conditional($0.condition) }
             if !mockMethodsFlattened.isEmpty {
                 mock += Constants.NEWL
                 mock += "// MARK: - Methods"
@@ -127,6 +144,9 @@ class MockGenerator {
                 typeName: type.name)
 
             topScope += mock
+            if typeCondition != nil {
+                topScope += CompilationConditions.closing
+            }
         }
 
         return topScope.indentedSourcecode()
@@ -206,6 +226,14 @@ extension MockError: LocalizedError {
                 requirement, or two requirements produce the same name. Rename the requirement, \
                 or — for a method — name its members outright with \
                 `/// sourcery: methodName = "customName"` on the declaration.
+                """
+        case .conditionalInitializerProperty(let typeName, let member, let condition):
+            return """
+                `\(typeName).\(member)` is generated inside `#if \(condition)`, and the mock's \
+                initializer takes it: its type has no default value, or it carries `sourcery: init`. \
+                The initializer is generated once, outside that condition. Put \
+                `/// sourcery: handler` on the property, which leaves it out of the initializer, or \
+                declare it with a type that has a default value, such as an optional.
                 """
         case .internalError(let message): return "Internal error: \(message)"
         }
