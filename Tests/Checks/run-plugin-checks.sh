@@ -607,6 +607,14 @@ fi
 # prints neither once the retry succeeds. The run without the setting takes a
 # path no earlier run of this lane used, and the third run plans that path
 # again: the second print an agent makes in one package.
+#
+# A new path's dependencies are resolved outside the sandbox, from the lane's
+# cache. The script uses SwiftPM's default cache, which on a runner does not hold
+# the Sourcery artifact bundle, and inside the profile SwiftPM's download of it
+# fails with `Operation not permitted`: the download writes under the per-user
+# temporary directory, outside `TemporaryItems`, whatever TMPDIR holds. Resolving
+# plans nothing, so the first sandboxed plan on that path still fails on
+# `sandbox_apply`.
 USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)"
 SANDBOX_PROFILE="(version 1)(allow default)(deny file-write* (subpath \"$USER_TEMP\"))(allow file-write* (subpath \"$USER_TEMP/TemporaryItems\"))"
 RETRY_LINE="print-mocks: SwiftPM could not start its sandbox; planning again with --disable-sandbox"
@@ -614,7 +622,11 @@ SANDBOX_RUN="$(date +%s)-$$"
 rm -rf "$WORK_DIR"/sandboxed-*
 sandboxed_print() {   # name disable-sandbox-setting [earlier run whose scratch path and TMPDIR to plan again]
   local dir="$WORK_DIR/sandboxed-$SANDBOX_RUN-${3:-$1}"
-  [ -n "${3:-}" ] || mkdir -p "$dir/tmp"
+  if [ -z "${3:-}" ]; then
+    mkdir -p "$dir/tmp"
+    swift package --package-path "$FIXTURE_DIR" --scratch-path "$dir/scratch" "${SWIFT_FLAGS[@]}" resolve \
+      > "$PRINTED-sandboxed-$1.err" 2>&1 || return 1
+  fi
   ( cd "$FIXTURE_DIR" && env TMPDIR="$dir/tmp" SCRATCH_PATH="$dir/scratch" PRINT_MOCKS_DISABLE_SANDBOX="$2" \
       sandbox-exec -p "$SANDBOX_PROFILE" "$PRINT_MOCKS" App ProfilePersisting ) \
     > "$PRINTED-sandboxed-$1" 2> "$PRINTED-sandboxed-$1.err"

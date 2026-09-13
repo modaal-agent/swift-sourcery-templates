@@ -65,6 +65,11 @@ An agent that cannot run the script runs that command and reads those files.
   directory `getconf DARWIN_USER_TEMP_DIR` prints; SwiftPM writes there. When the plan fails with
   `Operation not permitted` on another path under that directory, the plugin release in use does not
   give Sourcery a `TMPDIR` under the build directory: allow that path, or update the release.
+- **A plan that downloads the Sourcery artifact bundle** — the first in a checkout whose build directory
+  does not hold it, when SwiftPM's cache does not either — fails inside such a sandbox with
+  `failed downloading '…artifactbundle.zip' … Operation not permitted`, with or without
+  `--disable-sandbox`: SwiftPM writes the download under that directory, outside `TemporaryItems`. Run
+  `swift package resolve` outside the sandbox once, then print.
 
 ## Xcode projects
 

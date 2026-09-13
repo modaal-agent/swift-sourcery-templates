@@ -1153,6 +1153,8 @@ pushed: `ci.yml` has not run on the branch.
 gate (item 2); §8.4 steps 1 and 3 (items 5 and 6); §7.3's P7 rendering (item 9); §9.3's "read by
 `_header.swifttemplate`" (item 4).
 
+**Item 2 superseded in part by §12.4:** the gate resolves each new scratch path outside the sandbox first.
+
 ### 11.3 Measured on the way
 
 - **Byte-identical output.** P4's templates over the fixtures of `19e3150` and over the zero-match source
@@ -1177,3 +1179,63 @@ gate (item 2); §8.4 steps 1 and 3 (items 5 and 6); §7.3's P7 rendering (item 9
 - R: the release, `modaal-firebase-wrappers` regenerated, the tags.
 - The lab's round-5 profile with this branch's script and plugin (§5).
 - D9 (c)'s behaviour check under `-D FIXTURE_CONDITION_A`; D9 is ruled (a).
+
+**§11.4's first item, updated by §12:** `ci.yml` ran once on the branch, and its Plugin job failed.
+
+---
+
+## 12. CI's first run, 2026-09-13
+
+**Supersedes in part:** §11.2 item 2 (the gate's steps) and §11.4's first item.
+
+### 12.1 What failed
+
+Run `34770047878`, on `f0385a1`, `macos-15`, Xcode 26.3: eight jobs passed. The Plugin job failed the three
+sandboxed prints of `run-plugin-checks.sh` §13. Each printed:
+
+```
+Downloading binary artifact https://github.com/modaal-agent/swift-sourcery-templates/releases/download/templates-0.9.0/swift-sourcery-templates-0.9.0.artifactbundle.zip
+error: failed downloading '…swift-sourcery-templates-0.9.0.artifactbundle.zip' which is required by binary target 'sourcery': downloadError("Error Domain=NSPOSIXErrorDomain Code=1 \"Operation not permitted\" …")
+error: fatalError
+print-mocks: planning App failed
+```
+
+The run with `PRINT_MOCKS_DISABLE_SANDBOX=1` failed the same way.
+
+### 12.2 The cause
+
+Every build in the plugin lane before §13 passes `--cache-path .build/plugin-checks/cache`. `print-mocks.sh`
+passes no cache path, so SwiftPM reads its default cache, `~/Library/Caches/org.swift.swiftpm`. On the runner
+that cache does not hold the bundle, and SwiftPM downloads it into the new scratch path. The gate's profile
+denies writes under the per-user temporary directory except `TemporaryItems`, and the download fails there
+with `TMPDIR` set to the run's own directory and with or without `--disable-sandbox`. On the machine of §1 the
+default cache holds the 0.9.0 bundle, and the gate of §11.2 item 2 passed.
+
+### 12.3 Measured
+
+On the machine of §1, in `PluginFixture`, planning `App` with `--print-manifest-job-graph` on a scratch path no
+earlier run used, `TMPDIR` set to a directory of the run's own:
+
+| before the plan | cache | profile | SwiftPM's sandbox | result |
+| --- | --- | --- | --- | --- |
+| nothing | an empty `--cache-path` | the gate's | `--disable-sandbox` | `failed downloading …` as in §12.1, `Operation not permitted` |
+| nothing | an empty `--cache-path` | none | on | the job graph printed |
+| `swift package resolve` with the lane's `--cache-path`, outside the profile: 3 s | an empty `--cache-path` | the gate's | `--disable-sandbox` | exit 0 in 37 s; no `Download`, `Fetch` or `error` line |
+| the same: 1 s | the default | the gate's | on | exit 1, `sandbox_apply: Operation not permitted` |
+
+The fourth row is the state the gate's second print needs: a resolved path is still one SwiftPM has not
+planned.
+
+### 12.4 The change
+
+- **`run-plugin-checks.sh` §13:** `sandboxed_print` runs `swift package resolve` with the lane's cache path on
+  each new scratch path, outside the profile, before the sandboxed print. The lane on the machine of §1: `ALL
+  PLUGIN CHECKS PASSED (cold 37s, warm 1s)`, with the retry line on both prints without the setting. That
+  machine's default cache holds the bundle, so the download is exercised by the runner only.
+- **`references/printing-mocks.md`:** a plan that downloads the bundle inside such a sandbox fails with
+  `failed downloading … Operation not permitted`; the adopter runs `swift package resolve` outside the
+  sandbox once. `print-mocks.sh` does not recognise that failure and prints `planning <Target> failed`.
+
+### 12.5 Not done
+
+- `ci.yml` on the change of §12.4.
