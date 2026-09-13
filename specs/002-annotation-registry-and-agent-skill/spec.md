@@ -1030,6 +1030,9 @@ lands. `CreateMock` appears 22 times across `Tests/Checks/Fixtures/`, 93 times i
 app, and behind 34 mocks in `modaal-firebase-wrappers` (CONTRIBUTING §Consumers). That is why the
 rename is only worth making if it is finished — D13.
 
+**Pointer, 2026-09-13:** `CONTRIBUTING.md` no longer has a Consumers section; `specs/003-consumer-pin-drift/spec.md`
+§6.1 records what it held.
+
 **D13 — Aliases match, are documented nowhere, and the three legacy selectors are retired in a later
 release.** An alias exists because a spelling shipped, or because a hand-written annotation was
 plausibly mistyped from memory. Rendering one would make it a second canonical form with no way back
@@ -1138,6 +1141,9 @@ not: it turns on when both reference consumers are next regenerated, since retir
 `TypeErase` and `ObjcProtocol` fails generation for any source still spelling them, and CONTRIBUTING
 §"Cutting a release" already puts a `modaal-firebase-wrappers` regenerate in the release path. The
 earliest candidate is the release after the one carrying phases A1–A4 and B1–B3.
+
+**Pointer, 2026-09-13:** "Cutting a release" step 2 now reads "Regenerate a consumer repository"; the step as quoted
+here is in `specs/003-consumer-pin-drift/spec.md` §6.1.
 
 ---
 

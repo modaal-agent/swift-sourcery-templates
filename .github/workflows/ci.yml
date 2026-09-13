@@ -319,6 +319,6 @@ jobs:
       - name: Run example project tests
         working-directory: Tests/Examples/ExampleProjectSpm
         run: ./test-ios.sh
-        # If this lane's wall time becomes a problem, the fix is to teach
-        # test-ios.sh a `-derivedDataPath` and cache it, the way the
-        # modaal-firebase-wrappers workflow caches `.build/DerivedData`.
+        # If this lane's wall time becomes a problem, teach test-ios.sh a
+        # `-derivedDataPath` under `.build/DerivedData` and cache that
+        # directory with `actions/cache`.
