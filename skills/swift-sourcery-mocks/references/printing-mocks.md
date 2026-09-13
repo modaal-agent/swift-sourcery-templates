@@ -55,6 +55,15 @@ An agent that cannot run the script runs that command and reads those files.
   script plans for the iOS simulator instead, adding
   `--triple "$(uname -m)-apple-ios-simulator" --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)"`.
 - **`SCRATCH_PATH`** names the build directory when it is not `.build`, as `--scratch-path` does.
+- **Inside another sandbox** — `sandbox-exec`, or an agent's own — SwiftPM cannot start its sandbox, and
+  the plan fails with `sandbox_apply: Operation not permitted`. The script then prints
+  `print-mocks: SwiftPM could not start its sandbox; planning again with --disable-sandbox` and plans
+  again with that flag. Set `PRINT_MOCKS_DISABLE_SANDBOX=1` to pass the flag from the first plan. Running
+  the command by hand, add `--disable-sandbox`.
+- **That sandbox has to allow writes** to the build directory and to `TemporaryItems` under the
+  directory `getconf DARWIN_USER_TEMP_DIR` prints; SwiftPM writes there. When the plan fails with
+  `Operation not permitted` on another path under that directory, the plugin release in use does not
+  give Sourcery a `TMPDIR` under the build directory: allow that path, or update the release.
 
 ## Xcode projects
 
