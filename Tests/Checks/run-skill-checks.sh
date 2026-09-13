@@ -611,9 +611,9 @@ fi
 # The skill tells an agent to run `scripts/<name>` from its own directory, so a
 # script it names has to be there and executable, and so does every file under a
 # `scripts/` directory. It also quotes the lines a script ends with, each with
-# what to do: every quoted `<script>: …` line has to be a `fail "…"` string of
-# that script. A `<placeholder>` in the quote and a `$name` or `${…}` in the
-# script each read as one wildcard (spec 005 §3 D6).
+# what to do: every quoted `<script>: …` line has to be a `fail "…"` or
+# `note "…"` string of that script. A `<placeholder>` in the quote and a `$name`
+# or `${…}` in the script each read as one wildcard (spec 005 §3 D6).
 echo ""
 echo "── SC14: every script the skill names is there and executable, and every line it quotes is one the script prints ──"
 SC14=""
@@ -636,7 +636,7 @@ done
 : > "$TMP/quoted"
 for script in $SCRIPT_FILES; do
   base="$(basename "$script")"; base="${base%.*}"
-  sed -n 's/.*fail "\([^"]*\)".*/\1/p' "$script" \
+  sed -nE 's/.*(fail|note) "([^"]*)".*/\2/p' "$script" \
     | sed -E 's/\$\{[^}]*\}/<*>/g; s/\$[A-Za-z_][A-Za-z0-9_]*/<*>/g' \
     | sed "s|^|$base: |" >> "$TMP/printed"
   # shellcheck disable=SC2086

@@ -73,6 +73,13 @@ extension Array where Element == SourceCode {
     func isolated(_ prefix: String) -> [SourceCode] {
         return map { $0.prefixed(prefix) }
     }
+
+    /// These lines between `#if <condition>` and `#endif`, or unchanged when `condition` is `nil`
+    /// (spec 006 §8.4).
+    func conditional(_ condition: String?) -> [SourceCode] {
+        guard let condition = condition, !isEmpty else { return self }
+        return [SourceCode(CompilationConditions.opening(condition))] + self + [SourceCode(CompilationConditions.closing)]
+    }
 }
 
 class TopScope {

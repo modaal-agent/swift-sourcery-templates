@@ -1,9 +1,11 @@
+<%_ let importSelectors = [AnnotationRegistry.duetComponent] -%>
 <%- include("_header") -%>
 <%- includeFile("Annotations/AnnotationRegistry") -%>
 <%- includeFile("Annotations/AnnotationAccess") -%>
 <%- includeFile("Utility/Generics") -%>
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
+<%- includeFile("Utility/CompilationConditions") -%>
 <%- includeFile("Mocks/MockNaming") -%>
 <%- includeFile("Mocks/MockMethod") -%>
 <%- includeFile("Mocks/MockVar") -%>

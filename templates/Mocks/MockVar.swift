@@ -9,14 +9,19 @@ class MockVar {
         return MockNaming.variablePrefix(name: variable.name)
     }
 
+    /// The `#if` condition this property's members are generated inside, or `nil`.
+    var condition: String? {
+        return CompilationConditions.condition(of: variable)
+    }
+
     init(variable: SourceryRuntime.Variable, type: SourceryRuntime.`Type`) {
         self.variable = variable
         self.type = type
     }
 
     static func from(_ type: Type) -> [MockVar] {
-        let allVariables = type.allVariables.filter { !$0.isStatic && $0.definedInType != nil && $0.definedInType?.isExtension == false }.uniqueVariables
-        return allVariables.map { MockVar(variable: $0, type: type) }.sorted { $0.mockedVariableName < $1.mockedVariableName }
+        let allVariables = CompilationConditions.uniqueByName(type.allVariables.filter { !$0.isStatic && $0.definedInType != nil && $0.definedInType?.isExtension == false })
+        return allVariables.map { MockVar(variable: $0, type: type) }.sorted { ($0.mockedVariableName, $0.condition ?? "") < ($1.mockedVariableName, $1.condition ?? "") }
     }
 }
 
@@ -213,14 +218,5 @@ extension MockVar {
         topScope += mockedVariableImplementation
         topScope += mockedVariableHandlers.nested
         return topScope.nested
-    }
-}
-
-private extension Collection where Element: SourceryRuntime.Variable {
-    var uniqueVariables: [SourceryRuntime.Variable] {
-        return reduce(into: [], { (result, element) in
-            guard !result.contains(where: { $0.name == element.name }) else { return }
-            result.append(element)
-        })
     }
 }

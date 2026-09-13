@@ -187,6 +187,15 @@ if [ -n "$APP_FILELIST" ] && grep -qF "$APP_MOCK" "$APP_FILELIST"; then
 else
   fail "the generated file is not in App's compile input list"
 fi
+# The prebuild command's TMPDIR (spec 006 §2.2), which Sourcery's build of the
+# template writes into instead of the per-user temporary directory.
+APP_TMPDIR="$(find "$DD/Build/Intermediates.noindex/BuildToolPluginIntermediates" -type d \
+  -path "*/App/SourcerySwiftCodegenPlugin/.sourceryBuild/tmp" 2>/dev/null | head -1)"
+if [ -n "$APP_TMPDIR" ]; then
+  pass "the plugin created .sourceryBuild/tmp under App's plugin work directory ($(ls -A "$APP_TMPDIR" | wc -l | tr -d ' ') entries)"
+else
+  fail "no .sourceryBuild/tmp under App's plugin work directory"
+fi
 
 # ── 2. Closure ────────────────────────────────────────────────────
 # `${SOURCERY_SOURCES}` expands to the target's own input directories and nothing

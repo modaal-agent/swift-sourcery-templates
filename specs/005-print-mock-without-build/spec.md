@@ -279,6 +279,11 @@ the last bullet, which read the lanes and not `ci.yml`'s change filter.
 Nothing is written outside `.build`, and the files printed are the ones the next build compiles
 (§1.1).
 
+**Superseded in part by `specs/006-sandboxed-print-and-conditional-members/spec.md` §2.1 and §10.1:**
+stderr is kept in a variable instead of a temporary file, and steps 1 and 2 add `--disable-sandbox`
+when `PRINT_MOCKS_DISABLE_SANDBOX=1` is set or when a plan fails with `sandbox_apply: Operation not
+permitted`.
+
 ### 2.3 Xcode
 
 1. **The derived data:** `$DERIVED_DATA`; otherwise each

@@ -18,6 +18,72 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
+## Unreleased
+
+### A declaration generated inside `#if`
+
+**Generated output.** `// sourcery: if = "<condition>"` on a protocol, a method or a property generates
+it inside `#if <condition>`: a member's lines in the mock, the Component and the type erasure, and a
+whole protocol's classes from their `// MARK:` line to the closing brace.
+
+```swift
+/// sourcery: ProtocolMock
+protocol AvatarRepositoryProtocol {
+    func fetch(id: String) -> String
+    #if canImport(UIKit)
+    // sourcery: if = "canImport(UIKit)"
+    func uploadOwnPhoto(_ image: UIImage)
+    #endif
+}
+```
+
+generates `uploadOwnPhoto(_:)`, `uploadOwnPhotoCallCount`, `uploadOwnPhotoArgs` and
+`uploadOwnPhotoHandler` between `#if canImport(UIKit)` and `#endif`. Sourcery reads every clause of an
+`#if` and records no condition, so a declaration inside one that carries no `if` is generated on every
+platform, as before.
+
+- Several `if` values on one declaration are joined with `&&`. `// sourcery:begin: if = "…"` …
+  `// sourcery:end` applies one value to each declaration between the two lines.
+- A method declared identically in two clauses, each with its own `if`, is generated once, under the two
+  conditions joined with `||`.
+- A property name declared with a different type in each clause, each with its own `if`, is generated
+  twice, each copy under its own condition, with the same member names.
+
+**Imports.** A `canImport(<M>)` term in an `if` value guards the generated file's import of `<M>`: an
+`args.import` or `args.testable` item `<M>` is emitted between `#if canImport(<M>)` and `#endif`, and a
+guarded `import <M>` is added when neither list names `<M>`. An item written `<M> // if canImport` is
+emitted guarded whatever the annotations say:
+
+```yml
+args:
+  import:
+    - SwiftUI
+    - UIKit // if canImport
+```
+
+A release before this one reads that item as `import UIKit // if canImport`: an unconditional import.
+
+**Breaking.** A property that sits inside its own `if` and that the mock's initializer takes — no
+default value for its type, or `sourcery: init` — fails generation, naming the property. Put
+`/// sourcery: handler` on it, or give it a type with a default value, such as an optional. A
+configuration with no `// if canImport` item, over sources with no `if` annotation, generates the same
+bytes as 0.9.0: the fast lane's four snapshots over 0.9.0's fixtures, and the type erasure over
+`Tests/Examples/ExampleProjectSpm`, compared byte for byte on 2026-09-13.
+
+**Adopting.** Beside each `#if` around a declaration that names a type or a module some platform of the
+target lacks, write `// sourcery: if = "<the text after #if>"`.
+
+### The plugin gives Sourcery a `TMPDIR`
+
+**Generated output.** Unchanged. The prebuild command runs with `TMPDIR` set to
+`<pluginWorkDirectory>/.sourceryBuild/tmp`, which the plugin creates. Sourcery's `swift build` of the
+Swift template writes its lock files and `TemporaryDirectory.*` there instead of the per-user temporary
+directory, so a build inside a sandbox that denies that directory gets past the prebuild command.
+
+**Adopting.** Nothing.
+
+---
+
 ## 0.9.0 — 2026-09-12
 
 Two entries, one release.

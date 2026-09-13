@@ -23,9 +23,10 @@ SOURCERY=/path/to/sourcery Tests/Checks/run-checks.sh
 | **snapshot** | each generated file matches its recording in [`Snapshots/`](Snapshots), so every template change shows up as a reviewable diff of real output |
 | **zero-match** | a scan with no matching annotation still writes the file — the generators emit a marker comment, because the engine skips whitespace-only renders and consumers commit + fingerprint the output — snapshotted as `ZeroMatch-*` |
 | **near-miss** | a selector whose spelling differs from the registry's only in case fails the run, naming the type, the spelling found and the canonical form; an option that does writes one `// sourcery-templates:` comment into the generated file and generation continues |
-| **refusal** | a construct the templates cannot emit fails generation naming the protocol and the member, instead of writing a file the consumer's compiler rejects: two members that would carry one name, a requirement declaring `throws(E)`, an `AnyPublisher` requirement declared `async` or `throws` |
+| **refusal** | a construct the templates cannot emit fails generation naming the protocol and the member, instead of writing a file the consumer's compiler rejects: two members that would carry one name, a requirement declaring `throws(E)`, an `AnyPublisher` requirement declared `async` or `throws`, a property inside its own `if` that the initializer takes, and a conditional property's bookkeeping name repeated outside any condition |
 | **naming-comments** | every `` `X` members are named `Y*` `` comment in the generated file describes the member under it, and each class's index is exactly the set of members commented inside that class — with a red control for a comment naming the wrong prefix and one for an index missing a member |
-| **typecheck** | all of them compile **together** with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6` |
+| **typecheck** | all of them compile **together** with **zero diagnostics** under `-swift-version 5 -strict-concurrency=complete` **and** under `-swift-version 6`, each with no flag, with `-D FIXTURE_CONDITION_A` and with `-D FIXTURE_CONDITION_B` |
+| **imports** | an `args.import` or `args.testable` item written `<M> // if canImport` is generated once between `#if canImport(<M>)` and `#endif`, and an item with other text after `//` keeps its full text |
 | **behaviour** | the mocks count calls, record arguments, run handlers, suspend where the protocol suspends and deliver values pushed into their subjects; the Components forward to the parent and hold what the level owns — [`Behaviour/Main.swift`](Behaviour/Main.swift), plain assertions in one executable |
 
 Compiling every template's output in one invocation is deliberate: a mock and a
@@ -145,6 +146,24 @@ no generated output.
 
 A misspelling is not here: it fails generation for the whole run, so it lives in
 `run-checks.sh`'s near-miss section and in `PluginFixtureRed/NearMiss`.
+
+[`Conditional.swift`](Fixtures/Conditional.swift) and
+[`ConditionalInherited.swift`](Fixtures/ConditionalInherited.swift) hold declarations
+generated inside `#if` from their `sourcery: if` annotations (spec 006 §8.5). Each sits
+inside the matching `#if FIXTURE_CONDITION_A` or `#if FIXTURE_CONDITION_B` and names a
+type declared only under that flag, so the flagged typechecks fail when a directive is
+missing or wrong. Every protocol here carries `ProtocolMock` and `DuetComponent`.
+
+| construct | fixture |
+| --- | --- |
+| one `if` on a member | `ConditionalMember.adopt` |
+| `if = "canImport(Combine)"`, which guards the lane's configured `import Combine` | `ConditionalMember.ticks` |
+| two stacked `if` lines, joined with `&&` | `ConditionalStacked.pair` |
+| `sourcery:begin` / `sourcery:end` around a property and a method | `ConditionalBlock` |
+| a whole protocol, whose initializer takes a property with no default | `ConditionalWhole` |
+| a member inherited from a protocol in another file | `ConditionalInheriting.receive`, from `ConditionalInheritedBase` |
+| one declaration in both clauses, folded into one member under `\|\|` | `ConditionalMerged.render` |
+| one property name with a different type in each clause, generated twice | `ConditionalTwoTypes.mode` |
 | a Component name not derived from a `Dependency` suffix | `AppServicesRegistering` |
 | optional existentials in a forwarded signature | `DetailPresenting` |
 
@@ -196,7 +215,7 @@ exactly the distance no `SOURCERY_TARGET_*` variable reaches.
 | --- | --- |
 | `App` | the placeholder plus one hand-listed entry, and two shipped templates named by name from one config |
 | `Solo` | zero configuration: `templates:` and nothing else |
-| `Verbatim` | declares every path itself — the copy must be byte-identical |
+| `Verbatim` | declares every path itself — the copy must be byte-identical; its import item is `Foundation // if canImport` |
 | `Local` | ships its own `Mocks.swifttemplate` beside its config, which has to outrank the shipped one |
 | `AppTests` | a test target with one direct root-package dependency, and *two* configs |
 | `AmbiguousTests` | a test target with two, so `args.testable` cannot be derived |
@@ -206,7 +225,7 @@ exactly the distance no `SOURCERY_TARGET_*` variable reaches.
 | **splice** | `${SOURCERY_SOURCES}` expands to one quoted, absolute directory per module in the closure, sorted, with `Leaf` and `ExternalKit` present — the case no env var can express |
 | **passthrough** | every other line of the config, comments and blank lines included, survives in order |
 | **defaults** | a config carrying only `templates:` gains a `sources:` block holding the closure and an `output:` holding the absolute output directory, and generates |
-| **no-defaults** | a config declaring both keys is copied byte for byte |
+| **no-defaults** | a config declaring both keys is copied byte for byte, and its `// if canImport` item is generated inside `#if canImport(Foundation)` |
 | **testable** | one direct root-package dependency inserts `testable: [<module>]` at the siblings' indentation; two insert nothing and name both; a config that already declares it is untouched; no non-test target gets one |
 | **bare name** | `- Mocks` resolves to the shipped template; a file beside the config wins over the shipped one of the same name, and it is the local one that runs |
 | **generation** | the mock for the `Leaf`-refining protocol carries `save` (two modules away), `report` (two modules away, another package), `cacheLimit` and `profileID`, and the fixture's tests pass against it |

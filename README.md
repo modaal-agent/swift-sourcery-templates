@@ -145,6 +145,37 @@ Two deliberate non-goals:
   the mock callable from a non-isolated test body.
 - **Mock classes are `final`.** Subclassing a generated mock is not supported; set a handler instead.
 
+## Conditional compilation
+
+Sourcery reads every clause of an `#if` and records no condition, so a requirement declared inside
+`#if canImport(UIKit)` is generated on every platform unless its declaration says otherwise. Say it with
+`sourcery: if`, whose value is the text after `#if`:
+
+```swift
+/// sourcery: ProtocolMock
+protocol AvatarRepositoryProtocol {
+    func fetch(id: String) -> String
+    #if canImport(UIKit)
+    // sourcery: if = "canImport(UIKit)"
+    func uploadOwnPhoto(_ image: UIImage)
+    #endif
+}
+```
+
+| the declaration carries | generated |
+| --- | --- |
+| `if` on a method or a property | its members between `#if <value>` and `#endif`, in the mock, the Component and the type erasure |
+| `if` on the protocol | the whole mock, Component or type erasure inside `#if <value>` |
+| several `if` lines | the values joined with `&&` |
+| `// sourcery:begin: if = "<value>"` … `// sourcery:end` | the value on every declaration between the two lines |
+| the same method in two clauses, each with its own `if` | one member, under the two conditions joined with `\|\|` |
+| one property name with a different type in each clause, each with its own `if` | both, each under its own condition, with the same member names |
+| `canImport(<Module>)` in an `if` value | the generated file's `import <Module>` between `#if canImport(<Module>)` and `#endif`, added when the config lists no such import |
+
+A property inside its own `if` that the mock's initializer takes — its type has no default value, or it
+carries `init` — fails generation, because the initializer is generated once, outside the condition.
+Put `sourcery: handler` on it, or give it a type with a default value.
+
 ## Combine
 
 An `AnyPublisher<Output, Failure>` requirement is backed by a subject the test drives:
@@ -267,6 +298,9 @@ nonisolated forwarder has to read it.
 **What it refuses**, each with a diagnostic naming the member: `static` requirements, `init`
 requirements, `subscript` requirements, and associated types. None can be discharged by forwarding to
 a stored instance, so generation fails rather than emitting a class that will not conform.
+
+A requirement or a protocol carrying `sourcery: if` is forwarded inside the same `#if`
+([Conditional compilation](#conditional-compilation)).
 
 **The emitted type is internal by default**, even when the protocol is public — a Component is
 consumed by its own module's builders, and widening a module's API surface as a side effect of
@@ -476,6 +510,10 @@ answer is unambiguous: for a test target with exactly one direct dependency on a
 package, the plugin inserts `testable: [<module>]`. With none, or with two or more, it inserts
 nothing and names the candidates in the build log.
 
+An `import:` or `testable:` item for a module some platform of the target lacks is written
+`UIKit // if canImport`, and is generated between `#if canImport(UIKit)` and `#endif`. A release before
+the one that reads that form generates `import UIKit // if canImport`, an unconditional import.
+
 #### One config, several templates
 
 Sourcery writes one `<Template>.generated.swift` per `templates:` entry, so one config can drive
@@ -678,6 +716,8 @@ Passed via `--args` on the CLI or `args:` in a YAML config:
 |-----|--------|
 | `import=Module` | add `import Module` to the generated file |
 | `testable=Module` | add `@testable import Module` to the generated file |
+| `import=Module // if canImport` | add `import Module` between `#if canImport(Module)` and `#endif` |
+| `testable=Module // if canImport` | add `@testable import Module` between `#if canImport(Module)` and `#endif` |
 | `excludedSwiftLintRules=[rule1,rule2]` | emit `//swiftlint:disable` directives for each rule |
 
 A Component is production code, so its output takes `import=`, not `testable=`.
@@ -771,6 +811,7 @@ Annotation names are matched exactly, including case.
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
 | `subject = "CurrentValue"` | Variable / method | Choose the subject backing an `AnyPublisher` member — `CurrentValue` or `Passthrough` |
 | `skipArgumentRecording` | Protocol / method / variable | Do not generate `<method>Args`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected |
+| `if = "canImport(UIKit)"` | Protocol / method / variable | Generate the member, or the whole mock, inside `#if <value>` |
 | `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
 | `componentAccess = "public"` | Protocol | Emit a `public` Component; the default is internal |

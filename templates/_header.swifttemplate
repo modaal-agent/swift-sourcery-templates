@@ -9,7 +9,9 @@
 <%_
 func generateAdditionalImports(_ types: [Type]) {
   let additionalImports = Set(types.flatMap { $0.annotations(for: AnnotationRegistry.importModule) })
-  let existingImports = Set(extractImports())
+  // A module the configured imports name, or one an `if` value guards, is already imported.
+  let existingImports = Set(extractImports().map { CompilationConditions.ImportItem($0).module })
+    .union(types.flatMap { CompilationConditions.importedModules(of: $0) })
   let missingImports = additionalImports.subtracting(existingImports).sorted()
   guard !missingImports.isEmpty else { return }
   print(missingImports.map { "import \($0)" }.joined(separator: "\n"))
@@ -24,10 +26,16 @@ func extractImports(attributeName: String = "import") -> [String] {
     return []
   }
 }
+
+// `importSelectors` is declared by the entry point, above its `include("_header")`: the selectors of
+// the protocols it generates, whose `if` values guard imports (`CompilationConditions.importLines`).
+// The lines are template text, not `print` output: Sourcery writes a template's `print` output above
+// all of its text.
+let importLines = CompilationConditions.importLines(
+  imports: extractImports(),
+  testable: extractImports(attributeName: "testable"),
+  types: types.protocols.filter { $0.isAnnotated(any: importSelectors) })
 -%>
-<%_ for imported in extractImports().sorted() { -%>
-    <%_ %>import <%= imported %>
-<%_ } -%>
-<%_ for imported in extractImports(attributeName: "testable").sorted() { -%>
-    <%_ %>@testable import <%= imported %>
+<%_ for line in importLines { -%>
+    <%_ %><%= line %>
 <%_ } -%>

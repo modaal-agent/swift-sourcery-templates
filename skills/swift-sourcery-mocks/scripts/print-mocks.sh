@@ -19,6 +19,10 @@
 #
 # Environment, each optional:
 #   SCRATCH_PATH        SwiftPM: the build directory, when it is not .build
+#   PRINT_MOCKS_DISABLE_SANDBOX
+#                       SwiftPM: 1 adds --disable-sandbox to `swift build`. Without it, a plan that
+#                       fails because SwiftPM could not start its sandbox inside another sandbox is
+#                       run again with the flag
 #   DERIVED_DATA        Xcode: the derived data directory to read; setting it selects the Xcode lane
 #   DERIVED_DATA_ROOT   Xcode: where to look for it, ~/Library/Developer/Xcode/DerivedData by default
 #   SOURCERY_PROJECT    Xcode: the project directory, when it is not the one holding the .xcodeproj
@@ -36,6 +40,7 @@ TARGET="$1"; shift
 PROTOCOLS=("$@")
 
 fail() { echo "print-mocks: $*" >&2; exit 1; }
+note() { echo "print-mocks: $*" >&2; }
 
 # The first line of the input. awk reads to the end, so the command writing into the pipe is not
 # stopped by SIGPIPE, which `set -o pipefail` would turn into a silent exit.
@@ -70,6 +75,28 @@ print_generated() {   # <file>...
 
 # ── SwiftPM ───────────────────────────────────────────────────────
 
+# Plans the build, keeping SwiftPM's stderr in $err. The arguments follow the target's own. Stderr
+# is held in a variable, not a file: macOS's `mktemp` creates its file in the per-user temporary
+# directory whatever TMPDIR holds, and an outer sandbox can deny writes there. SwiftPM cannot start
+# its own sandbox inside another one: it says `sandbox_apply: Operation not permitted` where it compiles
+# the manifest, and `Plugin ended with exit code 71` where the manifest is already in its cache and the
+# first sandbox it starts is the plugin's. That plan is run again with --disable-sandbox.
+plan() {   # [argument...]
+  if err="$(swift build --target "$TARGET" --print-manifest-job-graph ${scratch[@]+"${scratch[@]}"} \
+      ${sandbox[@]+"${sandbox[@]}"} "$@" 2>&1 > /dev/null)"; then
+    return 0
+  fi
+  case "$err" in
+    *"sandbox_apply: Operation not permitted"* | *"Plugin ended with exit code 71"*)
+      [ ${#sandbox[@]} -eq 0 ] || return 1
+      note "SwiftPM could not start its sandbox; planning again with --disable-sandbox"
+      sandbox=(--disable-sandbox)
+      plan "$@" ;;
+    *)
+      return 1 ;;
+  esac
+}
+
 spm() {
   build=".build"
   scratch=()
@@ -77,22 +104,22 @@ spm() {
     build="$SCRATCH_PATH"
     scratch=(--scratch-path "$SCRATCH_PATH")
   fi
-  err="$(mktemp)"
-  trap 'rm -f "$err"' EXIT
-  if ! swift build --target "$TARGET" --print-manifest-job-graph ${scratch[@]+"${scratch[@]}"} > /dev/null 2> "$err"; then
+  sandbox=()
+  if [ "${PRINT_MOCKS_DISABLE_SANDBOX:-}" = "1" ]; then sandbox=(--disable-sandbox); fi
+  if ! plan; then
     # A package declaring no macOS platform cannot be planned for the host once it depends on the
     # plugin, which requires macOS 13. The simulator plan runs the same prebuild command.
-    if grep -q "depends on the product 'SourcerySwiftCodegenPlugin' which requires macos" "$err"; then
-      swift build --target "$TARGET" --print-manifest-job-graph ${scratch[@]+"${scratch[@]}"} \
-        --triple "$(uname -m)-apple-ios-simulator" --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-        > /dev/null 2> "$err" || { cat "$err" >&2; fail "planning $TARGET for the iOS simulator failed"; }
-    else
-      cat "$err" >&2
-      fail "planning $TARGET failed"
-    fi
+    case "$err" in
+      *"depends on the product 'SourcerySwiftCodegenPlugin' which requires macos"*)
+        plan --triple "$(uname -m)-apple-ios-simulator" --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+          || { printf '%s\n' "$err" >&2; fail "planning $TARGET for the iOS simulator failed"; } ;;
+      *)
+        printf '%s\n' "$err" >&2
+        fail "planning $TARGET failed" ;;
+    esac
   fi
   # The plugin warns when the package is not in a git repository; every other warning is passed on.
-  grep 'warning:' "$err" | grep -v 'Error running git command' >&2 || true
+  printf '%s\n' "$err" | grep 'warning:' | grep -v 'Error running git command' >&2 || true
 
   files=()
   while IFS= read -r file; do files+=("$file"); done < <(

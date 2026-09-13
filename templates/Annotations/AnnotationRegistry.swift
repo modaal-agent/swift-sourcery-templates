@@ -211,6 +211,15 @@ enum AnnotationRegistry {
         valueHint: nil
     )
 
+    static let ifCondition = Annotation(
+        name: "if",
+        aliases: [],
+        kind: .option,
+        target: "Protocol / method / variable",
+        effect: "Generate the member, or the whole mock, inside `#if <value>`",
+        valueHint: "canImport(UIKit)"
+    )
+
     static let owns = Annotation(
         name: "owns",
         aliases: [],
@@ -259,6 +268,7 @@ enum AnnotationRegistry {
         uncheckedSendable,
         subject,
         skipArgumentRecording,
+        ifCondition,
         owns,
         componentName,
         componentAccess,

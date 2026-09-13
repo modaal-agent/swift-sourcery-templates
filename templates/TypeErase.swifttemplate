@@ -18,12 +18,14 @@
   ```
   The pattern implemented here follows this article: https://www.bignerdranch.com/blog/breaking-down-type-erasures-in-swift/
 -%>
+<%_ let importSelectors = [AnnotationRegistry.typeErasure] -%>
 <%- include("_header") -%>
 <%- includeFile("Annotations/AnnotationRegistry") -%>
 <%- includeFile("Annotations/AnnotationAccess") -%>
 <%- includeFile("Utility/Generics") -%>
 <%- includeFile("Utility/String") -%>
 <%- includeFile("Utility/StringLettercase") -%>
+<%- includeFile("Utility/CompilationConditions") -%>
 <%_
   try AnnotationRegistry.rejectNearMisses(in: types.protocols)
   let typesToProcess = types.protocols.filter { $0.isAnnotated(AnnotationRegistry.typeErasure) }
@@ -39,8 +41,14 @@
 
     let allVariables = type.allVariables.filter { !$0.isStatic }
     let allMethods = type.allMethods.filter { !$0.isStatic }
+    // A protocol annotated `if` is generated inside its condition, the three
+    // classes together, and each member inside its own (spec 006 D8).
+    let typeCondition = CompilationConditions.condition(of: type)
 -%>
 
+<%_ if let typeCondition = typeCondition { -%>
+<%= CompilationConditions.opening(typeCondition) %>
+<%_ } -%>
 // MARK: - Type erasure for `<%=type.name%>`
 
 private class _Any<%=type.name%>Base<%=genericTypesModifier%>: <%=type.name%><%=genericTypesConstraints%> {
@@ -52,18 +60,30 @@ private class _Any<%=type.name%>Base<%=genericTypesModifier%>: <%=type.name%><%=
     <%_ if !allVariables.isEmpty { -%>
 
     <%_ for p in allVariables { -%>
+    <%_ if let condition = CompilationConditions.condition(of: p) { -%>
+    <%= CompilationConditions.opening(condition) %>
+    <%_ } -%>
     var <%=p.name%>: <%=p.typeName%> {
         get { fatalError("Must override") }
         <% if p.isMutable { %>set { fatalError("Must override") }<% } %>
     }
+    <%_ if CompilationConditions.condition(of: p) != nil { -%>
+    <%= CompilationConditions.closing %>
+    <%_ } -%>
     <%_ } -%>
     <%_ } -%>
     <%_ if !allMethods.isEmpty { -%>
 
     <%_ for m in allMethods { -%>
+    <%_ if let condition = CompilationConditions.condition(of: m) { -%>
+    <%= CompilationConditions.opening(condition) %>
+    <%_ } -%>
     func <%=m.name%><%=m.throws ? " throws" : ""%> -> <%=m.returnTypeName%> {
         fatalError("Must override")
     }
+    <%_ if CompilationConditions.condition(of: m) != nil { -%>
+    <%= CompilationConditions.closing %>
+    <%_ } -%>
     <%_ } -%>
     <%_ } -%>
 }
@@ -80,18 +100,30 @@ private final class _Any<%=type.name%>Box<Concrete: <%=type.name%>>: _Any<%=type
     <%_ if !allVariables.isEmpty { -%>
 
     <%_ for p in allVariables { -%>
+    <%_ if let condition = CompilationConditions.condition(of: p) { -%>
+    <%= CompilationConditions.opening(condition) %>
+    <%_ } -%>
     override var <%=p.name%>: <%=p.typeName%> {
         get { return concrete.<%=p.name%> }
         <% if p.isMutable { %>set { concrete.<%=p.name%> = newValue }<% } %>
     }
+    <%_ if CompilationConditions.condition(of: p) != nil { -%>
+    <%= CompilationConditions.closing %>
+    <%_ } -%>
     <%_ } -%>
     <%_ } -%>
     <%_ if !allMethods.isEmpty { -%>
 
     <%_ for m in allMethods { -%>
+    <%_ if let condition = CompilationConditions.condition(of: m) { -%>
+    <%= CompilationConditions.opening(condition) %>
+    <%_ } -%>
     override func <%=m.name%><%=m.throws ? " throws" : ""%> -> <%=m.returnTypeName%> {
         return <%=m.throws ? "try " : ""%>concrete.<%=m.callName%>(<%= m.parameters.map { "\($0.argumentLabel != nil ? "\($0.argumentLabel!): " : "")\($0.`inout` ? "inout ": "")\($0.name)" }.joined(separator: ", ") %>)
     }
+    <%_ if CompilationConditions.condition(of: m) != nil { -%>
+    <%= CompilationConditions.closing %>
+    <%_ } -%>
     <%_ } -%>
     <%_ } -%>
 }
@@ -105,20 +137,35 @@ private final class _Any<%=type.name%>Box<Concrete: <%=type.name%>>: _Any<%=type
     <%_ if !allVariables.isEmpty { -%>
 
     <%_ for p in allVariables { -%>
+    <%_ if let condition = CompilationConditions.condition(of: p) { -%>
+    <%= CompilationConditions.opening(condition) %>
+    <%_ } -%>
     <%=type.accessLevel == "public" ? "public " : ""%>var <%=p.name%>: <%=p.typeName%> {
         get { return box.<%=p.name%> }
         <% if p.isMutable { %>set { box.<%=p.name%> = newValue }<% } %>
     }
+    <%_ if CompilationConditions.condition(of: p) != nil { -%>
+    <%= CompilationConditions.closing %>
+    <%_ } -%>
     <%_ } -%>
     <%_ } -%>
     <%_ if !allMethods.isEmpty { -%>
 
     <%_ for m in allMethods { -%>
+    <%_ if let condition = CompilationConditions.condition(of: m) { -%>
+    <%= CompilationConditions.opening(condition) %>
+    <%_ } -%>
     <%=type.accessLevel == "public" ? "public " : ""%>func <%=m.name%><%=m.throws ? " throws" : ""%> -> <%=m.returnTypeName%> {
         return <%=m.throws ? "try " : ""%>box.<%=m.callName%>(<%= m.parameters.map { "\($0.argumentLabel != nil ? "\($0.argumentLabel!): " : "")\($0.`inout` ? "inout ": "")\($0.name)" }.joined(separator: ", ") %>)
     }
+    <%_ if CompilationConditions.condition(of: m) != nil { -%>
+    <%= CompilationConditions.closing %>
+    <%_ } -%>
     <%_ } -%>
     <%_ } -%>
 }
+<%_ if typeCondition != nil { -%>
+<%= CompilationConditions.closing %>
+<%_ } -%>
 <%_ -%>
 <% } -%>
