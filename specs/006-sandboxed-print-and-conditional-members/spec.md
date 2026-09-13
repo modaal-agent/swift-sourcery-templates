@@ -19,6 +19,9 @@ names `canImport(<M>)`, or when its `args.import` item is written `<M> // if can
 **Ruled on 2026-09-13 — §10:** D1 (a), D2 (c), D3 (a), D7 (a), D8 (a), D9 (a), D10 (a); §9.5, where
 `args.testable` takes the manual form; and §6's two questions.
 
+**Implemented on 2026-09-13 — §11:** P1 to P7 landed on the branch; §11.2 names where the implementation
+differs from §2 to §10.
+
 **Measurements:** every number, path and quoted line in §1 was produced on 2026-09-13 on macOS 26.6.2
 (25G83) with Xcode 26.6 (17F113), Swift 6.3.3 (swiftlang-6.3.3.1.3), `/bin/bash` 3.2.57 and Sourcery
 2.3.0, against `master` at `296e365`. The Sourcery source read is tag `2.3.0` of
@@ -395,6 +398,8 @@ The prototype does not handle raw strings (`#"…"#`) or a string interpolation 
    name the variable and the retry.
 4. The Xcode lane is unchanged: it creates no temporary file and runs no SwiftPM (§1.1).
 
+**Superseded in part by §11.2 item 1:** step 2's retry also runs on `Plugin ended with exit code 71`.
+
 ### 2.2 The plugin
 
 `_createBuildCommands` creates `<pluginWorkDirectory>/.sourceryBuild/tmp` beside the directories it
@@ -470,6 +475,8 @@ paired or refused.
 
 **Superseded in part by §8.5:** the fast-lane fixture and the refusal red controls.
 
+**Superseded in part by §11.2 item 2:** the plugin lane's sandboxed print runs three times.
+
 ### 2.5 The documents
 
 - `README.md`: the mocks' rule list (`:146`) and the Components' "What it refuses" (`:267`) state that a
@@ -522,6 +529,8 @@ None is ruled. Each lists the option recommended first.
   for an agent that cannot run the script, and the lab keeps `lab/v2/bin/swift`.
 
 **Ruled on 2026-09-13 — §10.1:** (c).
+
+**Superseded in part by §11.2 item 1:** the retry keys on two texts of SwiftPM's.
 
 ### D3 — which `TMPDIR` the plugin sets
 
@@ -804,6 +813,8 @@ On 2026-09-13, on the machine and Sourcery 2.3.0 of §1, through dump templates 
 **Superseded in part by §8.1:** "D4 is not ruled" in §7's opening paragraph, and "Under D4 (b) or (d)" in
 §7.3, which now holds without the condition.
 
+**Superseded in part by §11.2 item 9:** `Scripts/render-annotations.sh` runs in P4.
+
 ---
 
 ## 8. The ruling of 2026-09-13 on D4
@@ -863,6 +874,8 @@ condition, and all three entry points include it.
    repeat only; every other repeated name is refused as it is today. Two conditions true on one platform
    are reported by the compiler.
 4. Steps 4 to 8 of §2.3 stand. There is no refusal for a scan; D7's refusal stays.
+
+**Superseded in part by §11.2 items 5 and 6:** step 1's member condition, and step 3's accepted repeat.
 
 ### 8.5 The gates, under D4 (b)
 
@@ -965,6 +978,8 @@ In `templates/Utility/CompilationConditions.swift`, read by `_header.swifttempla
    `generateAdditionalImports`) keep today's emission (§9.5).
 
 **Superseded in part by §10.2:** `args.testable` takes the grammar of steps 1 to 3.
+
+**Superseded in part by §11.2 item 4:** where `_header.swifttemplate` reads the protocols it guards imports for.
 
 A configuration with no manual item, used with sources that carry no `if` annotation, produces the same
 bytes as 0.9.0.
