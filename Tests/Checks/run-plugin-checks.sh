@@ -580,6 +580,43 @@ else
   fail "Leaf failed, but not with the message the script documents"
 fi
 
+# Inside an outer sandbox (spec 006 §2.4, D9). The profile denies writes to the
+# per-user temporary directory except SwiftPM's `TemporaryItems`, the shape of
+# an agent's sandbox. Each run plans a scratch path of its own, so nothing the
+# builds above wrote is reused, and each has to print the block the unsandboxed
+# run printed. Without the script's stderr variable it fails on `mktemp:
+# mkstemp failed`; without --disable-sandbox on `sandbox_apply: Operation not
+# permitted`; without the plugin's TMPDIR inside the prebuild command (§1.3 rows
+# b, c and k).
+USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)"
+SANDBOX_PROFILE="(version 1)(allow default)(deny file-write* (subpath \"$USER_TEMP\"))(allow file-write* (subpath \"$USER_TEMP/TemporaryItems\"))"
+RETRY_LINE="print-mocks: SwiftPM could not start its sandbox; planning again with --disable-sandbox"
+sandboxed_print() {   # name disable-sandbox-setting
+  local dir="$WORK_DIR/sandboxed-$1"
+  rm -rf "$dir"; mkdir -p "$dir/tmp"
+  ( cd "$FIXTURE_DIR" && env TMPDIR="$dir/tmp" SCRATCH_PATH="$dir/scratch" PRINT_MOCKS_DISABLE_SANDBOX="$2" \
+      sandbox-exec -p "$SANDBOX_PROFILE" "$PRINT_MOCKS" App ProfilePersisting ) \
+    > "$PRINTED-sandboxed-$1" 2> "$PRINTED-sandboxed-$1.err"
+}
+
+if ! sandboxed_print setting 1 || ! cmp -s "$PRINTED-sandboxed-setting" "$PRINTED-one.expected"; then
+  tail -5 "$PRINTED-sandboxed-setting.err"
+  fail "inside a sandbox with PRINT_MOCKS_DISABLE_SANDBOX=1, print-mocks.sh App ProfilePersisting did not print the unsandboxed block"
+elif grep -qxF "$RETRY_LINE" "$PRINTED-sandboxed-setting.err"; then
+  fail "inside a sandbox with PRINT_MOCKS_DISABLE_SANDBOX=1, the script planned twice"
+else
+  pass "inside a sandbox, with PRINT_MOCKS_DISABLE_SANDBOX=1: the same block, planned once"
+fi
+
+if ! sandboxed_print retry "" || ! cmp -s "$PRINTED-sandboxed-retry" "$PRINTED-one.expected"; then
+  tail -5 "$PRINTED-sandboxed-retry.err"
+  fail "inside a sandbox without the setting, print-mocks.sh App ProfilePersisting did not print the unsandboxed block"
+elif ! grep -qxF "$RETRY_LINE" "$PRINTED-sandboxed-retry.err"; then
+  fail "inside a sandbox without the setting, the block printed with no retry line: SwiftPM's own sandbox started, and this gate no longer measures the retry"
+else
+  pass "inside a sandbox, without the setting: SwiftPM's sandbox fails, the script says so, plans again and prints the same block"
+fi
+
 # ── Result ────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILURES" = "0" ]; then
