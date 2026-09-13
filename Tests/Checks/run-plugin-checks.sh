@@ -582,18 +582,26 @@ fi
 
 # Inside an outer sandbox (spec 006 §2.4, D9). The profile denies writes to the
 # per-user temporary directory except SwiftPM's `TemporaryItems`, the shape of
-# an agent's sandbox. Each run plans a scratch path of its own, so nothing the
-# builds above wrote is reused, and each has to print the block the unsandboxed
-# run printed. Without the script's stderr variable it fails on `mktemp:
-# mkstemp failed`; without --disable-sandbox on `sandbox_apply: Operation not
-# permitted`; without the plugin's TMPDIR inside the prebuild command (§1.3 rows
-# b, c and k).
+# an agent's sandbox. Each run has to print the block the unsandboxed run
+# printed. Without the script's stderr variable it fails on `mktemp: mkstemp
+# failed`; without --disable-sandbox on SwiftPM's sandbox; without the plugin's
+# TMPDIR inside the prebuild command (§1.3 rows b, c and k).
+#
+# SwiftPM caches a manifest by the path it planned it under. On a path it has
+# not planned, the first sandbox it starts compiles the manifest and fails with
+# `sandbox_apply: Operation not permitted`; on a path it has, the first is the
+# plugin's, and the plan fails with `Plugin ended with exit code 71`. The script
+# prints neither once the retry succeeds. The run without the setting takes a
+# path no earlier run of this lane used, and the third run plans that path
+# again: the second print an agent makes in one package.
 USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)"
 SANDBOX_PROFILE="(version 1)(allow default)(deny file-write* (subpath \"$USER_TEMP\"))(allow file-write* (subpath \"$USER_TEMP/TemporaryItems\"))"
 RETRY_LINE="print-mocks: SwiftPM could not start its sandbox; planning again with --disable-sandbox"
-sandboxed_print() {   # name disable-sandbox-setting
-  local dir="$WORK_DIR/sandboxed-$1"
-  rm -rf "$dir"; mkdir -p "$dir/tmp"
+SANDBOX_RUN="$(date +%s)-$$"
+rm -rf "$WORK_DIR"/sandboxed-*
+sandboxed_print() {   # name disable-sandbox-setting [earlier run whose scratch path and TMPDIR to plan again]
+  local dir="$WORK_DIR/sandboxed-$SANDBOX_RUN-${3:-$1}"
+  [ -n "${3:-}" ] || mkdir -p "$dir/tmp"
   ( cd "$FIXTURE_DIR" && env TMPDIR="$dir/tmp" SCRATCH_PATH="$dir/scratch" PRINT_MOCKS_DISABLE_SANDBOX="$2" \
       sandbox-exec -p "$SANDBOX_PROFILE" "$PRINT_MOCKS" App ProfilePersisting ) \
     > "$PRINTED-sandboxed-$1" 2> "$PRINTED-sandboxed-$1.err"
@@ -608,14 +616,18 @@ else
   pass "inside a sandbox, with PRINT_MOCKS_DISABLE_SANDBOX=1: the same block, planned once"
 fi
 
-if ! sandboxed_print retry "" || ! cmp -s "$PRINTED-sandboxed-retry" "$PRINTED-one.expected"; then
-  tail -5 "$PRINTED-sandboxed-retry.err"
-  fail "inside a sandbox without the setting, print-mocks.sh App ProfilePersisting did not print the unsandboxed block"
-elif ! grep -qxF "$RETRY_LINE" "$PRINTED-sandboxed-retry.err"; then
-  fail "inside a sandbox without the setting, the block printed with no retry line: SwiftPM's own sandbox started, and this gate no longer measures the retry"
-else
-  pass "inside a sandbox, without the setting: SwiftPM's sandbox fails, the script says so, plans again and prints the same block"
-fi
+sandboxed_retry() {   # name what-the-path-is [earlier run]
+  if ! sandboxed_print "$1" "" ${3:+"$3"} || ! cmp -s "$PRINTED-sandboxed-$1" "$PRINTED-one.expected"; then
+    tail -5 "$PRINTED-sandboxed-$1.err"
+    fail "inside a sandbox without the setting, on $2, print-mocks.sh App ProfilePersisting did not print the unsandboxed block"
+  elif ! grep -qxF "$RETRY_LINE" "$PRINTED-sandboxed-$1.err"; then
+    fail "inside a sandbox without the setting, on $2, the block printed with no retry line: SwiftPM's own sandbox started, and this gate no longer measures the retry"
+  else
+    pass "inside a sandbox, without the setting, on $2: the script plans again with --disable-sandbox and prints the same block"
+  fi
+}
+sandboxed_retry unplanned "a scratch path SwiftPM has not planned"
+sandboxed_retry planned "the same scratch path again" unplanned
 
 # ── Result ────────────────────────────────────────────────────────
 echo ""

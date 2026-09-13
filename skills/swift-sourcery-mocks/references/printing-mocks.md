@@ -56,7 +56,8 @@ An agent that cannot run the script runs that command and reads those files.
   `--triple "$(uname -m)-apple-ios-simulator" --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)"`.
 - **`SCRATCH_PATH`** names the build directory when it is not `.build`, as `--scratch-path` does.
 - **Inside another sandbox** — `sandbox-exec`, or an agent's own — SwiftPM cannot start its sandbox, and
-  the plan fails with `sandbox_apply: Operation not permitted`. The script then prints
+  the plan fails with `sandbox_apply: Operation not permitted`, or with `Plugin ended with exit code 71`
+  once SwiftPM has the package's manifest cached. The script then prints
   `print-mocks: SwiftPM could not start its sandbox; planning again with --disable-sandbox` and plans
   again with that flag. Set `PRINT_MOCKS_DISABLE_SANDBOX=1` to pass the flag from the first plan. Running
   the command by hand, add `--disable-sandbox`.

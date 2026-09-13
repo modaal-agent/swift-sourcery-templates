@@ -78,15 +78,16 @@ print_generated() {   # <file>...
 # Plans the build, keeping SwiftPM's stderr in $err. The arguments follow the target's own. Stderr
 # is held in a variable, not a file: macOS's `mktemp` creates its file in the per-user temporary
 # directory whatever TMPDIR holds, and an outer sandbox can deny writes there. SwiftPM cannot start
-# its own sandbox inside another one, and says `sandbox_apply: Operation not permitted`; that plan is
-# run again with --disable-sandbox.
+# its own sandbox inside another one: it says `sandbox_apply: Operation not permitted` where it compiles
+# the manifest, and `Plugin ended with exit code 71` where the manifest is already in its cache and the
+# first sandbox it starts is the plugin's. That plan is run again with --disable-sandbox.
 plan() {   # [argument...]
   if err="$(swift build --target "$TARGET" --print-manifest-job-graph ${scratch[@]+"${scratch[@]}"} \
       ${sandbox[@]+"${sandbox[@]}"} "$@" 2>&1 > /dev/null)"; then
     return 0
   fi
   case "$err" in
-    *"sandbox_apply: Operation not permitted"*)
+    *"sandbox_apply: Operation not permitted"* | *"Plugin ended with exit code 71"*)
       [ ${#sandbox[@]} -eq 0 ] || return 1
       note "SwiftPM could not start its sandbox; planning again with --disable-sandbox"
       sandbox=(--disable-sandbox)
