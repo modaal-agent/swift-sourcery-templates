@@ -18,7 +18,10 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
-## Unreleased
+## 0.10.0 — 2026-09-13
+
+`// sourcery: if = "<condition>"` generates a declaration inside that `#if`, and the plugin gives
+Sourcery a `TMPDIR` under its work directory.
 
 ### A declaration generated inside `#if`
 
@@ -73,6 +76,10 @@ bytes as 0.9.0: the fast lane's four snapshots over 0.9.0's fixtures, and the ty
 **Adopting.** Beside each `#if` around a declaration that names a type or a module some platform of the
 target lacks, write `// sourcery: if = "<the text after #if>"`.
 
+**Measured on a consumer repository.** 34 mocks across 7 modules, no `#if` in its sources, regenerated
+against this release from 0.9.0's output: an empty diff, 2803 lines before and after
+(`specs/006-sandboxed-print-and-conditional-members/spec.md` §13.2).
+
 ### The plugin gives Sourcery a `TMPDIR`
 
 **Generated output.** Unchanged. The prebuild command runs with `TMPDIR` set to
@@ -86,7 +93,8 @@ directory, so a build inside a sandbox that denies that directory gets past the 
 
 ## 0.9.0 — 2026-09-12
 
-Two entries, one release.
+A mock member's name is the declared name plus a suffix, and annotation names are matched exactly,
+with `CreateMock`, `ObjcProtocol` and `TypeErase` renamed.
 
 ### A mock member is the declared name plus a suffix
 
