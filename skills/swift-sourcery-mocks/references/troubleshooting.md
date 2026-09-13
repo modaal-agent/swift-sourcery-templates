@@ -18,6 +18,33 @@ position the protocol simply has fewer requirements.
 
 Confirm by reading the generated file: the inherited requirement is either there or it is not.
 
+## `cannot find type '<T>' in scope`, or `no such module '<M>'`, in a generated file
+
+The protocol declares a member, or is itself declared, inside `#if`, and the generator does not read
+`#if`: it generates the member on every platform. Put `// sourcery: if = "<the text after #if>"` on the
+declaration, beside the directive, and regenerate:
+
+```swift
+#if canImport(UIKit)
+// sourcery: if = "canImport(UIKit)"
+func uploadOwnPhoto(_ image: UIImage)
+#endif
+```
+
+`// sourcery:begin: if = "<condition>"` before several declarations and `// sourcery:end` after them
+puts each inside the condition. For `no such module '<M>'` on an import line of the generated file,
+write the `args.import` or `args.testable` item as `<M> // if canImport`, or put
+`if = "canImport(<M>)"` on the declaration that uses `<M>`. If the generated file still has no `#if`,
+the release in use predates the `if` annotation: `if` is missing from the annotation table in
+SKILL.md.
+
+## `` `<Protocol>.<property>` is generated inside `#if <condition>`, and the mock's initializer takes it ``
+
+The property carries its own `if`, and its type has no default value, or it carries `sourcery: init`.
+The initializer is generated once, outside the condition. Put `/// sourcery: handler` on the property,
+which leaves it out of the initializer, or declare it with a type that has a default value, such as an
+optional.
+
 ## A generated type is missing, and the target compiles
 
 The generated file was written somewhere the build does not collect from. A prebuild command's

@@ -152,6 +152,24 @@ enumerated anywhere.
 4. A construct that cannot be forwarded belongs in `reject(...)` with a sentence naming what the
    author should do, not in a partial emission
 
+### A condition a declaration is generated under
+
+`templates/Utility/CompilationConditions.swift`, which all three entry points include
+(`specs/006-sandboxed-print-and-conditional-members/spec.md` §8.4, §9.3, §10.2). It holds:
+
+- the condition of a protocol, a method or a property, from its `if` annotations: several values
+  joined with `&&`, and the declarations Sourcery folds into one member joined with `||`;
+- `uniqueByName`, which keeps two properties of one name when each sits inside a different
+  condition, for `MockVar` and `ComponentGenerator` alike;
+- the import lines `_header.swifttemplate` emits, and the `// if canImport` item grammar;
+- the spelling of `#if` and `#endif`, which `SourceCode.conditional(_:)`, `MockGenerator`,
+  `MockNaming.checkForCollisions`, `ComponentGenerator` and `TypeErase.swifttemplate` read.
+
+A new kind of generated declaration asks it for the condition. Add the shape to
+`Tests/Checks/Fixtures/Conditional.swift` under `FIXTURE_CONDITION_A` or `FIXTURE_CONDITION_B`, naming a
+type declared only under that flag, so a missing or wrong directive fails one of the flagged typechecks.
+`TypeErase.swifttemplate` includes nothing under `Mocks/`, so the file names no `SourceCode`.
+
 ### A new annotation
 
 1. `Annotations/AnnotationRegistry.swift` — add the record, and add it to `all`. A template selector
@@ -360,6 +378,19 @@ that does not tell the author what to do.
   the CLI path it stays the caller's job: the Duet reference app's `scripts/generate-mocks.sh`
   derives the set from `swift package dump-package` (every path dependency, plus the framework at
   its exact pin) rather than listing paths, so a new refinement needs no change to the script.
+- **Sourcery records no `#if`.** Sourcery 2.3.0 visits every clause of an `#if` and attaches no
+  condition to what it declares (`SyntaxTreeCollector.swift:289-291` at tag 2.3.0). A member inside
+  `#if canImport(UIKit)` reaches the templates as an unconditional requirement, and a type it names
+  fails the consumer's compile where UIKit is absent. The templates take a condition only from
+  `sourcery: if = "<condition>"`, and no template reads a source file (spec 006 §8.1).
+- **`allMethods` keeps the first of two folded declarations.** A method declared identically in both
+  clauses of an `#if` is one `allMethods` entry carrying the first declaration's annotations;
+  `rawMethods` of the declaring protocol holds both. `CompilationConditions` reads `rawMethods` for
+  that reason. `allVariables` keeps both when the two types differ (spec 006 §8.3).
+- **A Swift template's `print` output is written above all of its template text.** On 2026-09-13 an
+  import loop moved from `_header.swifttemplate`'s text into a function that `print`s wrote the imports
+  above the header's blank line, and every generated file differed from its snapshot at line 4. The
+  imports stay template text.
 
 ### SourceryRuntime API notes
 
@@ -457,17 +488,19 @@ external-annotation pattern, type erasure, and the plugin itself.
 |------|------|--------|
 | fast | `Tests/Checks/Snapshots/Mocks.generated.swift` | the generated mocks, as a reviewable diff |
 | fast | `Tests/Checks/Snapshots/Components.generated.swift` | the generated Components, as a reviewable diff |
+| fast | `Tests/Checks/Fixtures/Conditional.swift` | declarations generated inside `sourcery: if` conditions — one value, stacked values, `sourcery:begin`/`end`, a whole protocol, an inherited member, a member folded from two clauses, one property name with two types — typechecked with no flag, `-D FIXTURE_CONDITION_A` and `-D FIXTURE_CONDITION_B` in both language modes; the guarded `import Combine`; and, in `run-checks.sh`'s imports section, the `// if canImport` item form in `args.import` and `args.testable` |
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
 | annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
 | skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11); every eval case under the directory `experimental.evals` names carrying a prompt and at least one grader the runner would accept (SC13); every script the skill names present, every script executable, and every line the skill quotes from a script one that script prints (SC14). SC6 and SC9 read `skills/*/scripts/` as well as the Markdown. `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
-| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match; and `skills/swift-sourcery-mocks/scripts/print-mocks.sh` over the green fixture — App's generated files printed byte for byte, one protocol's block, exit 1 on a protocol with no mock and on a target with no plugin |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match; and `skills/swift-sourcery-mocks/scripts/print-mocks.sh` over the green fixture — App's generated files printed byte for byte, one protocol's block, exit 1 on a protocol with no mock and on a target with no plugin; the same script inside `sandbox-exec` with the per-user temporary directory denied, with `PRINT_MOCKS_DISABLE_SANDBOX=1` and without it, on a scratch path SwiftPM has not planned and on the same path again; and `Verbatim`'s `Foundation // if canImport` item generated inside `#if canImport(Foundation)` |
 | plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
-| xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here; and `print-mocks.sh`'s engine re-run on App's synthesized config — the generated file printed byte for byte, the build's own file unchanged, one protocol's block, exit 1 with no engine to be found and on a target with no plugin |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here; and `print-mocks.sh`'s engine re-run on App's synthesized config — the generated file printed byte for byte, the build's own file unchanged, one protocol's block, exit 1 with no engine to be found and on a target with no plugin; the plugin's `.sourceryBuild/tmp` under App's plugin work directory |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |
 | full | `SwiftSourceryTemplatesTypeErasureSpec.swift` | type erasure wrapper conformance |
+| full | `ExampleProjectSpm/Protocols/Protocols.swift`'s `ConditionalErasable` and `MacOnlyErasable` | a type erasure whose member, and a whole erasure, sit under a condition false on the iOS simulator — the build fails on `NSColor` and `import AppKit` unless both are generated inside their `#if` |
 
 `Tests/Checks/README.md` maps construct → fixture.
 

@@ -158,6 +158,19 @@ args:
 
 A Component is production code, so its config takes `import:`, not `testable:`.
 
+An `import:` or `testable:` item for a module that some platform of the target lacks is written
+`<Module> // if canImport`, and is generated between `#if canImport(<Module>)` and `#endif`:
+
+```yml
+args:
+  import:
+    - Foundation
+    - UIKit // if canImport
+```
+
+A `canImport(<Module>)` in a declaration's `sourcery: if` annotation guards that module's import the
+same way.
+
 ## Several templates from one config
 
 ```yml

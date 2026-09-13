@@ -125,8 +125,10 @@ sourcery \
   --args "import=Foundation,testable=MyModule"
 ```
 
-Repeat `--args` for additional imports. Without the fingerprint block there is nothing for CI to
-validate against, so the committed file can go stale without any check noticing.
+Repeat `--args` for additional imports. `--args "import=UIKit // if canImport"` generates the import
+between `#if canImport(UIKit)` and `#endif`, for a module some platform lacks. Without the fingerprint
+block there is nothing for CI to validate against, so the committed file can go stale without any check
+noticing.
 
 ## What the fingerprint records
 
