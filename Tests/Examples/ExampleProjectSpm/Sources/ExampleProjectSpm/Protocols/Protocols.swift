@@ -13,6 +13,9 @@ import RxSwift
 import Alamofire // for `Result`
 import SwiftUI
 import Combine
+#if canImport(AppKit)
+import AppKit
+#endif
 
 // sourcery: CreateMock
 protocol DataSource {
@@ -142,6 +145,31 @@ protocol ThrowingGenericBuildable {
     associatedtype EventType
     func build() throws -> AnyErrorPopoverPresentable<EventType>
 }
+
+/// A type erasure with a member under a condition that is false on the iOS
+/// simulator this lane builds for. `NSColor` exists only where AppKit does, so
+/// the erasure compiles here only when the member, and the `import AppKit` its
+/// `if` guards, are generated inside the same `#if` (spec 006 D8).
+/// sourcery: TypeErase
+/// sourcery: associatedType = "EventType"
+protocol ConditionalErasable {
+    associatedtype EventType
+    var label: String { get }
+    func emit() -> EventType
+    #if canImport(AppKit)
+    /// sourcery: if = "canImport(AppKit)"
+    func tint(_ color: NSColor)
+    #endif
+}
+
+#if os(macOS)
+/// A whole type-erased protocol under a condition false on the iOS simulator.
+/// sourcery: TypeErase
+/// sourcery: if = "os(macOS)"
+protocol MacOnlyErasable {
+    var name: String { get }
+}
+#endif
 
 /// sourcery: CreateMock
 protocol TipsManaging: AnyObject {
