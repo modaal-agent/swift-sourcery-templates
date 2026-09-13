@@ -769,6 +769,15 @@ struct SourcerySwiftCodegenPlugin {
     let perTargetBuildDir = context.pluginWorkDirectory.appending(".sourceryBuild")
     try FileManager.default.createDirectory(atPath: perTargetBuildDir.string, withIntermediateDirectories: true)
 
+    // The prebuild command's TMPDIR. Sourcery builds a Swift template with its own
+    // `swift build`, which writes lock files and `TemporaryDirectory.*` under TMPDIR.
+    // The prebuild environment carries no TMPDIR, so those landed in the per-user
+    // temporary directory, which an outer sandbox can deny (spec 006 §1.3, §1.4).
+    // Inside the build directory, a profile that lets the build write lets Sourcery
+    // write too.
+    let perTargetTemporaryDir = perTargetBuildDir.appending("tmp")
+    try FileManager.default.createDirectory(atPath: perTargetTemporaryDir.string, withIntermediateDirectories: true)
+
     // Generated files go under ".generatedFiles", one subdirectory per config.
     //
     // Per config, not per target, and that is not a tidiness choice: a prebuild
@@ -787,6 +796,7 @@ struct SourcerySwiftCodegenPlugin {
     try FileManager.default.createDirectory(atPath: synthesizedConfigsDir.string, withIntermediateDirectories: true)
 
     var sharedEnvironmentVars = context.environmentVars
+    sharedEnvironmentVars["TMPDIR"] = perTargetTemporaryDir.string
     let shippedTemplates = context.shippedTemplates
     if let shipped = shippedTemplates {
       sharedEnvironmentVars["SOURCERY_TEMPLATES"] = shipped.directory.string
