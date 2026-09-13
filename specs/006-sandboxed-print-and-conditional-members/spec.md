@@ -13,6 +13,12 @@ scope of this spec and its release.
 **Ruled on 2026-09-13 — §8:** D4 (b), with §7's spelling: a condition comes from the `if` annotation only,
 and the templates read no source file. §8.2 names what that supersedes in §2.3, §2.4, D5, D6, §4 and §7.
 
+**Ruled on 2026-09-13 — §9:** D6. An `import` is emitted inside `#if canImport(<M>)` when an `if` annotation
+names `canImport(<M>)`, or when its `args.import` item is written `<M> // if canImport`.
+
+**Ruled on 2026-09-13 — §10:** D1 (a), D2 (c), D3 (a), D7 (a), D8 (a), D9 (a), D10 (a); §9.5, where
+`args.testable` takes the manual form; and §6's two questions.
+
 **Measurements:** every number, path and quoted line in §1 was produced on 2026-09-13 on macOS 26.6.2
 (25G83) with Xcode 26.6 (17F113), Swift 6.3.3 (swiftlang-6.3.3.1.3), `/bin/bash` 3.2.57 and Sourcery
 2.3.0, against `master` at `296e365`. The Sourcery source read is tag `2.3.0` of
@@ -487,6 +493,8 @@ takes no `Type` position properties, which D4 (a) alone read.
 
 None is ruled. Each lists the option recommended first.
 
+**Superseded by §10.1:** every decision below is ruled.
+
 ### D1 — how the script keeps `swift build`'s stderr
 
 - **(a) In a variable (recommended).** No file, so no temporary directory, and `$err` is read where `:85`,
@@ -496,6 +504,8 @@ None is ruled. Each lists the option recommended first.
   the `trap`.
 - **(c) `mktemp -p "${TMPDIR:-/tmp}"`.** Created in `TMPDIR` (§1.1). The same as (b) with the flag
   spelling.
+
+**Ruled on 2026-09-13 — §10.1:** (a).
 
 ### D2 — how `--disable-sandbox` reaches `swift build`
 
@@ -511,6 +521,8 @@ None is ruled. Each lists the option recommended first.
 - **(d) Neither.** `references/printing-mocks.md` gives the `swift build` command with `--disable-sandbox`
   for an agent that cannot run the script, and the lab keeps `lab/v2/bin/swift`.
 
+**Ruled on 2026-09-13 — §10.1:** (c).
+
 ### D3 — which `TMPDIR` the plugin sets
 
 - **(a) `<pluginWorkDirectory>/.sourceryBuild/tmp` (recommended).** Inside the scratch path, so a profile
@@ -521,6 +533,8 @@ None is ruled. Each lists the option recommended first.
   `TMPDIR` unset the prebuild command gets none, as today.
 - **(c) None.** An adopter under a profile that denies `<USER_TEMP>` allows row m's paths and more, or
   uses a patched bundle as the lab does.
+
+**Ruled on 2026-09-13 — §10.1:** (a).
 
 ### D4 — where a member's condition comes from
 
@@ -587,6 +601,9 @@ which fails on macOS with `no such module 'UIKit'` (§1.5).
 **Superseded in part by §8.2:** (a) reads source files and is withdrawn with D4 (a). (b) and (c) stand,
 and the recommendation moves to (b), read from the `canImport(X)` terms of `if` values.
 
+**Ruled on 2026-09-13 — §9.1:** (b), extended to the configured imports, plus the manual item form
+`<M> // if canImport`. (c) is not taken.
+
 ### D7 — a conditional property the initializer takes
 
 - **(a) Refuse (recommended).** The message names the member and the two ways out: `/// sourcery: handler`
@@ -595,6 +612,8 @@ and the recommendation moves to (b), read from the `canImport(X)` terms of `if` 
 - **(b) One initializer per combination of such conditions**, each inside its `#if`. Cost: up to 2ⁿ
   initializers for `n` independent conditions, and a test that constructs the mock differently per
   platform.
+
+**Ruled on 2026-09-13 — §10.1:** (a), with the scope that row states.
 
 ### D8 — type erasure
 
@@ -609,6 +628,8 @@ and the recommendation moves to (b), read from the `canImport(X)` terms of `if` 
 - **(b) Refuse** a conditional member or protocol, naming it. Cost: the same full-lane fixture, for the
   refusal; a type-erased protocol with an `#if` member gets no wrapper.
 
+**Ruled on 2026-09-13 — §10.1:** (a).
+
 ### D9 — the gate
 
 - **(a) §2.4 as written (recommended).**
@@ -618,6 +639,8 @@ and the recommendation moves to (b), read from the `canImport(X)` terms of `if` 
 - **(c) (a) with a behaviour check under `-D FIXTURE_CONDITION_A`**: `Tests/Checks/Behaviour/Main.swift`
   compiled a second time, calling one conditional member and reading its counter.
 
+**Ruled on 2026-09-13 — §10.1:** (a).
+
 ### D10 — the skill and the eval suite
 
 - **(a) The two references only (recommended).** `SKILL.md` (211 lines, ~4.9k tokens on invoke, 005 §8.4)
@@ -625,6 +648,8 @@ and the recommendation moves to (b), read from the `canImport(X)` terms of `if` 
 - **(b) (a), plus an eighth eval case**: a protocol with a member inside `#if canImport(UIKit)`, asking
   whether its mock compiles on macOS. Cost: the right answer depends on the installed release, and SC9
   forbids naming a version in the tree.
+
+**Ruled on 2026-09-13 — §10.1:** (a), with the scope that row states.
 
 ---
 
@@ -635,6 +660,11 @@ prefix `[006-sandboxed-print-and-conditional-members]`.
 
 **Read with §7 and §8:** D4 is ruled (b) with the `if` spelling, so P4 and P7 follow the pointers under
 them, and D5 and D6 (a) are withdrawn (§8.2).
+
+**Read with §9:** D6 is ruled there, and P4 and P7 also carry §9.4 to §9.6.
+
+**Read with §10:** the remaining decisions are ruled there, and `args.testable` joins §9.3's grammar
+(§10.2).
 
 - **P1** — the plugin's `TMPDIR` (D3). `run-plugin-checks.sh` and `run-xcode-checks.sh` green, with the
   Xcode lane's `.sourceryBuild/tmp` assertion.
@@ -707,6 +737,8 @@ strings concern D4 (a) only.
    `<USER_TEMP>/TemporaryItems` writable (§1.3). No file in this repository controls that write.
 2. Whether R's release is a minor or a patch. The generated output changes only for a protocol that
    declares `#if`, and every such protocol failed to compile on some platform before (§1.5).
+
+**Superseded by §10.3.**
 
 ---
 
@@ -801,6 +833,8 @@ template compares them.
 | §5 | the bullets on `SameInBoth` under `Scan2`, the RIBs extension and raw strings concern D4 (a) only |
 | scope | `templates/Annotations/AnnotationRegistry.swift` and the tables `Scripts/render-annotations.sh` renders are in scope without condition |
 
+**Superseded in part by §9:** the D6 row. D6 is ruled, and `_header.swifttemplate` joins the scope.
+
 ### 8.3 Measured
 
 On 2026-09-13, with the machine and Sourcery 2.3.0 of §1:
@@ -850,3 +884,174 @@ condition, and all three entry points include it.
 - `references/troubleshooting.md`'s entry of §2.5, for `cannot find type '<T>' in scope` in a generated
   file, tells the reader to put `// sourcery: if = "<the #if condition>"` on the declaration. It lands in
   P7.
+
+**Superseded in part by §9.6:** P4's "D6's imports as ruled" is §9.3's rule and §9.4's fixture rows.
+
+---
+
+## 9. The ruling of 2026-09-13 on D6
+
+### 9.1 The ruling
+
+Two arms, both producing
+
+```swift
+#if canImport(UIKit)
+import UIKit
+#endif
+```
+
+- **Automatic** — D6 (b), extended to the configured imports. Each `canImport(<M>)` term in an `if`
+  annotation of an emitted protocol or member guards `<M>`: an `args.import` item `<M>` is emitted only
+  in the guarded form, and a guarded import is added when `args.import` does not list `<M>`.
+- **Manual** — an `args.import` item written `<M> // if canImport` is emitted in the guarded form,
+  whatever the annotations say:
+
+  ```yaml
+  args:
+    import:
+      - SwiftUI
+      - UIKit // if canImport
+  ```
+
+The manual form is chosen so that a release before this spec reads the item as `import UIKit // if
+canImport`, which Swift accepts as an unconditional import followed by a comment (§9.2). YAML starts a
+comment at `#`, not at `//`, so the whole text is the item's value.
+
+Two forms were considered and not ruled:
+
+- **An object item**, `- module: UIKit` with `if: "canImport(UIKit)"`. Ruled out as too breaking: the
+  0.9.0 header emits no import at all for a list holding one (§9.2).
+- **Every import wrapped in `#if canImport(<M>)`.** Not ruled.
+
+### 9.2 Measured
+
+On 2026-09-13, with the machine and Sourcery 2.3.0 of §1, and the 0.9.0 `_header.swifttemplate` of this
+checkout unless the row says otherwise:
+
+| path | input | `argument["import"]` and the emitted imports | result |
+| --- | --- | --- | --- |
+| `sourcery --config` | `- Foundation`, `- Combine // if canImport` | `["Foundation", "Combine // if canImport"]`, a `[String]`; `import Combine // if canImport`, `import Foundation` | typecheck with the source: exit 0, 0 diagnostics, under `-swift-version 5 -strict-concurrency=complete` and `-swift-version 6` |
+| `sourcery --args` | `"import=Combine // if canImport"` | the string `Combine // if canImport` | — |
+| `sourcery --args` | `"import=Foundation,import=Combine // if canImport"` | `[Foundation] [Combine // if canImport]`; `import Combine // if canImport`, `import Foundation` | typecheck `-swift-version 6`: exit 0, 0 diagnostics |
+| plugin, `e2e` | `- Foundation // if canImport` | the synthesized config keeps the line as written, below the inserted `testable: [Feature]`; `import Foundation // if canImport`, `@testable import Feature` | `swift build --build-tests` exit 0 in 16 s, 0 errors; `swift test` exit 0 |
+| `sourcery --config` | `- SwiftUI`, then `- module: UIKit` / `if: "canImport(UIKit)"`, then `- module: AppKit` / `if: "!os(iOS) && canImport(AppKit)"` | an `NSArray` of a string and two dictionaries, `{if = "canImport(UIKit)"; module = UIKit;}`; `as? [String]` is `nil`; no `import` line emitted, `SwiftUI` included | — |
+| plugin, `e2e` | `- Foundation`, then `- module: UIKit` / `if: "canImport(UIKit)"` | the synthesized config keeps both items; the generated file's only import is `@testable import Feature` | print exit 0 |
+| `swiftc -typecheck` | a file holding `import if canImport UIKit` | — | `error: expected identifier in import declaration` |
+| both fast-lane snapshots with every `import` wrapped by hand in `#if canImport(<M>)`, typechecked with `Tests/Checks/Fixtures` | — | 4 lines added per file (2 imports each) | exit 0, 0 diagnostics in both language modes |
+| `e2e-builddir` with its `_header.swifttemplate` patched to wrap `import` and `@testable import` | `- Foundation` | `#if canImport(Foundation)` / `import Foundation` / `#endif`, `#if canImport(Feature)` / `@testable import Feature` / `#endif` | `swift build --build-tests` exit 0 in 18 s, 0 errors; `swift test` exit 0, 1 test |
+
+- `extractImports` (`_header.swifttemplate:18-26`) takes the value `as? String`, else `as? [String]`, else
+  returns `[]`, which is why the object item empties the whole list.
+- The 21 `*sourcery*.yml` files of this repository (`find -iname`, `.build` and `.git` excluded) hold no
+  `import:` item containing `//` or `#`. `modaal-firebase-wrappers` has no such file: its 7 generated files
+  come from `--args`, and hold 15 import lines — 7 `import Foundation`, 1 `import UIKit` and 7
+  `@testable import`.
+
+### 9.3 The rule
+
+In `templates/Utility/CompilationConditions.swift`, read by `_header.swifttemplate` (`:28-33`):
+
+1. **An item's module** is its text up to the first `//`, trimmed. The item is **manual** when the text
+   after `//`, trimmed, is exactly `if canImport`.
+2. **An annotated module** is `<M>` in every `canImport(<M>` term, negated or not, of every `if` value on
+   the types the template emits and their members. `<M>` runs to the first `,`, `)` or space.
+3. **Emission.** Imports are sorted by module. A module that is manual or annotated is emitted once,
+   guarded; every other item is emitted as today, its full text after `import `. An annotated module that
+   `args.import` does not list is added, guarded.
+4. **Where the grammar applies.** `args.import` items, from a config or from
+   `--args "import=<M> // if canImport"`, which reaches `extractImports` as the same text (§9.2).
+   `args.testable` and the `import` annotation (`AnnotationRegistry.importModule`, emitted by
+   `generateAdditionalImports`) keep today's emission (§9.5).
+
+**Superseded in part by §10.2:** `args.testable` takes the grammar of steps 1 to 3.
+
+A configuration with no manual item, used with sources that carry no `if` annotation, produces the same
+bytes as 0.9.0.
+
+### 9.4 The gates
+
+- **Fast lane, snapshot.** One fixture member of §8.5 carries `// sourcery: if = "canImport(Combine)"`.
+  `run-checks.sh` passes `--args "import=Combine,import=Foundation"` (`:79`), so `Mocks.generated.swift`
+  shows `import Combine` guarded and `import Foundation` unchanged. §2.4's statement that the snapshot
+  changes by the new fixture's blocks only gains this import hunk.
+- **Fast lane, manual form.** A generation over scratch sources written by the script, as the near-miss
+  section writes its own (`run-checks.sh:188-205`), with
+  `--args "import=Foundation // if canImport"` and no `if` annotation, asserting the three guarded lines
+  and no other import line.
+- **Fast lane, unchanged output.** The zero-match generation (`run-checks.sh:132-135`) has no `if`
+  annotation and no manual item, and its snapshot stays byte-identical.
+- **Plugin lane.** One config of `Tests/Checks/PluginFixture` lists an item `Foundation // if canImport`,
+  and the generated file carries the guarded form.
+
+### 9.5 Open
+
+1. Whether `@testable import` lines take the manual form. §9.2's patched-header row compiled
+   `#if canImport(Feature)` around `@testable import Feature`; neither arm of §9.1 names `args.testable`.
+2. Whether an item with `//` followed by any other text is emitted as today, comment included, as §9.3
+   step 3 proposes, or refused naming the item. §9.2 found no such item in reach.
+3. The Xcode half of the plugin with either arm.
+
+**Ruled on 2026-09-13 — §10.2.**
+
+### 9.6 What the phases carry
+
+- **P4** carries §9.3 in `CompilationConditions.swift` and `_header.swifttemplate`, and §9.4's fast-lane
+  gates, and the plugin-lane config of §9.4, which generates the guarded form only once the header
+  change is in.
+- **P7** carries the documents:
+  - `README.md` §"Template arguments" (`:673`, the `import=Module` row at `:679`) and §"The options that
+    stay yours" (`:471`): the manual form, and the automatic guard from `if`.
+  - `references/spm-plugin.md` (`:145-156`) and `references/cli-lane.md`: the manual form.
+  - `references/troubleshooting.md`: `no such module '<M>'` in a generated file. Write `<M> // if
+    canImport` in `args.import`, or `if = "canImport(<M>)"` on the declaration that uses `<M>`.
+  - `CHANGELOG.md`: a config holding a manual item is read by a release before this one as an
+    unconditional import (§9.2).
+
+---
+
+## 10. The rulings of 2026-09-13 on D1 to D3, D7 to D10, §9.5 and §6
+
+The owner ruled §9.5 item 1 on 2026-09-13: `args.testable` takes the manual form. In the same message the
+owner asked for the remaining open decisions to be resolved as the implementer judged, and for the
+implementation to start. Each ruling below is the option §3 recommends, unless the row says otherwise.
+
+### 10.1 The decisions
+
+| decision | ruled | the phase that carries it |
+| --- | --- | --- |
+| D1 | (a): `swift build`'s stderr in a variable; `print-mocks.sh:80-81`'s `mktemp` and `trap` removed | P2 |
+| D2 | (c): `PRINT_MOCKS_DISABLE_SANDBOX=1` adds `--disable-sandbox`, and a plan that fails with `sandbox_apply: Operation not permitted` is run again with it | P2 |
+| D3 | (a): `TMPDIR` = `<pluginWorkDirectory>/.sourceryBuild/tmp`, set whether or not the caller sets `TMPDIR` | P1 |
+| D7 | (a): a property with its own `if` condition that the initializer takes is refused, naming the member, `/// sourcery: handler` and a property type with a default value. A property of a protocol whose whole mock is conditional is not refused: its initializer sits inside the same `#if` | P4 |
+| D8 | (a): type erasure wraps each member and the three classes | P6 |
+| D9 | (a): §2.4, as amended by §8.5 and §9.4 | P1, P3, P4, P5 |
+| D10 | (a): `references/printing-mocks.md` and `references/troubleshooting.md`, with §9.6's `spm-plugin.md` and `cli-lane.md`. `SKILL.md` changes only inside the block `Scripts/render-annotations.sh` renders (§7.3); `Tests/Evals/` is unchanged | P7 |
+
+### 10.2 §9.5
+
+1. **`@testable import`.** An `args.testable` item written `<M> // if canImport` is emitted as
+   `#if canImport(<M>)` / `@testable import <M>` / `#endif`. The automatic arm applies to `args.testable`
+   too: a module named by a `canImport(<M>)` term and listed in `args.testable` is emitted in that guarded
+   form. §9.3 step 3's added guarded `import <M>` is added only when neither `args.import` nor
+   `args.testable` lists `<M>`. An unconditional `@testable import <M>` fails where `<M>` is absent, as
+   `import <M>` does (§1.5, the last bullet).
+2. **Any other text after `//`** is emitted as today: `import <the item's full text>`. Refusing it would
+   fail a configuration that 0.9.0 generates from; §9.2 found no such item.
+3. **The Xcode half.** Both halves of the plugin build their commands in `_createBuildCommands` (§1.3),
+   and the header reads the synthesized config's `args` in both. P1's Xcode-lane assertion covers D3 there.
+   No Xcode-lane gate is added for the import forms.
+
+**Supersedes in part §9.3 step 4:** `args.testable` follows the grammar of §9.3 steps 1 to 3, as item 1
+says.
+
+### 10.3 §6
+
+1. `references/printing-mocks.md` states that a print under an outer sandbox needs write access to
+   `<USER_TEMP>/TemporaryItems`, which SwiftPM writes and neither the script nor the plugin controls (§1.3
+   row k). It lands in P2.
+2. R is a minor release, `0.10.0`: it adds the `if` annotation and the `// if canImport` item form. The
+   output changes only for a protocol or member carrying `if` and for a configuration holding a manual
+   item (§9.3). R's push, pull request, merge and tags each still need their own go-ahead.
+
+**Supersedes:** §6 items 1 and 2, and "None is ruled" in §3's opening line.
