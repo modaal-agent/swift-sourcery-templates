@@ -24,7 +24,7 @@ public struct ConditionBToken: Equatable {
 
 /// One `if` on a member. `ticks` carries `canImport(Combine)`, which guards the
 /// configured `import Combine` of the generated file (§9.4).
-/// sourcery: ProtocolMock
+/// sourcery: ProtocolMock, DuetComponent
 public protocol ConditionalMember: AnyObject {
   func load() -> Int
   #if FIXTURE_CONDITION_A
@@ -38,7 +38,7 @@ public protocol ConditionalMember: AnyObject {
 }
 
 /// Two `if` lines on one member, joined with `&&`.
-/// sourcery: ProtocolMock
+/// sourcery: ProtocolMock, DuetComponent
 public protocol ConditionalStacked: AnyObject {
   func reset()
   #if FIXTURE_CONDITION_A
@@ -51,7 +51,7 @@ public protocol ConditionalStacked: AnyObject {
 }
 
 /// `sourcery:begin` / `sourcery:end` around two members.
-/// sourcery: ProtocolMock
+/// sourcery: ProtocolMock, DuetComponent
 public protocol ConditionalBlock: AnyObject {
   func plain()
   #if FIXTURE_CONDITION_B
@@ -65,7 +65,7 @@ public protocol ConditionalBlock: AnyObject {
 #if FIXTURE_CONDITION_A
 /// A whole protocol inside a condition. Its property has no default value, so
 /// the mock's initializer takes it, inside the same `#if`.
-/// sourcery: ProtocolMock
+/// sourcery: ProtocolMock, DuetComponent
 /// sourcery: if = "FIXTURE_CONDITION_A"
 public protocol ConditionalWhole: AnyObject {
   var token: ConditionAToken { get }
@@ -75,14 +75,14 @@ public protocol ConditionalWhole: AnyObject {
 
 /// `receive(_:)` is inherited from `ConditionalInheritedBase`, declared in
 /// ConditionalInherited.swift, and carries the `if` of its own declaration.
-/// sourcery: ProtocolMock
+/// sourcery: ProtocolMock, DuetComponent
 public protocol ConditionalInheriting: ConditionalInheritedBase {
   func own()
 }
 
 /// One declaration in both clauses of an `#if`. Sourcery folds the two into one
 /// member, whose condition joins both with `||`.
-/// sourcery: ProtocolMock
+/// sourcery: ProtocolMock, DuetComponent
 public protocol ConditionalMerged: AnyObject {
   #if FIXTURE_CONDITION_A
   /// sourcery: if = "FIXTURE_CONDITION_A"
@@ -95,7 +95,7 @@ public protocol ConditionalMerged: AnyObject {
 
 /// One property name with a different type in each clause. Both are generated,
 /// each inside its own condition, with the same member names.
-/// sourcery: ProtocolMock
+/// sourcery: ProtocolMock, DuetComponent
 public protocol ConditionalTwoTypes: AnyObject {
   #if FIXTURE_CONDITION_B
   /// sourcery: if = "FIXTURE_CONDITION_B"

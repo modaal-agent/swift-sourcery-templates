@@ -2,7 +2,9 @@
 // DO NOT EDIT
 
 
+#if canImport(Combine)
 import Combine
+#endif
 import Foundation
 
 // MARK: - AppServicesRegisteringComponent
@@ -49,6 +51,127 @@ final class CaptureComponent: CaptureDependency {
         try await dependency.stage(fileName, retries: retries)
     }
 }
+
+// MARK: - ConditionalBlockComponent
+final class ConditionalBlockComponent: ConditionalBlock {
+    private let dependency: ConditionalBlock
+
+    init(dependency: ConditionalBlock) {
+        self.dependency = dependency
+    }
+    #if FIXTURE_CONDITION_B
+    var token: ConditionBToken? { dependency.token }
+    #endif
+    #if FIXTURE_CONDITION_B
+    func accept(_ token: ConditionBToken) {
+        dependency.accept(token)
+    }
+    #endif
+    func plain() {
+        dependency.plain()
+    }
+}
+
+// MARK: - ConditionalInheritingComponent
+final class ConditionalInheritingComponent: ConditionalInheriting {
+    private let dependency: ConditionalInheriting
+
+    init(dependency: ConditionalInheriting) {
+        self.dependency = dependency
+    }
+    func own() {
+        dependency.own()
+    }
+    #if FIXTURE_CONDITION_B
+    func receive(_ token: ConditionBToken) {
+        dependency.receive(token)
+    }
+    #endif
+    func refresh() {
+        dependency.refresh()
+    }
+}
+
+// MARK: - ConditionalMemberComponent
+final class ConditionalMemberComponent: ConditionalMember {
+    private let dependency: ConditionalMember
+
+    init(dependency: ConditionalMember) {
+        self.dependency = dependency
+    }
+    #if canImport(Combine)
+    var ticks: AnyPublisher<Int, Never> { dependency.ticks }
+    #endif
+    #if FIXTURE_CONDITION_A
+    func adopt(_ token: ConditionAToken) {
+        dependency.adopt(token)
+    }
+    #endif
+    func load() -> Int {
+        dependency.load()
+    }
+}
+
+// MARK: - ConditionalMergedComponent
+final class ConditionalMergedComponent: ConditionalMerged {
+    private let dependency: ConditionalMerged
+
+    init(dependency: ConditionalMerged) {
+        self.dependency = dependency
+    }
+    #if (!FIXTURE_CONDITION_A) || (FIXTURE_CONDITION_A)
+    func render() -> Int {
+        dependency.render()
+    }
+    #endif
+}
+
+// MARK: - ConditionalStackedComponent
+final class ConditionalStackedComponent: ConditionalStacked {
+    private let dependency: ConditionalStacked
+
+    init(dependency: ConditionalStacked) {
+        self.dependency = dependency
+    }
+    #if (FIXTURE_CONDITION_A) && (FIXTURE_CONDITION_B)
+    func pair(_ first: ConditionAToken, _ second: ConditionBToken) {
+        dependency.pair(first, second)
+    }
+    #endif
+    func reset() {
+        dependency.reset()
+    }
+}
+
+// MARK: - ConditionalTwoTypesComponent
+final class ConditionalTwoTypesComponent: ConditionalTwoTypes {
+    private let dependency: ConditionalTwoTypes
+
+    init(dependency: ConditionalTwoTypes) {
+        self.dependency = dependency
+    }
+    #if !FIXTURE_CONDITION_B
+    var mode: Int { dependency.mode }
+    #endif
+    #if FIXTURE_CONDITION_B
+    var mode: ConditionBToken? { dependency.mode }
+    #endif
+}
+
+#if FIXTURE_CONDITION_A
+// MARK: - ConditionalWholeComponent
+final class ConditionalWholeComponent: ConditionalWhole {
+    private let dependency: ConditionalWhole
+
+    init(dependency: ConditionalWhole) {
+        self.dependency = dependency
+    }
+    var token: ConditionAToken { dependency.token }
+    func adopt(_ token: ConditionAToken) {
+        dependency.adopt(token)
+    }
+}
+#endif
 
 // MARK: - DetailPresentingComponent
 final class DetailPresentingComponent: DetailPresenting {

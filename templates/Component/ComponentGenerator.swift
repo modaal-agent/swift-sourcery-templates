@@ -78,8 +78,17 @@ enum ComponentGenerator {
         let scope = TopScope()
         for type in types.sorted(by: { $0.name < $1.name }) {
             scope += ""
+            // A protocol annotated `if` is generated inside its condition, from
+            // the `// MARK:` line to the class's closing brace (spec 006 §8.4).
+            let condition = CompilationConditions.condition(of: type)
+            if let condition = condition {
+                scope += CompilationConditions.opening(condition)
+            }
             scope += "// MARK: - \(try componentName(for: type))"
             scope += try component(for: type)
+            if condition != nil {
+                scope += CompilationConditions.closing
+            }
         }
         return scope.indentedSourcecode()
     }
@@ -152,11 +161,15 @@ private extension ComponentGenerator {
             SourceCode("self.dependency = dependency")
         ]}
 
+        // Each forwarder sits inside the condition its requirement is
+        // generated under, as the mock's members do.
         for variable in forwardedVariables(of: type) {
-            declaration += forwarder(for: variable, access: access, isolated: isolated)
+            declaration += [forwarder(for: variable, access: access, isolated: isolated)]
+                .conditional(CompilationConditions.condition(of: variable))
         }
         for method in forwardedMethods(of: type) {
-            declaration += forwarder(for: method, access: access, isolated: isolated)
+            declaration += [forwarder(for: method, access: access, isolated: isolated)]
+                .conditional(CompilationConditions.condition(of: method))
         }
 
         if let globalActor = type.globalActorAttributeName {
@@ -214,11 +227,9 @@ private extension ComponentGenerator {
     /// `allVariables` / `allMethods` resolve the protocol's whole conformance
     /// surface, which is what makes a refining `<X>Dependency` work.
     static func forwardedVariables(of type: SourceryRuntime.`Type`) -> [SourceryRuntime.Variable] {
-        var seen = Set<String>()
-        return type.allVariables
+        return CompilationConditions.uniqueByName(type.allVariables
             .filter { !$0.isStatic && $0.definedInType?.isExtension != true }
-            .sorted { $0.name < $1.name }
-            .filter { seen.insert($0.name).inserted }
+            .sorted { ($0.name, CompilationConditions.condition(of: $0) ?? "") < ($1.name, CompilationConditions.condition(of: $1) ?? "") })
     }
 
     static func forwardedMethods(of type: SourceryRuntime.`Type`) -> [SourceryRuntime.Method] {

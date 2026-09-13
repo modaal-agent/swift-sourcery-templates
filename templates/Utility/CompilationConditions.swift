@@ -50,10 +50,18 @@ enum CompilationConditions {
         return disjunction(of: foldedDeclarations(of: variable).map { conjunction(of: $0) })
     }
 
-    /// `true` when two properties of one generated type share a name and each is generated inside a
-    /// condition of its own that differs from the other's as text: `var mode: Int` under one clause of
-    /// an `#if` and `var mode: String` under another. Both are generated, with the same member names.
-    static func keepsBoth(_ lhs: SourceryRuntime.Variable, _ rhs: SourceryRuntime.Variable) -> Bool {
+    /// One property per name, the first of each name kept, except that two properties of one name each
+    /// generated inside a condition of its own, the two differing as text, are both kept: `var mode: Int`
+    /// under one clause of an `#if` and `var mode: String` under another (§8.4 step 3). Both templates
+    /// generate both, with the same member names.
+    static func uniqueByName(_ variables: [SourceryRuntime.Variable]) -> [SourceryRuntime.Variable] {
+        return variables.reduce(into: []) { kept, variable in
+            guard !kept.contains(where: { $0.name == variable.name && !keepsBoth($0, variable) }) else { return }
+            kept.append(variable)
+        }
+    }
+
+    private static func keepsBoth(_ lhs: SourceryRuntime.Variable, _ rhs: SourceryRuntime.Variable) -> Bool {
         guard let lhsCondition = condition(of: lhs), let rhsCondition = condition(of: rhs) else { return false }
         return lhsCondition != rhsCondition
     }

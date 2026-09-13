@@ -20,7 +20,7 @@ class MockVar {
     }
 
     static func from(_ type: Type) -> [MockVar] {
-        let allVariables = type.allVariables.filter { !$0.isStatic && $0.definedInType != nil && $0.definedInType?.isExtension == false }.uniqueVariables
+        let allVariables = CompilationConditions.uniqueByName(type.allVariables.filter { !$0.isStatic && $0.definedInType != nil && $0.definedInType?.isExtension == false })
         return allVariables.map { MockVar(variable: $0, type: type) }.sorted { ($0.mockedVariableName, $0.condition ?? "") < ($1.mockedVariableName, $1.condition ?? "") }
     }
 }
@@ -218,16 +218,5 @@ extension MockVar {
         topScope += mockedVariableImplementation
         topScope += mockedVariableHandlers.nested
         return topScope.nested
-    }
-}
-
-private extension Collection where Element: SourceryRuntime.Variable {
-    /// One property per name, except a name declared inside two different conditions, which keeps
-    /// both (`CompilationConditions.keepsBoth`).
-    var uniqueVariables: [SourceryRuntime.Variable] {
-        return reduce(into: [], { (result, element) in
-            guard !result.contains(where: { $0.name == element.name && !CompilationConditions.keepsBoth($0, element) }) else { return }
-            result.append(element)
-        })
     }
 }
