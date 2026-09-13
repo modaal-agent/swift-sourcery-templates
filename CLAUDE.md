@@ -112,6 +112,9 @@ Habits to avoid (common LLM-isms):
   place destroys the record of what was decided and when.
 - **An addition that supersedes an existing claim names it**, by section, and the superseded section
   takes a line pointing forward to the addition. Both then read as one document.
+- **A spec whose branch has merged takes an addition only when a later change overrides one of its
+  critical assumptions or rulings.** A later edit to a file the spec quotes or points to —
+  `CONTRIBUTING.md`, `CHANGELOG.md`, this file, another spec — leaves the spec as it is.
 - **A closed spec may take a follow-up file beside it** instead of an appended section —
   `specs/001-plugin-source-discovery/followup-xcode-lane.md` is one. The rule inside it is the same:
   additions only, and it names by section what it supersedes.
