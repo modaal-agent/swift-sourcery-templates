@@ -600,6 +600,15 @@ fi
 # failed`; without --disable-sandbox on SwiftPM's sandbox; without the plugin's
 # TMPDIR inside the prebuild command (§1.3 rows b, c and k).
 #
+# The profile also denies reads and writes of `clang/ModuleCache` under the
+# per-user cache directory, and each run sets CLANG_MODULE_CACHE_PATH under its
+# own directory, which SwiftPM's compile of the fixture's manifest uses. SwiftPM
+# does not pass that variable to the prebuild command, so without the plugin's
+# CLANG_MODULE_CACHE_PATH, Sourcery's build of the template package fails on
+# `…/clang/ModuleCache/…: Operation not permitted`. Reads are denied too: a
+# module already in the per-user cache is read and not written, so a profile
+# denying only writes passes on a machine that has built Swift before.
+#
 # SwiftPM caches a manifest by the path it planned it under. On a path it has
 # not planned, the first sandbox it starts compiles the manifest and fails with
 # `sandbox_apply: Operation not permitted`; on a path it has, the first is the
@@ -616,18 +625,20 @@ fi
 # plans nothing, so the first sandboxed plan on that path still fails on
 # `sandbox_apply`.
 USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)"
-SANDBOX_PROFILE="(version 1)(allow default)(deny file-write* (subpath \"$USER_TEMP\"))(allow file-write* (subpath \"$USER_TEMP/TemporaryItems\"))"
+USER_CACHE="$(cd "$(getconf DARWIN_USER_CACHE_DIR)" && pwd -P)"
+SANDBOX_PROFILE="(version 1)(allow default)(deny file-write* (subpath \"$USER_TEMP\"))(allow file-write* (subpath \"$USER_TEMP/TemporaryItems\"))(deny file-read* file-write* (subpath \"$USER_CACHE/clang/ModuleCache\"))"
 RETRY_LINE="print-mocks: SwiftPM could not start its sandbox; planning again with --disable-sandbox"
 SANDBOX_RUN="$(date +%s)-$$"
 rm -rf "$WORK_DIR"/sandboxed-*
-sandboxed_print() {   # name disable-sandbox-setting [earlier run whose scratch path and TMPDIR to plan again]
+sandboxed_print() {   # name disable-sandbox-setting [earlier run whose scratch path, TMPDIR and module cache to plan again]
   local dir="$WORK_DIR/sandboxed-$SANDBOX_RUN-${3:-$1}"
   if [ -z "${3:-}" ]; then
-    mkdir -p "$dir/tmp"
+    mkdir -p "$dir/tmp" "$dir/modcache"
     swift package --package-path "$FIXTURE_DIR" --scratch-path "$dir/scratch" "${SWIFT_FLAGS[@]}" resolve \
       > "$PRINTED-sandboxed-$1.err" 2>&1 || return 1
   fi
-  ( cd "$FIXTURE_DIR" && env TMPDIR="$dir/tmp" SCRATCH_PATH="$dir/scratch" PRINT_MOCKS_DISABLE_SANDBOX="$2" \
+  ( cd "$FIXTURE_DIR" && env TMPDIR="$dir/tmp" CLANG_MODULE_CACHE_PATH="$dir/modcache" \
+      SCRATCH_PATH="$dir/scratch" PRINT_MOCKS_DISABLE_SANDBOX="$2" \
       sandbox-exec -p "$SANDBOX_PROFILE" "$PRINT_MOCKS" App ProfilePersisting ) \
     > "$PRINTED-sandboxed-$1" 2> "$PRINTED-sandboxed-$1.err"
 }

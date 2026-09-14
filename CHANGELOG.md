@@ -18,6 +18,36 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
+## 0.10.1 — 2026-09-14
+
+The plugin gives Sourcery's build a Clang module cache under its work directory.
+
+### The plugin gives Sourcery's build a module cache
+
+**Generated output.** Unchanged. The prebuild command runs with `CLANG_MODULE_CACHE_PATH` set to
+`<pluginWorkDirectory>/.sourceryBuild/ModuleCache`. Sourcery's `swift build` of the Swift template
+compiles the template package's manifest, and swiftc writes the modules that manifest imports there
+instead of `clang/ModuleCache` under the per-user cache directory (`getconf DARWIN_USER_CACHE_DIR`), so
+a build inside a sandbox that denies that directory gets past the prebuild command. With 0.10.0 it
+failed there with `…/clang/ModuleCache/Swift-….swiftmodule: Operation not permitted`. SwiftPM does not
+pass `CLANG_MODULE_CACHE_PATH` from its own environment to a prebuild command, so setting it for the
+build did not reach Sourcery.
+
+Each target applying the plugin gets its own cache, 30 MB for each target of
+`Tests/Checks/PluginFixture`, beside the 31 MB `ModuleCache` SwiftPM already writes under
+`.sourceryBuild/SwiftTemplate/` for each template it builds. The first build of a target compiles those
+modules instead of reading them from the per-user cache: the plugin lane's cold build of that fixture
+took 45 s, and 39 s with 0.10.0, one run each on one machine.
+
+**Adopting.** Nothing. Inside a sandbox that denies the per-user cache directory, set
+`CLANG_MODULE_CACHE_PATH` for the build as well: SwiftPM compiles the package's own manifest with it.
+
+**Measured on a consumer repository.** 34 mocks across 7 modules, regenerated against this release from
+0.10.0's output: an empty diff, 2803 lines before and after. `templates/` differs from 0.10.0's in the
+comments of `templates/Mocks/MockNaming.swift` and nowhere else.
+
+---
+
 ## 0.10.0 — 2026-09-13
 
 `// sourcery: if = "<condition>"` generates a declaration inside that `#if`, and the plugin gives

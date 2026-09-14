@@ -778,6 +778,14 @@ struct SourcerySwiftCodegenPlugin {
     let perTargetTemporaryDir = perTargetBuildDir.appending("tmp")
     try FileManager.default.createDirectory(atPath: perTargetTemporaryDir.string, withIntermediateDirectories: true)
 
+    // The prebuild command's CLANG_MODULE_CACHE_PATH. That `swift build` compiles
+    // the template package's manifest, and without the variable swiftc writes the
+    // Swift and Clang modules it imports to `clang/ModuleCache` under the per-user
+    // cache directory (`getconf DARWIN_USER_CACHE_DIR`), which an outer sandbox can
+    // deny. SwiftPM does not pass the variable from its own environment to the
+    // prebuild command, so it is set here.
+    let perTargetModuleCacheDir = perTargetBuildDir.appending("ModuleCache")
+
     // Generated files go under ".generatedFiles", one subdirectory per config.
     //
     // Per config, not per target, and that is not a tidiness choice: a prebuild
@@ -797,6 +805,7 @@ struct SourcerySwiftCodegenPlugin {
 
     var sharedEnvironmentVars = context.environmentVars
     sharedEnvironmentVars["TMPDIR"] = perTargetTemporaryDir.string
+    sharedEnvironmentVars["CLANG_MODULE_CACHE_PATH"] = perTargetModuleCacheDir.string
     let shippedTemplates = context.shippedTemplates
     if let shipped = shippedTemplates {
       sharedEnvironmentVars["SOURCERY_TEMPLATES"] = shipped.directory.string
