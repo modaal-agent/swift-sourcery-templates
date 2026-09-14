@@ -196,6 +196,16 @@ if [ -n "$APP_TMPDIR" ]; then
 else
   fail "no .sourceryBuild/tmp under App's plugin work directory"
 fi
+# The prebuild command's CLANG_MODULE_CACHE_PATH. The plugin does not create the
+# directory; swiftc does, when Sourcery's build compiles the template package's
+# manifest, so a directory with entries is the variable reaching that build.
+APP_MODULE_CACHE="$(find "$DD/Build/Intermediates.noindex/BuildToolPluginIntermediates" -type d \
+  -path "*/App/SourcerySwiftCodegenPlugin/.sourceryBuild/ModuleCache" 2>/dev/null | head -1)"
+if [ -n "$APP_MODULE_CACHE" ] && [ -n "$(ls -A "$APP_MODULE_CACHE")" ]; then
+  pass "Sourcery's build wrote .sourceryBuild/ModuleCache under App's plugin work directory ($(ls -A "$APP_MODULE_CACHE" | wc -l | tr -d ' ') entries)"
+else
+  fail "no .sourceryBuild/ModuleCache with entries under App's plugin work directory"
+fi
 
 # ── 2. Closure ────────────────────────────────────────────────────
 # `${SOURCERY_SOURCES}` expands to the target's own input directories and nothing
