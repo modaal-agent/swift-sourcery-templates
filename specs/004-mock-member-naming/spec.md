@@ -452,6 +452,11 @@ Six rules the shape carries:
 skill states that absence, so this is the one point where the two dialects differ until that
 processor follows. §8 question 4 carries it.
 
+**Superseded in part by `specs/007-property-setter-members/spec.md` §2.1:** the setter of the `draft`
+snippet also appends `newValue` to `draftSetArgs` before the store assignment and calls
+`draftSetHandler` after it, and `draftSetArgs` and `draftSetHandler` are declared after
+`draftSetCount`.
+
 ### 2.6 An effectful property requirement generates the accessor it declares
 
 `var x: T { get async throws }` is parsed — `Variable.isAsync` and `Variable.throws` are
@@ -841,6 +846,11 @@ the `Deferred` closure, of `handleEvents(receiveSubscription:)` and of `(receive
 the same send scheduled with `DispatchQueue.main.async` is delivered. With (b) there is no such hook
 for a test to write it in: it seeds `<name>Subject` after the code under test has subscribed, or
 supplies a stream through `<var>GetHandler`, which is what `README.md` §"Combine" already says.
+
+**Superseded in part by `specs/007-property-setter-members/spec.md` §7.1 (D1, D2):** a `{ get set }`
+requirement generates `<var>SetHandler` and `<var>SetArgs`, so "`<var>SetCount` stays as it is" and
+option (a)'s rejection of `<var>SetHandler` no longer hold. The rule above is kept: 007 treats a
+setter as a call taking one value, which a method mirrors with `<method>Args` and `<method>Handler`.
 
 ### D13 — recording what a stream member carried
 

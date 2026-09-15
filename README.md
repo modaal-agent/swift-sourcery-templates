@@ -63,6 +63,8 @@ comment naming both spellings — above the witness, and in an index under that 
 | `Handler` | method | always |
 | `GetCount`, `GetHandler` | property | always |
 | `SetCount` | property | the requirement is `{ get set }` |
+| `SetArgs` | property | the requirement is `{ get set }` and its type is not a closure |
+| `SetHandler` | property | the requirement is `{ get set }` |
 | `_<var>` | property | the stored value, seeded and read without moving a counter — and the only way to seed a `{ get }` requirement, whose witness is get-only |
 | `Subject` | both | `AnyPublisher`, `Observable`, `Single` |
 | `SubscribeCount`, `SubscribeCancelCount` | both | `AnyPublisher` — the code under test subscribed, and cancelled |
@@ -85,7 +87,7 @@ that would carry the same name fail generation naming both.
 - **`async` / `throws` preservation** — an `async` requirement generates an `async` method with an `async` handler, so a spec can control *when* the call returns, not only what it returns
 - **Smart defaults** — Optional returns `nil`, Void returns nothing, known types get sensible defaults, and RxSwift / Combine types get a subject the test drives
 - **Overload disambiguation** — overloaded methods get distinct handler names automatically
-- **Property read counting** — every property requirement generates `<var>GetCount`, `<var>GetHandler` and a `_<var>` store; `mock._draft` reads and seeds the value without moving a counter
+- **Property read and write counting** — every property requirement generates `<var>GetCount`, `<var>GetHandler` and a `_<var>` store, and a `{ get set }` one also generates `<var>SetCount`, `<var>SetArgs` and `<var>SetHandler`; `mock._draft` reads and seeds the value without moving a counter or recording a write
 - **Effectful property requirements** — `{ get async }`, `{ get throws }` and `{ get async throws }` generate the accessor they declare, with the same effects on `<var>GetHandler`
 
 ## Recorded arguments
@@ -112,17 +114,28 @@ service.fetchDataArgs = []                                           // clearing
 | a mix of recordable and closure | the recordable ones only |
 | `inout T` | `[T]` — the value the caller passed in; the handler still gets the reference |
 
+A `{ get set }` requirement records its writes the same way. Every assignment appends the value to
+`<var>SetArgs: [T]`, whether or not `<var>SetHandler` is set; the store is then assigned and the
+handler called, so code the handler calls back into reads the value just written. Seeding `_<var>`
+and the generated initializer record nothing:
+
+```swift
+sut.mute()
+XCTAssertEqual(player.volumeSetArgs, [0])
+```
+
 Three things are deliberately not recorded:
 
-- **Closure parameters.** A non-escaping closure cannot be stored at all, and storing an escaping one
-  would keep the caller's captures alive for as long as the mock — which a leak or churn spec reads
-  as a retain by the code under test. What a spec does with a closure is call it, and the handler
-  hands it over.
+- **Closures** — a closure parameter, and a value written to a closure-typed property. A
+  non-escaping closure cannot be stored at all, and storing an escaping one would keep the caller's
+  captures alive for as long as the mock — which a leak or churn spec reads as a retain by the code
+  under test. What a spec does with a closure is call it, and the handler hands it over. The
+  generated file states this in a comment above that handler.
 - **Generic methods.** Their parameter types name the *method's* generic parameters; a stored
   property can only name the class's.
-- **Anything annotated `skipArgumentRecording`** — on the method, or on the protocol for all of them.
-  A recorded argument lives as long as the mock, so this is the opt-out for an argument whose
-  deallocation a spec asserts. Call counting and the handler are unaffected.
+- **Anything annotated `skipArgumentRecording`** — on the method or the property, or on the protocol
+  for all of them. A recorded argument or written value lives as long as the mock, so this is the
+  opt-out for a value whose deallocation a spec asserts. Counting and the handlers are unaffected.
 
 ## Concurrency
 

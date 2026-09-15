@@ -264,7 +264,12 @@ initializer seeds the store — construction moves no counter, and a test that d
 one reads and seeds `_<var>`. **The witness declares what the requirement declares:** a `{ get }`
 requirement is get-only on the mock, so `mock._<var> = value` is the one way a test seeds it, and it
 is the expression `kotlin-ksp-mocks` writes for the same purpose (`spec.md` §12.2 item 2, D18). P5
-emitted an uncounted setter there; D18 retired it.
+emitted an uncounted setter there; D18 retired it. **A `{ get set }` requirement's setter counts the
+write, appends the value to `<var>SetArgs`, assigns `_<var>`, then calls `<var>SetHandler`**, so code
+the handler calls back into reads the value just written
+(`specs/007-property-setter-members/spec.md` D2). A closure-typed requirement has no
+`<var>SetArgs`, and the generated file states why above `<var>SetHandler`, as it does above a
+method's `<method>Handler` when a closure parameter is left out of `<method>Args` (007 §7.2).
 
 **An effectful property requirement generates the accessor it declares.** `{ get async }`,
 `{ get throws }` and `{ get async throws }` carry through to the accessor and to
@@ -584,7 +589,7 @@ the assets to the tag's GitHub release.
   a consumer shipping mocks in a separate SPM product needs `@testable import`. Making them `public`
   touches `MockGenerator.swift` (class declaration, initializer), `MockMethod.swift` (func,
   `<name>CallCount`, `<name>Handler`) and `MockVar.swift` (the variable, `GetCount` / `GetHandler` /
-  `SetCount`). Decide whether it is the default or gated behind an annotation (`sourcery:
+  `SetCount` / `SetArgs` / `SetHandler`). Decide whether it is the default or gated behind an annotation (`sourcery:
   publicMock`) or a template arg (`--args publicMocks`); `public` as the default is probably right,
   since mocks are always consumed from another module.
 - **Typed throws.** `func f() throws(E)` and `var x: T { get throws(E) }` reach the templates as
