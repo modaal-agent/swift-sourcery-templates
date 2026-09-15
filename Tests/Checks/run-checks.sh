@@ -240,6 +240,7 @@ COLLISION_CASES=(
   "bookkeeping:CollidingBookkeeping:draftSetCount"
   "readcount:CollidingReadCount:draftGetCount"
   "store:CollidingStore:_draft"
+  "setargs:CollidingSetArgs:draftSetArgs"
   "overload:CollidingOverload:sendToVoidCallCount"
   "typedthrowsvar:TypedThrowingProperty:secret"
   "typedthrowsfunc:TypedThrowingMethod:load"
@@ -277,6 +278,17 @@ cat > "$COLLISION_DIR/store/Store.swift" <<'SWIFT'
 public protocol CollidingStore: AnyObject {
     var draft: String { get set }
     var _draft: String { get set }
+}
+SWIFT
+
+mkdir -p "$COLLISION_DIR/setargs"
+cat > "$COLLISION_DIR/setargs/SetArgs.swift" <<'SWIFT'
+// `<var>SetArgs` records every write to a `{ get set }` requirement, so a
+// protocol that declares one of its own collides with it.
+/// sourcery: ProtocolMock
+public protocol CollidingSetArgs: AnyObject {
+    var draft: String { get set }
+    var draftSetArgs: [String] { get }
 }
 SWIFT
 

@@ -634,6 +634,45 @@ func checkPropertyCounting() {
   draftMock.draftGetHandler = { "from the handler" }
   expectEqual(draftMock.draft, "from the handler", "the handler wins over the store")
   expectEqual(draftMock._draft, "reseeded", "and leaves the store alone")
+
+  // A write is counted, appended to `<var>SetArgs`, assigned to the store, and
+  // then handed to `<var>SetHandler`
+  // (`specs/007-property-setter-members/spec.md` §2.1).
+  let writes = PropertyShapedMock(themeProvider: StubThemeProvider())
+  expectEqual(writes.draftSetArgs, [], "construction records no write")
+  writes.draft = "a"
+  writes.draft = "b"
+  expectEqual(writes.draftSetArgs, ["a", "b"], "each write is recorded in order with no handler set")
+  expectEqual(writes.draftSetCount, 2, "and counted")
+  writes._draft = "seeded"
+  expectEqual(writes.draftSetArgs, ["a", "b"], "seeding through the store records nothing")
+
+  var handedToHandler: [String] = []
+  var storeInHandler: [String] = []
+  writes.draftSetHandler = { [unowned writes] newValue in
+    handedToHandler.append(newValue)
+    storeInHandler.append(writes._draft)
+  }
+  writes.draft = "c"
+  expectEqual(handedToHandler, ["c"], "the set handler receives the written value")
+  expectEqual(storeInHandler, ["c"], "the store holds the written value when the set handler runs")
+  expectEqual(writes.draftSetArgs, ["a", "b", "c"], "a write with a set handler is recorded")
+  expectEqual(writes.draftGetCount, 0, "no write moved the read counter")
+  expectEqual(writes.draft, "c", "the value written is the value read")
+
+  var cursorWrites: [Int] = []
+  writes.cursorSetHandler = { cursorWrites.append($0) }
+  writes.cursor = 7
+  expectEqual(writes.cursorSetArgs, [7], "a `handler` requirement records its write")
+  expectEqual(cursorWrites, [7], "and hands it to the set handler")
+  expectEqual(writes.cursorSetCount, 1, "and counts it")
+
+  // A closure-typed requirement has no `<var>SetArgs`; the set handler is where
+  // a test receives the closure.
+  var changes = 0
+  writes.onChangeSetHandler = { newValue in newValue?() }
+  writes.onChange = { changes += 1 }
+  expectEqual(changes, 1, "a closure written to a closure-typed requirement reaches its set handler")
 }
 
 /// An effectful property requirement generates the accessor it declares

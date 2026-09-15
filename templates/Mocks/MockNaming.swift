@@ -184,8 +184,8 @@ enum MockNaming {
     static var fileNamingHeaderLines: [String] {
         return [
             "// Mock member names are the requirement's declared name plus a suffix: `func load()` gives",
-            "// `loadCallCount`, `loadArgs` and `loadHandler`; `var name` gives `nameGetCount`, `nameSetCount`,",
-            "// `nameGetHandler` and the store `_name`. Where a prefix is not the declared name — an overload,",
+            "// `loadCallCount`, `loadArgs` and `loadHandler`; `var name` gives `nameGetCount`, `nameGetHandler`,",
+            "// `nameSetCount`, `nameSetArgs`, `nameSetHandler` and the store `_name`. Where a prefix is not the declared name — an overload,",
             "// a return-type discriminator, `sourcery: \(AnnotationRegistry.methodName.name)` — a comment carrying both spellings",
             "// sits above the witness and in the index under that class's `// MARK:` line.",
         ]
@@ -197,7 +197,7 @@ enum MockNaming {
     static var classNamingHeaderLines: [String] {
         return [
             "// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,",
-            "// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.",
+            "// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.",
         ]
     }
 
@@ -216,6 +216,8 @@ enum MockNaming {
     static func getCount(_ prefix: String) -> String { return "\(prefix)GetCount" }
     static func getHandler(_ prefix: String) -> String { return "\(prefix)GetHandler" }
     static func setCount(_ prefix: String) -> String { return "\(prefix)SetCount" }
+    static func setArgs(_ prefix: String) -> String { return "\(prefix)SetArgs" }
+    static func setHandler(_ prefix: String) -> String { return "\(prefix)SetHandler" }
 
     /// The stored value behind a property requirement's accessors. A test
     /// seeds and reads it without moving a counter, and the generated
@@ -226,6 +228,32 @@ enum MockNaming {
     /// a protocol that declares `_draft` itself is caught by
     /// `checkForCollisions` rather than emitting a file that does not compile.
     static func store(_ prefix: String) -> String { return "_\(prefix)" }
+
+    // MARK: - Unrecorded closures
+    //
+    // A closure parameter is left out of `<method>Args`, and a closure written to
+    // a closure-typed property is left out of `<var>SetArgs`. The generated file
+    // states why above the handler that receives the closure, with the names
+    // below (`specs/007-property-setter-members/spec.md` §7.2).
+
+    private static let closureRetentionReason = "a stored closure keeps strong references to what it captures for as long as the mock lives"
+
+    /// The line above `<method>Handler` for a method that records its arguments
+    /// and leaves the parameters named `parameterNames` out of them.
+    static func unrecordedClosureParametersComment(parameterNames: [String], handlerName: String) -> String {
+        let names = parameterNames.map { "`\($0)`" }
+        let subject = names.count == 1
+            ? "\(names[0]) is"
+            : "\(names.dropLast().joined(separator: ", ")) and \(names[names.count - 1]) are"
+        let object = names.count == 1 ? "it" : "them"
+        return "// \(subject) not recorded: \(closureRetentionReason). `\(handlerName)` receives \(object)."
+    }
+
+    /// The line above `<var>SetHandler` for a closure-typed `{ get set }`
+    /// requirement, which has no `<var>SetArgs`.
+    static func unrecordedWrittenClosureComment(prefix: String) -> String {
+        return "// Values written to `\(prefix)` are not recorded: \(closureRetentionReason). `\(setHandler(prefix))` receives each one."
+    }
 
     // MARK: - Stream members
 
