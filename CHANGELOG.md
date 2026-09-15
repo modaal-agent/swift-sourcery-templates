@@ -18,6 +18,74 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
+## 0.10.2 — unreleased
+
+A `{ get set }` requirement records each value written in `<var>SetArgs` and hands it to
+`<var>SetHandler`.
+
+### A settable property's recorded writes and set handler
+
+**Generated output.** For `var draft: String { get set }`, before:
+
+```swift
+    set {
+        draftSetCount += 1
+        _draft = newValue
+    }
+}
+var draftGetCount: Int = 0
+var draftGetHandler: (() -> String)? = nil
+var draftSetCount: Int = 0
+var _draft: String = ""
+```
+
+After:
+
+```swift
+    set {
+        draftSetCount += 1
+        draftSetArgs.append(newValue)
+        _draft = newValue
+        if let handler = draftSetHandler {
+            handler(newValue)
+        }
+    }
+}
+var draftGetCount: Int = 0
+var draftGetHandler: (() -> String)? = nil
+var draftSetCount: Int = 0
+var draftSetArgs: [String] = []
+var draftSetHandler: ((_ newValue: String) -> ())? = nil
+var _draft: String = ""
+```
+
+- The value is appended whether or not `draftSetHandler` is set, and the handler runs after the store
+  is assigned. Seeding `_draft` and the generated initializer record nothing.
+- A requirement annotated `handler` has no store assignment and gains both members.
+- A closure-typed requirement gains `<var>SetHandler` and no `<var>SetArgs`, and the line above the
+  handler reads ``// Values written to `onChange` are not recorded: a stored closure keeps strong
+  references to what it captures for as long as the mock lives. `onChangeSetHandler` receives each
+  one.``
+- `skipArgumentRecording` on the property or on its protocol drops `<var>SetArgs`.
+- A `nonisolated` requirement of an isolated protocol declares both members `nonisolated(unsafe)`.
+- A method that records its arguments and takes a closure parameter gains a line above
+  `<method>Handler`: ``// `completion` is not recorded: a stored closure keeps strong references to
+  what it captures for as long as the mock lives. `scheduleHandler` receives it.``
+- The naming comment at the top of the file and under every `// MARK:` line names `nameSetArgs` and
+  `nameSetHandler`.
+
+`kotlin-ksp-mocks` generates `<prop>SetArgs` and `<prop>SetHandler` for a `var` requirement from the
+release published together with this one.
+
+**Breaking.** A protocol declaring a property named `<var>SetArgs` or `<var>SetHandler` beside a
+`{ get set }` requirement `<var>` fails generation naming the protocol and the member; rename the
+protocol's property. A method with one of those names generates, and the consumer's compile fails with
+`invalid redeclaration`, as it already does for a method named `<var>GetHandler`.
+
+**Adopting.** Nothing.
+
+---
+
 ## 0.10.1 — 2026-09-14
 
 The plugin gives Sourcery's build a Clang module cache under its work directory.

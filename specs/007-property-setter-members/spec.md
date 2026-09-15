@@ -19,6 +19,8 @@ mock and in the template source (§7.2), D4 (a), D5 (a), D7 (a), D8 (a). D6 is n
 **Ruled on 2026-09-15 — §8:** D6 (b). `0.10.2` is released in step with a `kotlin-ksp-mocks` release that
 emits the counterpart members.
 
+**Superseded in part by §9:** "Nothing here is implemented." P1 to P6 landed on 2026-09-16; R is not done.
+
 **Measurements:** every number, path and quoted line in §1 was produced on 2026-09-15 on macOS 26.6.2
 (25G83) with Xcode 26.6 (17F113), Swift 6.3.3 (swiftlang-6.3.3.1.3), Sourcery 2.3.0
 (`.build/sourcery-2.3.0`) and Claude Code 2.1.271, against `master` at `d796b18`. The probes ran in the
@@ -803,3 +805,98 @@ That repository's spec and code follow its own `AGENTS.md` and `specs/`; this sp
 
 1. Whether the Kotlin mock carries §7.2's comment. That processor emits no such comment today (§7.4).
 2. Which repository tags first, and the version number there; its newest tag is `0.3.0`.
+
+---
+
+## 9. What landed, 2026-09-16
+
+P1 to P6 on `spec/007-property-setter-members`, on top of `bdf04f9`, with §1's toolchain. R is not done:
+the branch is not pushed, no pull request is open, and no tag is cut.
+
+### 9.1 The commits
+
+| phase | commit | files |
+| --- | --- | --- |
+| P1 | `6dbc91a` | `Tests/Checks/Fixtures/Properties.swift`, `Tests/Checks/README.md`, `Tests/Checks/Snapshots/Mocks.generated.swift` |
+| P2 | `04a88da` | `templates/Mocks/MockVar.swift`, `MockNaming.swift`, `MockMethod.swift`, `templates/Annotations/AnnotationRegistry.swift`, `Tests/Checks/run-checks.sh`, `Tests/Checks/Behaviour/Main.swift`, the snapshot, and the three tables `Scripts/render-annotations.sh` renders |
+| P3 | `b73110e` | `README.md`, `CONTRIBUTING.md`, `references/generated-api.md`, `references/troubleshooting.md`, `specs/004-mock-member-naming/spec.md` |
+| P4 | `1eae426` | `skills/swift-sourcery-mocks/SKILL.md` |
+| P5 | `e38d821` | `Tests/Evals/member-names/graders/setter-members.md` |
+| P6 | the commit adding this section | `CHANGELOG.md`, this spec |
+
+### 9.2 The gates
+
+| run | result |
+| --- | --- |
+| P1, `run-checks.sh` | `Mocks.generated.swift` +73 −0 in lines that are not blank, §4's figure; `git diff --numstat` counts 75 with two blank lines. `Components.generated.swift` unchanged, the six typechecks 0 diagnostics, behaviour passed. Recorded after the diff was read |
+| P2, `run-checks.sh` | `Mocks.generated.swift` +99 −46, §7.3's figure: 46 naming-header lines replaced (2 in the file header, 1 under each of 44 classes); §2.1's members over the nine settable requirements; §7.2's line above `requestRecordPermissionHandler`, `presentHandler`, `scheduleHandler`, `onChangeSetHandler` and `transformSetHandler`. `Components.generated.swift` unchanged; the six typechecks 0 diagnostics; behaviour passed; the refusal case `setargs` fails naming `CollidingSetArgs` and `draftSetArgs`. Recorded after the diff was read |
+| P2, `run-annotation-checks.sh` | passed, after `render-annotations.sh --write` rewrote the `skipArgumentRecording` row in `README.md`, `SKILL.md` and `references/writing-testable-protocols.md` and nothing else |
+| P3, P4 and P5, `run-skill-checks.sh` | passed; SC5's longest file 249 lines; SC13 counts 27 graders after P5 |
+| `run-checks.sh` on `e38d821` | `ALL CHECKS PASSED` |
+
+### 9.3 Where the implementation differs from §2 and §7
+
+1. §2.3's behaviour checks are in `checkPropertyCounting`, on a second `PropertyShapedMock`; that function's
+   earlier write checks use `CaptureDependencyMock`. They are §1.3's 12 and the `onChange` check.
+2. §7.2's two strings share one reason, `MockNaming.closureRetentionReason`.
+   `MockMethod.unrecordedClosureParametersComment(handlerName:)` decides whether a method gets the line.
+   `MockVar.recordsWrittenValues` decides whether a property gets `<var>SetArgs`, and the line is emitted
+   where it is false and `recordsStreamValues` is true. `MockVar.setHandlerParameterAttributes` writes
+   `@escaping`.
+3. §2.4's `CONTRIBUTING.md` addition is two sentences: the setter's order, and the comment above a
+   closure-typed requirement's `<var>SetHandler`.
+4. §2.4 names 004 D12 for a forward line. 004 §2.5, which this spec's header obsoletes in part, takes one
+   as well.
+5. `README.md`'s "Property read counting" bullet is renamed "Property read and write counting", and
+   §"Recorded arguments" gains a two-line example asserting on `volumeSetArgs`.
+6. `references/generated-api.md` adds 18 lines and removes 18, and stays at 249. The removed passages are
+   the named-field read of a tuple element and the `inout` paragraph, both stated in `README.md`
+   §"Recorded arguments", and the `nonisolated(unsafe)` paragraph, stated in `README.md` §"Concurrency"
+   and in `references/writing-testable-protocols.md`'s isolation table.
+7. §2.5's E2 has no edit of its own: T3 removes the sentence E2 edits. The sentence T3 keeps, "A member
+   with no handler set returns a default …", is on one line, where `SKILL.trimA.md` wrapped it over two:
+   207 lines against §1.7's 208, at the same 13,778 characters.
+8. The `CHANGELOG.md` entry is headed `0.10.2 — unreleased`, names the `kotlin-ksp-mocks` release without a
+   version (§8.4 item 2), and has no consumer measurement, which R adds.
+9. `e38d821`'s message writes `§"Running them` without the closing quote.
+
+### 9.4 The skill measurement (§2.5 item 3)
+
+`claude plugin details swift-sourcery-mocks`, Claude Code 2.1.271, on `skillmeasure` with `SKILL.md`
+copied from the working tree and the plugin installed at local scope as 002 §15.1 installs it:
+
+| `SKILL.md` | lines | bytes | chars | always-on | on invoke |
+| --- | ---: | ---: | ---: | --- | --- |
+| before P4: `b73110e`'s, with P2's rendered E3 | 212 | 14,134 | 14,072 | ~286 plugin, ~290 component | ~5k |
+| after P4: `1eae426`'s | 207 | 13,840 | 13,778 | ~286 plugin, ~290 component | ~4.9k |
+
+Afterwards the plugin was uninstalled, the marketplace removed and `skillmeasure/.claude/settings.local.json`
+deleted. Plugin state before and after: one marketplace (`claude-plugins-official`) and one user-scope
+plugin (`swift-lsp`).
+
+### 9.5 The eval runs (D7)
+
+`Tests/Evals/member-names`, one run of each arm by hand as `Tests/Evals/README.md` §"Running them" gives
+them, each from a fresh `mktemp -d` directory under `/var/folders`, with `1eae426`'s skill:
+
+| arm | answer | `setter-members` | the other `llm` and `regex` graders, read by hand |
+| --- | --- | --- | --- |
+| without | hedges every name: "a backing `underlying…` value and a set counter" for `setting4_2`, `CallCount` or `Count`, `IDCallCount` or `idCallCount`, labels or parameter types for the overloads; names no `SetArgs` or `SetHandler`; asks for the generated file | fails | `verbatim-prefix`, `property-members` and `overload-names` fail; `no-generated-file-needed` fails: `perform1_0CallCount` does not appear |
+| with | `setting4_2GetCount`, `setting4_2GetHandler`, `setting4_2SetCount`, `setting4_2SetArgs: [Int]`, `setting4_2SetHandler`, `_setting4_2`; `pageSizeGetCount`, `pageSizeGetHandler`, `_pageSize`; `perform1_0CallCount`, `IDCallCount`; `endCallCount`, `endAtCallCount`, `endAtDocumentCallCount` from the fewest-parameters rule; "each write increases `setting4_2SetCount`, is added to `setting4_2SetArgs` and is passed to `setting4_2SetHandler`" | passes | all four pass |
+
+- The with-arm names the skill as its source, and states that it could not open
+  `references/generated-api.md`: `--restricted` confines the file tools to the run directory.
+- The with-arm marks as uncertain that a method with no parameters has no `<method>Args`. `SKILL.md`'s
+  member table describes `<method>Args` for one or more recordable parameters and states nothing for
+  none; `README.md` §"Recorded arguments" and `references/generated-api.md` §"What is not recorded" do.
+  No grader asks for it, and `SKILL.md` was not edited for it.
+- The with-arm writes the store once as "`_pagesize`→ **`_pageSize`**".
+- `skill-fired` is a `tool_used` grader that reads the transcript, which `-p` does not print; it was not
+  evaluated.
+
+### 9.6 Not done on this branch
+
+- R, and each of its steps: the seven `ci.yml` lanes, `Tests/Examples/ExampleProjectSpm/test-ios.sh`, the
+  consumer regenerate and its `CHANGELOG.md` measurement, `templates-0.10.2`, the pin commit, `0.10.2`.
+- §5's items remain unmeasured.
+- §6's questions and §8.4's items remain open.
