@@ -55,8 +55,8 @@ extension MockVar {
     /// satisfy it.
     ///
     /// Swift has no effectful setter, so an effectful requirement is get-only
-    /// and generates no `<var>SetCount`. `_<var>` stays assignable, which is how
-    /// a test seeds it.
+    /// and generates no `<var>SetCount`, `<var>SetArgs` or `<var>SetHandler`.
+    /// `_<var>` stays assignable, which is how a test seeds it.
     fileprivate var effectsDecl: String {
         return "\(variable.isAsync ? " async" : "")\(variable.`throws` ? " throws" : "")"
     }
@@ -75,11 +75,31 @@ extension MockVar {
     /// falls through to plain storage below. An impossible `subject` annotation
     /// is not that case and is rethrown: swallowing it emitted a stored property
     /// with no initializer, and the generated file did not compile.
-    /// Whether this requirement keeps `<name>Outputs` / `<name>Events`.
-    /// `/// sourcery: skipArgumentRecording` on the requirement or on the
-    /// protocol turns it off, the way it turns `<method>Args` off (D13).
+    /// Whether this requirement keeps `<name>Outputs` / `<name>Events` and
+    /// `<var>SetArgs`. `/// sourcery: skipArgumentRecording` on the requirement
+    /// or on the protocol turns it off, the way it turns `<method>Args` off (D13).
     fileprivate var recordsStreamValues: Bool {
         return !variable.isAnnotatedSkipArgumentRecording && !type.isAnnotatedSkipArgumentRecording
+    }
+
+    /// Whether a write to this `{ get set }` requirement is appended to
+    /// `<var>SetArgs`.
+    ///
+    /// A closure-typed requirement is excluded, as `MethodParameter.isRecordable`
+    /// excludes a closure parameter from `<method>Args`: storing each written
+    /// closure keeps what it captures alive for as long as the mock, which a leak
+    /// spec reads as a retain by the code under test. `<var>SetHandler` still
+    /// receives the closure, and the generated file states this above it
+    /// (`MockNaming.unrecordedWrittenClosureComment`).
+    fileprivate var recordsWrittenValues: Bool {
+        return recordsStreamValues && !variable.typeName.isClosure
+    }
+
+    /// `@escaping ` for `<var>SetHandler`'s parameter when the requirement's type
+    /// is a non-optional function type. An optional function type is escaping
+    /// already and does not take the attribute.
+    fileprivate var setHandlerParameterAttributes: String {
+        return variable.typeName.isClosure && !variable.typeName.isOptional ? "@escaping " : ""
     }
 
     private func smartDefaultValueImplementation() throws -> (getterImplementation: [SourceCode], mockedVariableHandlers: [SourceCode], suppliesHandlerConsultation: Bool)? {
@@ -188,9 +208,18 @@ extension MockVar {
             var setterImplementation: [SourceCode] = [
                 SourceCode("\(MockNaming.setCount(mockedVariableName)) += 1")
             ]
+            if recordsWrittenValues {
+                setterImplementation += [SourceCode("\(MockNaming.setArgs(mockedVariableName)).append(newValue)")]
+            }
             if !variable.isAnnotatedHandler {
                 setterImplementation += [SourceCode("\(MockNaming.store(mockedVariableName)) = newValue")]
             }
+            // The set handler runs after the store is assigned, so code it calls
+            // back into reads the value just written, as it would from a stored
+            // property (`specs/007-property-setter-members/spec.md` D2).
+            setterImplementation += [SourceCode("if let handler = \(MockNaming.setHandler(mockedVariableName))") {[
+                SourceCode("handler(newValue)")
+            ]}]
 
             mockedVariableImplementation = accessor(
                 getter: getterImplementation,
@@ -200,6 +229,12 @@ extension MockVar {
             mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.getHandler(mockedVariableName)): (()\(effectsDecl) -> \(variable.typeName.declaredName))? = nil"
             if hasSetter {
                 mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.setCount(mockedVariableName)): Int = 0"
+                if recordsWrittenValues {
+                    mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.setArgs(mockedVariableName)): [\(variable.typeName.declaredName)] = []"
+                } else if recordsStreamValues {
+                    mockedVariableHandlers += MockNaming.unrecordedWrittenClosureComment(prefix: mockedVariableName)
+                }
+                mockedVariableHandlers += "\(storageIsolationDecl)var \(MockNaming.setHandler(mockedVariableName)): ((_ newValue: \(setHandlerParameterAttributes)\(variable.typeName.declaredName)) -> ())? = nil"
             }
             if !variable.isAnnotatedHandler {
                 // `/// sourcery: const` makes the store a `let`, so the value is

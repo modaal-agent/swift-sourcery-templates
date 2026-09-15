@@ -153,7 +153,8 @@ The witness declares what the requirement declares, so a `{ get }` requirement i
 mock too. Seed it through the store: `mock.documentID = "d1"` becomes `mock._documentID = "d1"`,
 which moves no counter and is the same expression on the Kotlin side. Older releases emitted a
 settable stored property for a read-only requirement, so the assignment compiled and counted
-nothing. `<var>SetCount` is emitted for a `{ get set }` requirement only.
+nothing. `<var>SetCount`, `<var>SetArgs` and `<var>SetHandler` are emitted for a `{ get set }`
+requirement only.
 
 ## A property's `<var>GetCount` moved and the test did not read it
 
@@ -176,7 +177,8 @@ nobody is subscribed is dropped by the `PassthroughSubject` and counts nothing. 
 
 Argument recording is skipped for three shapes: a method whose parameters are all closures, a
 generic method, and anything annotated `skipArgumentRecording` on the method or on its protocol.
-`skipArgumentRecording` drops `<name>Outputs` and `<name>Events` too, for the same reason.
+`skipArgumentRecording` drops `<var>SetArgs`, `<name>Outputs` and `<name>Events` too, for the same
+reason.
 
 Assert through `<method>Handler` instead — it receives every parameter, closures included.
 

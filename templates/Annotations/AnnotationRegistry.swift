@@ -207,7 +207,7 @@ enum AnnotationRegistry {
         aliases: [],
         kind: .option,
         target: "Protocol / method / variable",
-        effect: "Do not generate `<method>Args`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected",
+        effect: "Do not generate `<method>Args`, `<var>SetArgs`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected",
         valueHint: nil
     )
 

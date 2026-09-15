@@ -38,6 +38,20 @@ public protocol PropertyShaped: AnyObject {
   ///
   /// sourcery: handler
   var cursor: Int { get set }
+
+  /// Mutable, under `skipArgumentRecording`.
+  ///
+  /// sourcery: skipArgumentRecording
+  var volume: Int { get set }
+
+  /// Mutable, and its type is an optional closure.
+  var onChange: (() -> Void)? { get set }
+
+  /// Mutable, and its type is a non-optional closure. `handler` keeps it out of
+  /// the initializer, which cannot store a non-escaping closure parameter.
+  ///
+  /// sourcery: handler
+  var transform: (Int) -> Int { get set }
 }
 
 /// Effectful property requirements. `var x: T { get async throws }` is parsed —
@@ -60,4 +74,13 @@ public protocol PropertyEffectful: AnyObject {
   /// No synthesizable default, so the initializer seeds the store and the
   /// accessor still suspends.
   var loader: ThemeProviding { get async }
+}
+
+/// A `nonisolated` settable requirement on an isolated protocol: its storage
+/// members are `nonisolated(unsafe)`.
+///
+/// sourcery: ProtocolMock
+@MainActor
+public protocol PropertyIsolated: AnyObject {
+  nonisolated var port: Int { get set }
 }

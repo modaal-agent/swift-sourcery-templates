@@ -122,6 +122,9 @@ extension MockMethod {
         }
 
         var mockHandler = mockHandlerImpl
+        if let unrecordedComment = unrecordedClosureParametersComment(handlerName: mockHandler.0) {
+            mockMethodHandlers += unrecordedComment
+        }
         mockMethodHandlers += mockHandler.1
 
         // func declaration
@@ -199,6 +202,17 @@ extension MockMethod {
     private var recordedParameters: [SourceryRuntime.MethodParameter] {
         guard recordsStreamValues else { return [] }
         return method.parameters.filter { $0.isRecordable }
+    }
+
+    /// The line emitted above `<method>Handler` naming the parameters a method
+    /// that records its arguments leaves out of `<method>Args`
+    /// (`MethodParameter.isRecordable`), or `nil` when it records nothing or
+    /// leaves nothing out.
+    private func unrecordedClosureParametersComment(handlerName: String) -> String? {
+        guard recordsStreamValues else { return nil }
+        let unrecordedNames = method.parameters.filter { !$0.isRecordable }.map { $0.name }
+        guard !unrecordedNames.isEmpty else { return nil }
+        return MockNaming.unrecordedClosureParametersComment(parameterNames: unrecordedNames, handlerName: handlerName)
     }
 
     /// The same opt-outs, applied to `<method>Outputs` / `<method>Events` on a

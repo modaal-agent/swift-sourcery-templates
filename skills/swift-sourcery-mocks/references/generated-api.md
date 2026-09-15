@@ -58,15 +58,6 @@ var reportArgs: [(code: String, detail: String?)] = []
 var reportHandler: ((_ code: String, _ detail: String?) -> ())? = nil
 ```
 
-A test reads a field by name rather than correlating two arrays by index:
-
-```swift
-XCTAssertEqual(mock.reportArgs.last?.detail, "disk full")
-```
-
-An `inout` parameter keeps `inout` in the method and in the handler, and the recorded element type
-drops it — what the mock records is the value it was handed on entry.
-
 ## `async`, `throws`, and what an unset handler returns
 
 ```swift
@@ -119,19 +110,26 @@ var draft: String {
     }
     set {
         draftSetCount += 1
+        draftSetArgs.append(newValue)
         _draft = newValue
+        if let handler = draftSetHandler { handler(newValue) }
     }
 }
 var draftGetCount: Int = 0
 var draftGetHandler: (() -> String)? = nil
 var draftSetCount: Int = 0
+var draftSetArgs: [String] = []
+var draftSetHandler: ((_ newValue: String) -> ())? = nil
 var _draft: String = ""
 ```
 
-`_<var>` is what a test seeds and reads without moving a counter, and for a `{ get }` requirement it
-is the only way to seed one: the witness is get-only, as the requirement is, and `<var>SetCount` is
-emitted for a `{ get set }` requirement only. A requirement with no synthesizable default is an
-initializer parameter, keeps its name there, and seeding it at construction moves no counter.
+A write is counted, appended to `<var>SetArgs` whether or not a handler is set, assigned to the
+store, and then handed to `<var>SetHandler`, so code the handler calls back into reads the value just
+written. `_<var>` is what a test seeds and reads without moving a counter or recording a write, and
+for a `{ get }` requirement it is the only way to seed one: the witness is get-only, as the
+requirement is, and the `Set` members are emitted for a `{ get set }` requirement only. A requirement
+with no synthesizable default is an initializer parameter, keeps its name there, and seeding it at
+construction moves no counter.
 
 `/// sourcery: const` makes the store a `let`, fixed at construction. `/// sourcery: handler` drops
 the store: the getter runs `<var>GetHandler` and traps with that string when the test set none.
@@ -151,12 +149,9 @@ var configGetHandler: (() async throws -> Config)? = nil
 var _config: Config
 ```
 
-Swift has no effectful setter, so such a requirement has no `<var>SetCount`; `_<var>` stays
+Swift has no effectful setter, so such a requirement has none of the `Set` members; `_<var>` stays
 assignable. A requirement declared `throws(SomeError)` fails generation naming the member: the mock
 writes bare `throws`, which does not satisfy it.
-
-Under a `@MainActor` protocol, a `nonisolated` member's store and counters are declared
-`nonisolated(unsafe)`, because a nonisolated member cannot mutate main-actor isolated storage.
 
 ## Cancellation tokens
 
@@ -216,6 +211,11 @@ generated file does, above the witness. `/// sourcery: methodName = "customName"
 
 A method with no parameters gets none either. See [troubleshooting.md](troubleshooting.md).
 
+`<var>SetArgs` is absent, and `<var>SetHandler` receives each written value, when the property's
+type is a closure, or `skipArgumentRecording` is on the property or on its protocol. Above the
+handler that receives an unrecorded closure — a parameter or a written value — the generated file
+states that a stored closure keeps strong references to what it captures for as long as the mock lives.
+
 ## The same vocabulary in the Kotlin twin
 
 A codebase that tests the same logic on both platforms gets one dialect. The Kotlin side is generated
@@ -228,7 +228,7 @@ table with the columns the other way round.
 | `<method>Args` | `<fn>Args`, elements of a nested `<Fn>Args` data class rather than a tuple |
 | `<method>Handler` | `<fn>Handler` |
 | `<var>GetCount`, `<var>GetHandler` | `<prop>GetCount`, `<prop>GetHandler`, on every property |
-| `<var>SetCount` | `<prop>SetCount`, on a `var` requirement |
+| `<var>SetCount`, `<var>SetArgs`, `<var>SetHandler` | `<prop>SetCount`, `<prop>SetArgs`, `<prop>SetHandler`, on a `var` requirement |
 | `_<var>` | `_<prop>` — the store a test seeds and reads without moving a counter, and the only way to seed a read-only requirement on either side |
 | `<name>Subject` for an `AnyPublisher` member, broadcast to every subscriber | `<fn>Channel` for a `Flow` member, single-consumer |
 | `<name>SubscribeCount`, `<name>SubscribeCancelCount`, `<name>OutputCount`, `<name>Outputs`, `<name>OutputHandler`, `<name>CompletionCount` | the same six, on a `Flow`-returning function or a read-only `Flow` property |
