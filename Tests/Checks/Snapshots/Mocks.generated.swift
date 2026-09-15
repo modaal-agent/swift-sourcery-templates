@@ -1555,6 +1555,32 @@ final class PropertyEffectfulMock: PropertyEffectful {
     }
 }
 
+// MARK: - PropertyIsolated
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+@MainActor
+final class PropertyIsolatedMock: PropertyIsolated {
+
+    // MARK: - Variables
+    nonisolated var port: Int {
+        get {
+            portGetCount += 1
+            if let handler = portGetHandler {
+                return handler()
+            }
+            return _port
+        }
+        set {
+            portSetCount += 1
+            _port = newValue
+        }
+    }
+    nonisolated(unsafe) var portGetCount: Int = 0
+    nonisolated(unsafe) var portGetHandler: (() -> Int)? = nil
+    nonisolated(unsafe) var portSetCount: Int = 0
+    nonisolated(unsafe) var _port: Int = 0
+}
+
 // MARK: - PropertyShaped
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
 // `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
@@ -1613,6 +1639,23 @@ final class PropertyShapedMock: PropertyShaped {
     var identifierGetCount: Int = 0
     var identifierGetHandler: (() -> String)? = nil
     var _identifier: String = ""
+    var onChange: (() -> Void)? {
+        get {
+            onChangeGetCount += 1
+            if let handler = onChangeGetHandler {
+                return handler()
+            }
+            return _onChange
+        }
+        set {
+            onChangeSetCount += 1
+            _onChange = newValue
+        }
+    }
+    var onChangeGetCount: Int = 0
+    var onChangeGetHandler: (() -> (() -> Void)?)? = nil
+    var onChangeSetCount: Int = 0
+    var _onChange: (() -> Void)? = nil
     var snapshot: [String: Int] {
         snapshotGetCount += 1
         if let handler = snapshotGetHandler {
@@ -1632,6 +1675,38 @@ final class PropertyShapedMock: PropertyShaped {
     var themeProviderGetCount: Int = 0
     var themeProviderGetHandler: (() -> ThemeProviding)? = nil
     var _themeProvider: ThemeProviding
+    var transform: (Int) -> Int {
+        get {
+            transformGetCount += 1
+            if let handler = transformGetHandler {
+                return handler()
+            }
+            fatalError("transformGetHandler expected to be set.")
+        }
+        set {
+            transformSetCount += 1
+        }
+    }
+    var transformGetCount: Int = 0
+    var transformGetHandler: (() -> (Int) -> Int)? = nil
+    var transformSetCount: Int = 0
+    var volume: Int {
+        get {
+            volumeGetCount += 1
+            if let handler = volumeGetHandler {
+                return handler()
+            }
+            return _volume
+        }
+        set {
+            volumeSetCount += 1
+            _volume = newValue
+        }
+    }
+    var volumeGetCount: Int = 0
+    var volumeGetHandler: (() -> Int)? = nil
+    var volumeSetCount: Int = 0
+    var _volume: Int = 0
 
     // MARK: - Initializer
     init(themeProvider: ThemeProviding) {

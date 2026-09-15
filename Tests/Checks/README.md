@@ -114,6 +114,10 @@ carry a naming comment, so they are what the naming-comment gate reads.
 | no synthesizable default — an initializer parameter | `PropertyShaped.themeProvider` |
 | `const` | `PropertyShaped.buildNumber` |
 | `handler`, read-only and mutable — the property trap string | `PropertyShaped.snapshot` / `.cursor` |
+| mutable under `skipArgumentRecording` | `PropertyShaped.volume` |
+| mutable, an optional closure | `PropertyShaped.onChange` |
+| mutable, a non-optional closure under `handler` | `PropertyShaped.transform` |
+| `nonisolated` and mutable on an isolated protocol | `PropertyIsolated.port` |
 | `{ get async throws }`, `{ get async }`, `{ get throws }` | `PropertyEffectful` |
 | an effectful requirement whose type has no default | `PropertyEffectful.loader` |
 
