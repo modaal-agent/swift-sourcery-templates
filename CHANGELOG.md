@@ -18,7 +18,7 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
-## 0.10.2 — unreleased
+## 0.10.2 — 2026-09-16
 
 A `{ get set }` requirement records each value written in `<var>SetArgs` and hands it to
 `<var>SetHandler`.
@@ -74,8 +74,9 @@ var _draft: String = ""
 - The naming comment at the top of the file and under every `// MARK:` line names `nameSetArgs` and
   `nameSetHandler`.
 
-`kotlin-ksp-mocks` generates `<prop>SetArgs` and `<prop>SetHandler` for a `var` requirement from the
-release published together with this one.
+`kotlin-ksp-mocks` 0.3.1 generates `<prop>SetArgs` and `<prop>SetHandler` for a `var` requirement, in the
+same order inside the setter, and carries the same comment above a handler that receives a closure the
+mock does not record.
 
 **Breaking.** A protocol declaring a property named `<var>SetArgs` or `<var>SetHandler` beside a
 `{ get set }` requirement `<var>` fails generation naming the protocol and the member; rename the
@@ -83,6 +84,12 @@ protocol's property. A method with one of those names generates, and the consume
 `invalid redeclaration`, as it already does for a method named `<var>GetHandler`.
 
 **Adopting.** Nothing.
+
+**Measured on a consumer repository.** 34 mocks across 7 modules, regenerated against this release from
+0.10.1's output: 2803 → 2900 lines, +145 −48. Its four settable requirements account for 24 of the added
+lines, 6 each. 73 are the comment above a handler that receives a closure the mock does not record, in 5
+of the 7 files. The remaining 48 replace as many: the naming comment at the top of each file and under
+each of the 34 classes.
 
 ---
 
