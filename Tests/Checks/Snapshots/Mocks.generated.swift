@@ -8,14 +8,14 @@ import Combine
 import Foundation
 
 // Mock member names are the requirement's declared name plus a suffix: `func load()` gives
-// `loadCallCount`, `loadArgs` and `loadHandler`; `var name` gives `nameGetCount`, `nameSetCount`,
-// `nameGetHandler` and the store `_name`. Where a prefix is not the declared name — an overload,
+// `loadCallCount`, `loadArgs` and `loadHandler`; `var name` gives `nameGetCount`, `nameGetHandler`,
+// `nameSetCount`, `nameSetArgs`, `nameSetHandler` and the store `_name`. Where a prefix is not the declared name — an overload,
 // a return-type discriminator, `sourcery: methodName` — a comment carrying both spellings
 // sits above the witness and in the index under that class's `// MARK:` line.
 
 // MARK: - AnalyticsTracking
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class AnalyticsTrackingMock: AnalyticsTracking, @unchecked Sendable {
 
     // MARK: - Methods
@@ -51,7 +51,7 @@ final class AnalyticsTrackingMock: AnalyticsTracking, @unchecked Sendable {
 
 // MARK: - AppServicesAPNSHandlerRegistering
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 @MainActor
 final class AppServicesAPNSHandlerRegisteringMock: AppServicesAPNSHandlerRegistering {
 
@@ -76,7 +76,7 @@ final class AppServicesAPNSHandlerRegisteringMock: AppServicesAPNSHandlerRegiste
 
 // MARK: - AppServicesRegistering
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 @MainActor
 final class AppServicesRegisteringMock: AppServicesRegistering {
 
@@ -125,7 +125,7 @@ final class AppServicesRegisteringMock: AppServicesRegistering {
 
 // MARK: - AppServicesURLHandlerRegistering
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 @MainActor
 final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegistering {
 
@@ -150,7 +150,7 @@ final class AppServicesURLHandlerRegisteringMock: AppServicesURLHandlerRegisteri
 
 // MARK: - AudioSessionConfiguring
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class AudioSessionConfiguringMock: AudioSessionConfiguring {
 
     // MARK: - Variables
@@ -194,12 +194,13 @@ final class AudioSessionConfiguringMock: AudioSessionConfiguring {
         }
     }
     var requestRecordPermissionCallCount: Int = 0
+    // `handler` is not recorded: a stored closure keeps strong references to what it captures for as long as the mock lives. `requestRecordPermissionHandler` receives it.
     var requestRecordPermissionHandler: ((_ handler: @escaping (Bool) -> Void) -> ())? = nil
 }
 
 // MARK: - CaptureDependency
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 @MainActor
 final class CaptureDependencyMock: CaptureDependency {
 
@@ -224,12 +225,18 @@ final class CaptureDependencyMock: CaptureDependency {
         }
         set {
             draftSetCount += 1
+            draftSetArgs.append(newValue)
             _draft = newValue
+            if let handler = draftSetHandler {
+                handler(newValue)
+            }
         }
     }
     var draftGetCount: Int = 0
     var draftGetHandler: (() -> String)? = nil
     var draftSetCount: Int = 0
+    var draftSetArgs: [String] = []
+    var draftSetHandler: ((_ newValue: String) -> ())? = nil
     var _draft: String = ""
     nonisolated var installationId: String {
         installationIdGetCount += 1
@@ -292,7 +299,7 @@ final class CaptureDependencyMock: CaptureDependency {
 
 // MARK: - ConditionalBlock
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class ConditionalBlockMock: ConditionalBlock {
 
     // MARK: - Variables
@@ -334,7 +341,7 @@ final class ConditionalBlockMock: ConditionalBlock {
 
 // MARK: - ConditionalInheriting
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class ConditionalInheritingMock: ConditionalInheriting {
 
     // MARK: - Methods
@@ -370,7 +377,7 @@ final class ConditionalInheritingMock: ConditionalInheriting {
 
 // MARK: - ConditionalMember
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class ConditionalMemberMock: ConditionalMember {
 
     // MARK: - Variables
@@ -428,7 +435,7 @@ final class ConditionalMemberMock: ConditionalMember {
 
 // MARK: - ConditionalMerged
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class ConditionalMergedMock: ConditionalMerged {
 
     // MARK: - Methods
@@ -447,7 +454,7 @@ final class ConditionalMergedMock: ConditionalMerged {
 
 // MARK: - ConditionalStacked
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class ConditionalStackedMock: ConditionalStacked {
 
     // MARK: - Methods
@@ -475,7 +482,7 @@ final class ConditionalStackedMock: ConditionalStacked {
 
 // MARK: - ConditionalTwoTypes
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class ConditionalTwoTypesMock: ConditionalTwoTypes {
 
     // MARK: - Variables
@@ -508,7 +515,7 @@ final class ConditionalTwoTypesMock: ConditionalTwoTypes {
 #if FIXTURE_CONDITION_A
 // MARK: - ConditionalWhole
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class ConditionalWholeMock: ConditionalWhole {
 
     // MARK: - Variables
@@ -544,7 +551,7 @@ final class ConditionalWholeMock: ConditionalWhole {
 
 // MARK: - DetailPresenting
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class DetailPresentingMock: DetailPresenting {
 
     // MARK: - Variables
@@ -580,6 +587,7 @@ final class DetailPresentingMock: DetailPresenting {
     }
     var presentCallCount: Int = 0
     var presentArgs: [(any DetailSheet)?] = []
+    // `onDismiss` is not recorded: a stored closure keeps strong references to what it captures for as long as the mock lives. `presentHandler` receives it.
     var presentHandler: ((_ sheet: (any DetailSheet)?, _ onDismiss: @escaping ((any DetailSheet)?) -> Void) -> ((any DetailSheet)?))? = nil
     func presentAll(_ sheets: [any DetailSheet]) -> [any DetailSheet] {
         presentAllCallCount += 1
@@ -596,7 +604,7 @@ final class DetailPresentingMock: DetailPresenting {
 
 // MARK: - DiagnosticsReporting
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 @MainActor
 final class DiagnosticsReportingMock: DiagnosticsReporting {
 
@@ -633,7 +641,7 @@ final class DiagnosticsReportingMock: DiagnosticsReporting {
 
 // MARK: - FrameRetaining
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class FrameRetainingMock: FrameRetaining {
 
     // MARK: - Variables
@@ -689,7 +697,7 @@ final class FrameRetainingMock: FrameRetaining {
 
 // MARK: - FrameStreaming
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class FrameStreamingMock: FrameStreaming {
 
     // MARK: - Variables
@@ -770,7 +778,7 @@ final class FrameStreamingMock: FrameStreaming {
 
 // MARK: - MainDependency
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class MainDependencyMock: MainDependency {
 
     // MARK: - Variables
@@ -837,7 +845,7 @@ final class MainDependencyMock: MainDependency {
 
 // MARK: - MediaStaging
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class MediaStagingMock: MediaStaging {
 
     // MARK: - Methods
@@ -885,7 +893,7 @@ final class MediaStagingMock: MediaStaging {
 
 // MARK: - MemoryEventStreaming
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class MemoryEventStreamingMock: MemoryEventStreaming {
 
     // MARK: - Variables
@@ -918,7 +926,7 @@ final class MemoryEventStreamingMock: MemoryEventStreaming {
 
 // MARK: - MemoryRepositoryProtocol
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
 
     // MARK: - Variables
@@ -1084,7 +1092,7 @@ final class MemoryRepositoryProtocolMock: MemoryRepositoryProtocol {
 
 // MARK: - NamingAnnotated
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 // Not named after their declaration:
 //   `refresh()` members are named `reloadNow*` — `/// sourcery: methodName = "reloadNow"`
 final class NamingAnnotatedMock: NamingAnnotated {
@@ -1111,7 +1119,7 @@ final class NamingAnnotatedMock: NamingAnnotated {
 
 // MARK: - NamingKeywords
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class NamingKeywordsMock: NamingKeywords {
 
     // MARK: - Variables
@@ -1125,12 +1133,18 @@ final class NamingKeywordsMock: NamingKeywords {
         }
         set {
             defaultSetCount += 1
+            defaultSetArgs.append(newValue)
             _default = newValue
+            if let handler = defaultSetHandler {
+                handler(newValue)
+            }
         }
     }
     var defaultGetCount: Int = 0
     var defaultGetHandler: (() -> Int)? = nil
     var defaultSetCount: Int = 0
+    var defaultSetArgs: [Int] = []
+    var defaultSetHandler: ((_ newValue: Int) -> ())? = nil
     var _default: Int = 0
 
     // MARK: - Methods
@@ -1156,7 +1170,7 @@ final class NamingKeywordsMock: NamingKeywords {
 
 // MARK: - NamingManyToOne
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class NamingManyToOneMock: NamingManyToOne {
 
     // MARK: - Methods
@@ -1180,7 +1194,7 @@ final class NamingManyToOneMock: NamingManyToOne {
 
 // MARK: - NamingOverloads
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 // Not named after their declaration:
 //   `end(at:)` members are named `endAt*` — overload of `end`, argument labels appended
 //   `end(atDocument:)` members are named `endAtDocument*` — overload of `end`, argument labels appended
@@ -1245,7 +1259,7 @@ final class NamingOverloadsMock: NamingOverloads {
 
 // MARK: - NamingReturnTypes
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 // Not named after their declaration:
 //   `data()` members are named `dataStringAny*` — overload of `data` returning `[String: Any]`
 //   `data()` members are named `dataStringAnyOptional*` — overload of `data` returning `[String: Any]?`
@@ -1276,7 +1290,7 @@ final class NamingReturnTypesMock: NamingReturnTypes {
 
 // MARK: - NamingUnderscores
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class NamingUnderscoresMock: NamingUnderscores {
 
     // MARK: - Variables
@@ -1290,12 +1304,18 @@ final class NamingUnderscoresMock: NamingUnderscores {
         }
         set {
             setting4_2SetCount += 1
+            setting4_2SetArgs.append(newValue)
             _setting4_2 = newValue
+            if let handler = setting4_2SetHandler {
+                handler(newValue)
+            }
         }
     }
     var setting4_2GetCount: Int = 0
     var setting4_2GetHandler: (() -> Int)? = nil
     var setting4_2SetCount: Int = 0
+    var setting4_2SetArgs: [Int] = []
+    var setting4_2SetHandler: ((_ newValue: Int) -> ())? = nil
     var _setting4_2: Int = 0
 
     // MARK: - Methods
@@ -1321,7 +1341,7 @@ final class NamingUnderscoresMock: NamingUnderscores {
 
 // MARK: - NamingUnlabelledOverload
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 // Not named after their declaration:
 //   `send(to:)` members are named `sendTo*` — overload of `send`, argument labels appended
 final class NamingUnlabelledOverloadMock: NamingUnlabelledOverload {
@@ -1352,7 +1372,7 @@ final class NamingUnlabelledOverloadMock: NamingUnlabelledOverload {
 
 // MARK: - NamingUppercase
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class NamingUppercaseMock: NamingUppercase {
 
     // MARK: - Methods
@@ -1378,7 +1398,7 @@ final class NamingUppercaseMock: NamingUppercase {
 
 // MARK: - NotificationSignalling
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class NotificationSignallingMock: NotificationSignalling {
 
     // MARK: - Variables
@@ -1436,7 +1456,7 @@ final class NotificationSignallingMock: NotificationSignalling {
 
 // MARK: - PlaybackObserving
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class PlaybackObservingMock: PlaybackObserving {
 
     // MARK: - Methods
@@ -1462,7 +1482,7 @@ final class PlaybackObservingMock: PlaybackObserving {
 
 // MARK: - PlaybackRetaining
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class PlaybackRetainingMock: PlaybackRetaining {
 
     // MARK: - Methods
@@ -1486,7 +1506,7 @@ final class PlaybackRetainingMock: PlaybackRetaining {
 
 // MARK: - PropertyEffectful
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class PropertyEffectfulMock: PropertyEffectful {
 
     // MARK: - Variables
@@ -1555,9 +1575,41 @@ final class PropertyEffectfulMock: PropertyEffectful {
     }
 }
 
+// MARK: - PropertyIsolated
+// Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
+@MainActor
+final class PropertyIsolatedMock: PropertyIsolated {
+
+    // MARK: - Variables
+    nonisolated var port: Int {
+        get {
+            portGetCount += 1
+            if let handler = portGetHandler {
+                return handler()
+            }
+            return _port
+        }
+        set {
+            portSetCount += 1
+            portSetArgs.append(newValue)
+            _port = newValue
+            if let handler = portSetHandler {
+                handler(newValue)
+            }
+        }
+    }
+    nonisolated(unsafe) var portGetCount: Int = 0
+    nonisolated(unsafe) var portGetHandler: (() -> Int)? = nil
+    nonisolated(unsafe) var portSetCount: Int = 0
+    nonisolated(unsafe) var portSetArgs: [Int] = []
+    nonisolated(unsafe) var portSetHandler: ((_ newValue: Int) -> ())? = nil
+    nonisolated(unsafe) var _port: Int = 0
+}
+
 // MARK: - PropertyShaped
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class PropertyShapedMock: PropertyShaped {
 
     // MARK: - Variables
@@ -1581,11 +1633,17 @@ final class PropertyShapedMock: PropertyShaped {
         }
         set {
             cursorSetCount += 1
+            cursorSetArgs.append(newValue)
+            if let handler = cursorSetHandler {
+                handler(newValue)
+            }
         }
     }
     var cursorGetCount: Int = 0
     var cursorGetHandler: (() -> Int)? = nil
     var cursorSetCount: Int = 0
+    var cursorSetArgs: [Int] = []
+    var cursorSetHandler: ((_ newValue: Int) -> ())? = nil
     var draft: String {
         get {
             draftGetCount += 1
@@ -1596,12 +1654,18 @@ final class PropertyShapedMock: PropertyShaped {
         }
         set {
             draftSetCount += 1
+            draftSetArgs.append(newValue)
             _draft = newValue
+            if let handler = draftSetHandler {
+                handler(newValue)
+            }
         }
     }
     var draftGetCount: Int = 0
     var draftGetHandler: (() -> String)? = nil
     var draftSetCount: Int = 0
+    var draftSetArgs: [String] = []
+    var draftSetHandler: ((_ newValue: String) -> ())? = nil
     var _draft: String = ""
     var identifier: String {
         identifierGetCount += 1
@@ -1613,6 +1677,28 @@ final class PropertyShapedMock: PropertyShaped {
     var identifierGetCount: Int = 0
     var identifierGetHandler: (() -> String)? = nil
     var _identifier: String = ""
+    var onChange: (() -> Void)? {
+        get {
+            onChangeGetCount += 1
+            if let handler = onChangeGetHandler {
+                return handler()
+            }
+            return _onChange
+        }
+        set {
+            onChangeSetCount += 1
+            _onChange = newValue
+            if let handler = onChangeSetHandler {
+                handler(newValue)
+            }
+        }
+    }
+    var onChangeGetCount: Int = 0
+    var onChangeGetHandler: (() -> (() -> Void)?)? = nil
+    var onChangeSetCount: Int = 0
+    // Values written to `onChange` are not recorded: a stored closure keeps strong references to what it captures for as long as the mock lives. `onChangeSetHandler` receives each one.
+    var onChangeSetHandler: ((_ newValue: (() -> Void)?) -> ())? = nil
+    var _onChange: (() -> Void)? = nil
     var snapshot: [String: Int] {
         snapshotGetCount += 1
         if let handler = snapshotGetHandler {
@@ -1632,6 +1718,47 @@ final class PropertyShapedMock: PropertyShaped {
     var themeProviderGetCount: Int = 0
     var themeProviderGetHandler: (() -> ThemeProviding)? = nil
     var _themeProvider: ThemeProviding
+    var transform: (Int) -> Int {
+        get {
+            transformGetCount += 1
+            if let handler = transformGetHandler {
+                return handler()
+            }
+            fatalError("transformGetHandler expected to be set.")
+        }
+        set {
+            transformSetCount += 1
+            if let handler = transformSetHandler {
+                handler(newValue)
+            }
+        }
+    }
+    var transformGetCount: Int = 0
+    var transformGetHandler: (() -> (Int) -> Int)? = nil
+    var transformSetCount: Int = 0
+    // Values written to `transform` are not recorded: a stored closure keeps strong references to what it captures for as long as the mock lives. `transformSetHandler` receives each one.
+    var transformSetHandler: ((_ newValue: @escaping (Int) -> Int) -> ())? = nil
+    var volume: Int {
+        get {
+            volumeGetCount += 1
+            if let handler = volumeGetHandler {
+                return handler()
+            }
+            return _volume
+        }
+        set {
+            volumeSetCount += 1
+            _volume = newValue
+            if let handler = volumeSetHandler {
+                handler(newValue)
+            }
+        }
+    }
+    var volumeGetCount: Int = 0
+    var volumeGetHandler: (() -> Int)? = nil
+    var volumeSetCount: Int = 0
+    var volumeSetHandler: ((_ newValue: Int) -> ())? = nil
+    var _volume: Int = 0
 
     // MARK: - Initializer
     init(themeProvider: ThemeProviding) {
@@ -1641,7 +1768,7 @@ final class PropertyShapedMock: PropertyShaped {
 
 // MARK: - PushNotificationRepositoryProtocol
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 @MainActor
 final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryProtocol {
 
@@ -1730,13 +1857,13 @@ final class PushNotificationRepositoryProtocolMock: PushNotificationRepositoryPr
 
 // MARK: - RootDependency
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class RootDependencyMock: RootDependency {
 }
 
 // MARK: - TimelineBuildable
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class TimelineBuildableMock: TimelineBuildable {
 
     // MARK: - Methods
@@ -1755,7 +1882,7 @@ final class TimelineBuildableMock: TimelineBuildable {
 
 // MARK: - TimelineDependency
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class TimelineDependencyMock: TimelineDependency {
 
     // MARK: - Variables
@@ -1822,7 +1949,7 @@ final class TimelineDependencyMock: TimelineDependency {
 
 // MARK: - UploadScheduling
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class UploadSchedulingMock: UploadScheduling {
 
     // MARK: - Methods
@@ -1835,12 +1962,13 @@ final class UploadSchedulingMock: UploadScheduling {
     }
     var scheduleCallCount: Int = 0
     var scheduleArgs: [String] = []
+    // `completion` is not recorded: a stored closure keeps strong references to what it captures for as long as the mock lives. `scheduleHandler` receives it.
     var scheduleHandler: ((_ fileName: String, _ completion: @escaping @Sendable (Bool) -> Void) -> ())? = nil
 }
 
 // MARK: - UserRepositoryProtocol
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 @MainActor
 final class UserRepositoryProtocolMock: UserRepositoryProtocol {
 
@@ -1930,7 +2058,7 @@ final class UserRepositoryProtocolMock: UserRepositoryProtocol {
 
 // MARK: - VocabularyCanonical
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class VocabularyCanonicalMock: VocabularyCanonical {
 
     // MARK: - Variables
@@ -1958,7 +2086,7 @@ final class VocabularyCanonicalMock: VocabularyCanonical {
 
 // MARK: - VocabularyLegacyObjc
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class VocabularyLegacyObjcMock: NSObject, VocabularyLegacyObjc {
 
     // MARK: - Methods
@@ -1974,7 +2102,7 @@ final class VocabularyLegacyObjcMock: NSObject, VocabularyLegacyObjc {
 
 // MARK: - VocabularyObjc
 // Members are the requirement's declared name plus a suffix — `load` gives `loadCallCount`,
-// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameSetCount`, `nameGetHandler`, `_name`.
+// `loadArgs`, `loadHandler`; `name` gives `nameGetCount`, `nameGetHandler`, `nameSetCount`, `nameSetArgs`, `nameSetHandler`, `_name`.
 final class VocabularyObjcMock: NSObject, VocabularyObjc {
 
     // MARK: - Methods

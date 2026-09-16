@@ -51,7 +51,7 @@ Annotation names are matched exactly, including case.
 | `globalActor = "MyIsolation"` | Protocol | Declare the mock's global actor when the attribute name does not end in `Actor` |
 | `uncheckedSendable` | Protocol | Force `@unchecked Sendable` on the mock when the `Sendable` refinement is not visible to Sourcery |
 | `subject = "CurrentValue"` | Variable / method | Choose the subject backing an `AnyPublisher` member — `CurrentValue` or `Passthrough` |
-| `skipArgumentRecording` | Protocol / method / variable | Do not generate `<method>Args`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected |
+| `skipArgumentRecording` | Protocol / method / variable | Do not generate `<method>Args`, `<var>SetArgs`, `<name>Outputs` or `<name>Events`; counting and the handlers are unaffected |
 | `if = "canImport(UIKit)"` | Protocol / method / variable | Generate the member, or the whole mock, inside `#if <value>` |
 | `owns` | Protocol | Emit `<X>ComponentBase` (non-final) for a hand-written subclass that holds what the level owns |
 | `componentName = "Foo"` | Protocol | Name the emitted Component `Foo` instead of deriving it from the protocol |
@@ -153,20 +153,15 @@ class's index. Search for either spelling.
 | `<method>Args` | method | what each call was passed, in order: `[T]` for one recordable parameter, `[(first: A, second: B)]` for more, labelled with the parameter names |
 | `<method>Handler` | method | the closure the test sets to decide the return value and the side effects; `async` and `throws` carry through to it |
 | `<var>GetCount` / `<var>GetHandler` | property | every property requirement counts its reads; the handler supplies the value |
-| `<var>SetCount` / `_<var>` | property | writes to a `{ get set }` requirement, and the store — `_<var>` reads and seeds without moving a counter, and is the only way to seed a `{ get }` one |
+| `<var>SetCount` / `<var>SetArgs` / `<var>SetHandler` | property | a `{ get set }` requirement's writes: counted, each value recorded, then handed to the handler |
+| `_<var>` | property | the store — reads and seeds without moving a counter, and is the only way to seed a `{ get }` one |
 | `<name>Subject` | both | the subject behind an `AnyPublisher` or RxSwift member, which the test drives with `send` |
 | `<name>SubscribeCount` / `<name>SubscribeCancelCount` / `<name>CompletionCount` | both | an `AnyPublisher` member: the code under test subscribed, cancelled, saw the stream end |
 | `<name>OutputCount` / `<name>Outputs` / `<name>OutputHandler` | both | an `AnyPublisher` member: what it **delivered** — counted, recorded, handed to the handler |
 | `<name>EventCallCount` / `<name>Events` / `<name>EventHandler` | both | an `AnyObserver` member: the events pushed **in**, the same three ways |
 | `<method>CancelCallCount` / `<method>CancelHandler`, `<method>DisposeCallCount` / `<method>DisposeHandler` | method | the returned `AnyCancellable` was cancelled, or the returned RxSwift `Disposable` disposed |
 
-A returned token's suffix is the call it exposes: `cancel()`, `dispose()`.
-
-**A property declared `{ get async }`, `{ get throws }` or `{ get async throws }`** generates the
-accessor it declares, and `<var>GetHandler` carries the same effects. Swift has no effectful setter,
-so it has no `<var>SetCount`; seed `_<var>`. A member with no handler set returns a default — `nil`
-for an `Optional`, a usable empty value for a known type. Mock classes are `final`: set a handler
-rather than subclassing one.
+A member with no handler set returns a default — `nil` for an `Optional`, a usable empty value for a known type.
 
 **Drive a publisher member through its subject:**
 
