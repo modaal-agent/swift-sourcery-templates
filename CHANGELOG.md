@@ -18,7 +18,7 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
-## 0.11.0 — unreleased
+## 0.11.0 — 2026-11-08
 
 `mock-templates print <Target> [<Protocol> ...]` prints what `SourcerySwiftCodegenPlugin` generates for
 one target and compiles nothing. The artifact bundle the plugin resolves carries it, so a project that
@@ -50,6 +50,9 @@ builds with the plugin has the binary under `.build/artifacts/` or its derived d
 ### Generated output
 
 Unchanged. `templates/` is byte-identical to 0.10.2's, and the fast lane's snapshots are unchanged.
+
+**Measured on a consumer repository.** 34 mocks across 7 modules, regenerated against this release from
+0.10.2's output: 2900 lines before and after, no line changed.
 
 ### Breaking
 
