@@ -18,6 +18,56 @@ Swift 6 language mode: `async` and `nonisolated` are carried through to the mock
 global actor is declared on the mock class, and a `Sendable` protocol gets an `@unchecked`
 conformance. See [Concurrency](#concurrency).
 
+swift-sourcery-templates is open source under the Apache License 2.0 and works in any SwiftPM package
+or Xcode project on its own. [Modaal.dev](https://modaal.dev) supports this repository and also
+makes code and design authoring tools for native iOS and Android apps: the tools give an agent the
+project's context and the commands to build, check and run the app, and let a person design the
+screens and edit the code beside the agent.
+
+## Agent skill
+
+`skills/swift-sourcery-mocks/` is an [agent skill](https://code.claude.com/docs/en/skills): the
+setup below, written for a coding agent working in a repository that *adopts* these templates. It
+picks the lane, writes the config, prints the mocks a target generates without building it, and
+names the cause when generation produces a mock that does not conform.
+
+Four channels install it, over one tree.
+
+**1. Any of ~75 agents, through the cross-agent CLI.** `-g` installs for every project on the
+machine instead of this one; `--list` lists without installing.
+
+```bash
+npx skills add modaal-agent/swift-sourcery-templates
+```
+
+**2. As a Claude Code plugin.** The repository root is the marketplace, and `skills/` is the
+plugin's root:
+
+```
+/plugin marketplace add modaal-agent/swift-sourcery-templates
+/plugin install swift-sourcery-mocks@swift-sourcery-templates
+```
+
+`/plugin update swift-sourcery-mocks@swift-sourcery-templates` installs a new version.
+
+**3. By hand.**
+
+```bash
+git clone https://github.com/modaal-agent/swift-sourcery-templates
+cp -r swift-sourcery-templates/skills/* ~/.claude/skills/
+```
+
+`.claude/skills/` inside a project installs it for that project alone.
+
+**4. claude.ai and the Skills API.** The frontmatter carries only the Agent Skills standard's keys,
+so `skills/swift-sourcery-mocks/` packages and uploads unedited.
+
+A prompt to try in a Swift package:
+
+> The `Payments` package's tests use a hand-written `FakeRefundService`. Generate mocks for the
+> protocols in `Sources/Payments` into the `PaymentsTests` target, and rewrite `RefundFlowTests` to
+> use `RefundServiceMock`.
+
 ## Generated Mock API
 
 For a protocol method:
@@ -745,53 +795,20 @@ Passed via `--args` on the CLI or `args:` in a YAML config:
 
 A Component is production code, so its output takes `import=`, not `testable=`.
 
-## Agent skill
+## Skill versions and checks
 
-`skills/swift-sourcery-mocks/` is an [agent skill](https://code.claude.com/docs/en/skills): the
-setup above, written for a coding agent working in a repository that *adopts* these templates. It
-picks the lane, writes the config, and names the cause when generation produces a mock that does not
-conform. Its annotation table is rendered from the same registry this README's is
-(`Scripts/render-annotations.sh`), so the two cannot drift apart.
+The [agent skill](#agent-skill)'s annotation table is rendered from the same registry this README's
+is (`Scripts/render-annotations.sh`), so the two cannot drift apart.
 
-It carries no script. To print the mocks the plugin generates for a target without building it, the
+The skill carries no script. To print the mocks the plugin generates for a target without building it, the
 skill runs `mock-templates print`, from the artifact bundle the plugin resolves: in a SwiftPM package
 it plans the build, which runs the plugin and compiles nothing; in an Xcode project it re-runs the
 generator on the configs the target's last build wrote.
 [`references/printing-mocks.md`](skills/swift-sourcery-mocks/references/printing-mocks.md) has where
 the binary is, the command and what each failure means.
 
-Four channels install it, over one tree.
-
-**1. Any of ~75 agents, through the cross-agent CLI.** `-g` installs for every project on the
-machine instead of this one; `--list` lists without installing.
-
-```bash
-npx skills add modaal-agent/swift-sourcery-templates
-```
-
-**2. As a Claude Code plugin.** The repository root is the marketplace, and `skills/` is the
-plugin's root:
-
-```
-/plugin marketplace add modaal-agent/swift-sourcery-templates
-/plugin install swift-sourcery-mocks@swift-sourcery-templates
-```
-
 The plugin's version, in `skills/.claude-plugin/plugin.json`, is its own semver and changes only
-when a file under `skills/` changes (CONTRIBUTING.md, The agent skill, rule 9);
-`/plugin update swift-sourcery-mocks@swift-sourcery-templates` installs a new version.
-
-**3. By hand.**
-
-```bash
-git clone https://github.com/modaal-agent/swift-sourcery-templates
-cp -r swift-sourcery-templates/skills/* ~/.claude/skills/
-```
-
-`.claude/skills/` inside a project installs it for that project alone.
-
-**4. claude.ai and the Skills API.** The frontmatter carries only the Agent Skills standard's keys,
-so `skills/swift-sourcery-mocks/` packages and uploads unedited.
+when a file under `skills/` changes (CONTRIBUTING.md, The agent skill, rule 9).
 
 The skill is not a release asset. Channels 1, 3 and 4 read this repository, so a change to it
 reaches them by landing on `master`, and channel 2 once the plugin's version is raised; `Tests/Checks/run-skill-checks.sh` gates it on every push,
