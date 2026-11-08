@@ -682,6 +682,16 @@ Recorded paths are relative to `--root`, so the block reproduces across checkout
 the root is an error, never an absolute path. The tool is policy-free: which sources a generated
 file scans, and which bundle tag to expect, are the calling script's to decide.
 
+`mock-templates print <Target> [<Protocol> ...]` prints what the build-tool plugin generates for one
+target and compiles nothing, from the directory holding `Package.swift` or the `.xcodeproj`. In a
+SwiftPM package it runs `swift build --target <Target> --print-manifest-job-graph` and prints the
+target's `*.generated.swift` from the build directory's `plugins/outputs/`; in an Xcode project it
+re-runs the engine on the configs the target's last build synthesized, writing under the derived
+data's `Build/Intermediates.noindex/PrintMocks/`. With protocol names it prints each one's
+`// MARK: -` block. `mock-templates print --help` lists its flags; the agent skill's
+[`references/printing-mocks.md`](skills/swift-sourcery-mocks/references/printing-mocks.md) has each
+failure and what to do.
+
 ### The released artifact bundle
 
 Each release publishes one download that carries everything a generating repo needs — the Sourcery
@@ -743,11 +753,12 @@ picks the lane, writes the config, and names the cause when generation produces 
 conform. Its annotation table is rendered from the same registry this README's is
 (`Scripts/render-annotations.sh`), so the two cannot drift apart.
 
-It carries one script, `scripts/print-mocks.sh`, which prints the mocks the plugin generates for a
-target without building it. In a SwiftPM package it plans the build, which runs the plugin and
-compiles nothing; in an Xcode project it re-runs the generator on the configs the target's last build
-wrote. [`references/printing-mocks.md`](skills/swift-sourcery-mocks/references/printing-mocks.md)
-has the command and what each failure means.
+It carries no script. To print the mocks the plugin generates for a target without building it, the
+skill runs `mock-templates print`, from the artifact bundle the plugin resolves: in a SwiftPM package
+it plans the build, which runs the plugin and compiles nothing; in an Xcode project it re-runs the
+generator on the configs the target's last build wrote.
+[`references/printing-mocks.md`](skills/swift-sourcery-mocks/references/printing-mocks.md) has where
+the binary is, the command and what each failure means.
 
 Four channels install it, over one tree.
 
@@ -758,12 +769,17 @@ machine instead of this one; `--list` lists without installing.
 npx skills add modaal-agent/swift-sourcery-templates
 ```
 
-**2. As a Claude Code plugin.** The repository root is both the marketplace and the plugin:
+**2. As a Claude Code plugin.** The repository root is the marketplace, and `skills/` is the
+plugin's root:
 
 ```
 /plugin marketplace add modaal-agent/swift-sourcery-templates
 /plugin install swift-sourcery-mocks@swift-sourcery-templates
 ```
+
+The plugin's version, in `skills/.claude-plugin/plugin.json`, is its own semver and changes only
+when a file under `skills/` changes (CONTRIBUTING.md, The agent skill, rule 9);
+`/plugin update swift-sourcery-mocks@swift-sourcery-templates` installs a new version.
 
 **3. By hand.**
 
@@ -777,8 +793,8 @@ cp -r swift-sourcery-templates/skills/* ~/.claude/skills/
 **4. claude.ai and the Skills API.** The frontmatter carries only the Agent Skills standard's keys,
 so `skills/swift-sourcery-mocks/` packages and uploads unedited.
 
-The skill is not a release asset. All four channels read this repository, so a change to it is
-published by landing on `master`; `Tests/Checks/run-skill-checks.sh` gates it on every push,
+The skill is not a release asset. Channels 1, 3 and 4 read this repository, so a change to it
+reaches them by landing on `master`, and channel 2 once the plugin's version is raised; `Tests/Checks/run-skill-checks.sh` gates it on every push,
 including the check that every `SOURCERY_*` variable and every `mock-templates` flag it names is one
 this repository actually provides.
 

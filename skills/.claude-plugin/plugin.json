@@ -1,15 +1,19 @@
 {
   "name": "swift-sourcery-mocks",
+  "version": "1.1.0",
   "description": "Generate Swift protocol mocks, type erasures and forwarding Components with the swift-sourcery-templates Sourcery templates. Carries the swift-sourcery-mocks skill.",
   "author": {
-    "name": "Ivan Misuno",
-    "url": "https://github.com/modaal-agent/swift-sourcery-templates"
+    "name": "Modaal.dev",
+    "url": "https://modaal.dev"
   },
   "homepage": "https://github.com/modaal-agent/swift-sourcery-templates",
   "repository": "https://github.com/modaal-agent/swift-sourcery-templates",
   "license": "Apache-2.0",
   "keywords": ["swift", "sourcery", "mocks", "codegen", "testing"],
-  "experimental": {
-    "evals": "Tests/Evals"
-  }
+  "skills": "./swift-sourcery-mocks",
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://docs.modaal.dev/articles/duet-agent-skills",
+  "privacyPolicyUrl": "https://modaal.dev/privacy",
+  "termsOfServiceUrl": "https://modaal.dev/terms",
+  "supportUrl": "https://discord.gg/ng84Jm92tm"
 }

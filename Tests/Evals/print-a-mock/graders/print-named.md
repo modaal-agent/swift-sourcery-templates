@@ -2,4 +2,4 @@
 type: regex
 match: contains
 ---
-print-mocks\.sh
+mock-templates["`]? print

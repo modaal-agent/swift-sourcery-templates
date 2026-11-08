@@ -26,9 +26,10 @@ templates/                          # the product
     ComponentGenerator.swift        # forwarding emission; consumes the Mocks/ rules
   Utility/                          # generics, string helpers
 
-Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprint, validate
+Sources/mock-templates/             # the CLI: generate (wraps Sourcery), imprint, validate, print
   MockTemplates.swift               # command tree
-  Commands.swift                    # the three verbs + their shared options
+  Commands.swift                    # generate, imprint, validate + their shared options
+  Print.swift                       # print: what the plugin generates for one target, SwiftPM and Xcode
   Fingerprint.swift                 # the provenance block — format, render, parse
   SourceSet.swift                   # input enumeration and root-relative paths
 
@@ -48,13 +49,15 @@ Scripts/
   assemble-release.sh               # builds the release assets — see Cutting a release
   engine-pin.sh                     # the upstream Sourcery pin: version, zip, SHA-256
   render-annotations.sh             # renders templates/Annotations/ into every document that documents it
-skills/                             # the agent skill, published by four channels — see The agent skill
+skills/                             # the agent skill, published by four channels — see The agent skill; the plugin root
+  .claude-plugin/                   # the Claude Code plugin's manifest
+    plugin.json                     # name, version, the skills path, the directory listing's links
+    icon.png                        # the directory listing's icon
   swift-sourcery-mocks/
     SKILL.md                        # the resident body; its annotation block is rendered
     references/*.md                 # loaded per lane, not resident
 .claude-plugin/                     # the Claude Code plugin channel: the repository root is the marketplace
-  marketplace.json                  # one entry, source "./"
-  plugin.json                       # the plugin; its default skills/ is the tree above
+  marketplace.json                  # one entry, source "./skills"
 specs/                              # design specs, NNN-slug/spec.md — see What goes in which document
 ```
 
@@ -205,12 +208,15 @@ silence.
 
 1. `Sources/mock-templates/` — the fingerprint block format lives in `Fingerprint.swift`, the
    input-enumeration rule in `SourceSet.swift` (every regular `.swift` file under a root, hidden
-   entries skipped, recorded root-relative, sorted), the verbs in `Commands.swift`
+   entries skipped, recorded root-relative, sorted), `generate`, `imprint` and `validate` in
+   `Commands.swift`, and `print` in `Print.swift`
 2. The CLI is policy-free: it hashes what it is pointed at and knows nothing about who calls it.
    Anything that decides *which* sources, templates or tag — keep in the calling script
 3. Run `Tests/Checks/run-cli-checks.sh`. Its transparency gate diffs `generate`'s body against the
    fast lane's snapshot, so a wrapper change that alters output is caught even when the templates
-   never changed
+   never changed. `print` needs a package or a project the plugin ran in, so
+   `Tests/Checks/run-plugin-checks.sh` and `Tests/Checks/run-xcode-checks.sh` run it, over their
+   fixtures
 4. A block-format change invalidates every committed fingerprint downstream — bump the version in
    the header line (`mock-templates:fingerprint v1`) and say so in CHANGELOG.md
 
@@ -227,18 +233,31 @@ silence.
    the command that resolves the newest tag
 5. Run `Tests/Checks/run-skill-checks.sh`. SC6 and SC7 are why the skill lives here: every
    `SOURCERY_*` variable it names is compared against the plugin source and every `mock-templates`
-   flag against `Commands.swift`, on the push that changes either side
+   flag against `Sources/mock-templates/`, on the push that changes either side
 6. The frontmatter carries only the Agent Skills standard's six keys, so the directory uploads to
    claude.ai unedited — and its values are quoted or free of `: `, which the cross-agent CLI's YAML
    parser refuses in a plain scalar
 7. `Tests/Evals/` holds the suite that measures whether the skill changes what an agent does. It
-   cannot live under `skills/`: that is the plugin's skill component directory, and the runner
-   refuses a case directory inside one. `.claude-plugin/plugin.json` names it in
-   `experimental.evals`, and `Tests/Evals/README.md` gives the two ways to run it
-8. `scripts/print-mocks.sh` is code, and changes on a branch. `run-plugin-checks.sh` and
-   `run-xcode-checks.sh` run it against their fixtures and compare what it prints with the files the
-   build wrote, and `ci.yml`'s change filter counts `skills/<name>/scripts/` as code so both lanes
-   run. A line the skill quotes from it has to be one of its `fail "…"` strings (SC14)
+   lives outside `skills/`, the plugin root, so an install does not copy it, and the runner reads
+   cases only below the plugin it runs: a run copies the plugin and the suite into one directory.
+   `Tests/Evals/README.md` gives that command and the by-hand form
+8. The skill carries no script. A command it tells an agent to run is a `mock-templates`
+   subcommand, which is built and tested here and ships in the artifact bundle the plugin resolves:
+   `run-plugin-checks.sh` and `run-xcode-checks.sh` run `mock-templates print` against their
+   fixtures and compare what it prints with the files the build wrote. Every subcommand the skill
+   names has to be one `MockTemplates.swift` registers, and every `mock-templates: …` line it quotes
+   one the CLI prints (SC14). SC16 fails a file under `skills/` that is not Markdown, text, JSON, YAML
+   or a PNG, JPEG, GIF, WebP or ICO image, a file that starts with `#!`, a package manager's
+   configuration file, and a text file that is not UTF-8 or holds a NUL byte: a plugin directory
+   refuses each of them from an organization it has not verified
+9. A change under `skills/` raises `version` in `skills/.claude-plugin/plugin.json` in the same
+   pull request. `skills/` is the root of the Claude Code plugin `swift-sourcery-mocks`, and that
+   version is the plugin's own semver, independent of this repository's tags. Raise the patch number
+   for a correction, the minor number for new guidance, a new reference or a change to a command the
+   skill tells the agent to run, and the major number when a skill is renamed or removed. A pull
+   request that leaves `skills/` unchanged leaves the version. Claude Code installs a plugin update
+   only when the version string changes, so an edit without a raise reaches no user; SC15 fails when
+   a file under `skills/` changed since the commit that set the current version
 
 ## Design rules already decided
 
@@ -424,9 +443,9 @@ protocol work. `Variable.isAsync` and `Variable.throws` carry effectful property
 | full | `cd Tests/Examples/ExampleProjectSpm && ./test-ios.sh` | an iOS Simulator; minutes |
 
 `Tests/Evals/` is not a lane. It is the skill's behavioural gate: each of seven prompts run once with
-the plugin loaded and once without, and the two answers compared — `claude plugin eval . --ablation
-with-without`, or the pair of `claude -p` invocations in `Tests/Evals/README.md`. It spends model
-calls and a few minutes, the runner is in early access, and no CI job runs it. Run it when the
+the plugin loaded and once without, and the two answers compared — `claude plugin eval` over a copy
+of `skills/` and `Tests/Evals/`, or the pair of `claude -p` invocations, both in
+`Tests/Evals/README.md`. It spends model calls and a few minutes, and no CI job runs it. Run it when the
 skill's text changes. What runs on every push is `run-skill-checks.sh` SC13, which only checks that
 each case would parse.
 
@@ -496,11 +515,11 @@ external-annotation pattern, type erasure, and the plugin itself.
 | fast | `Tests/Checks/Fixtures/Conditional.swift` | declarations generated inside `sourcery: if` conditions — one value, stacked values, `sourcery:begin`/`end`, a whole protocol, an inherited member, a member folded from two clauses, one property name with two types — typechecked with no flag, `-D FIXTURE_CONDITION_A` and `-D FIXTURE_CONDITION_B` in both language modes; the guarded `import Combine`; and, in `run-checks.sh`'s imports section, the `// if canImport` item form in `args.import` and `args.testable` |
 | fast | `Tests/Checks/Behaviour/Main.swift` | call counting, handlers, async suspension, nonisolated access off the main actor, subject-driven streams, cancellation counting, composites; for Components: forwarding identity, per-Component ownership, settable forwarding, parameter shapes, effectful getters |
 | annotations | `Tests/Checks/run-annotation-checks.sh` | every annotation verb a template reads is declared in `templates/Annotations/AnnotationRegistry.swift` (AC1) and every declared record is read by a template (AC3); the record shape `Scripts/render-annotations.sh` parses (AC5); `all` complete (AC2) and disjoint from `retired` (AC4); the naming schema and selector reachability (AC7); every rendered block current (AC6) and naming no alias (AC8); every entry point scanning unfiltered protocols before it filters them (AC9). `--self-test` is its red control: one seeded violation per check |
-| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal (SC9); both `.claude-plugin` manifests parsing and naming one plugin whose root holds the skill tree (SC10, SC11); every eval case under the directory `experimental.evals` names carrying a prompt and at least one grader the runner would accept (SC13); every script the skill names present, every script executable, and every line the skill quotes from a script one that script prints (SC14). SC6 and SC9 read `skills/*/scripts/` as well as the Markdown. `--self-test` is its red control: one seeded violation per check |
+| skill | `Tests/Checks/run-skill-checks.sh` | the frontmatter every install channel can parse, including the unquoted `: ` the cross-agent CLI refuses (SC1); `name:` equal to the directory (SC2); only the Agent Skills standard's keys, so the tree uploads to claude.ai unedited (SC3); the description and line budgets (SC4, SC5); every `SOURCERY_*` variable the skill names exported by the plugin (SC6) and every `mock-templates` flag declared by the CLI (SC7); every relative link resolving (SC8); no version literal in the Markdown (SC9); both `.claude-plugin` manifests parsing and naming one plugin, with a MAJOR.MINOR.PATCH version and its icon present (SC10), whose root `skills/` holds the manifest and loads the skill tree (SC11); every eval case under `Tests/Evals/` carrying a prompt and at least one grader the runner would accept (SC13); every `mock-templates` subcommand the skill names registered in `MockTemplates.swift`, and every `mock-templates: …` line it quotes one the CLI prints (SC14); no file under `skills/` changed since the commit that set the plugin's version, read from the full git history and skipped without it (SC15); every file under `skills/` Markdown, text, JSON, YAML or a PNG, JPEG, GIF, WebP or ICO image by its first bytes, none starting with `#!`, none a package manager's configuration file, every text file UTF-8 with no NUL byte (SC16). `--self-test` is its red control: one seeded violation per check |
 | CLI | `Tests/Checks/run-cli-checks.sh` | `generate` transparency against the fast lane's snapshot; determinism across runs; `validate` red on a mutated input, an unlisted file, a hand-edited body, a wrong bundle tag, a `--template`/`--args` pair the block does not record; `imprint` recovery |
-| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match; and `skills/swift-sourcery-mocks/scripts/print-mocks.sh` over the green fixture — App's generated files printed byte for byte, one protocol's block, exit 1 on a protocol with no mock and on a target with no plugin; the same script inside `sandbox-exec` with the per-user temporary directory and the per-user `clang/ModuleCache` denied, with `PRINT_MOCKS_DISABLE_SANDBOX=1` and without it, on a scratch path SwiftPM has not planned and on the same path again; and `Verbatim`'s `Foundation // if canImport` item generated inside `#if canImport(Foundation)` |
+| plugin | `Tests/Checks/run-plugin-checks.sh` | the derived source closure (splice, sort, absolute paths); passthrough of everything else; the defaults the plugin supplies and the ones it must not; bare template-name resolution and the local file that outranks a shipped one; `args.testable` inserted, declined and left alone; determinism between builds; two configs on one target; and five red controls — a wrong `output:`, a template collision, an unknown template name, a `package:` the plugin must leave alone, an annotation whose case does not match; and `mock-templates print` over the green fixture — App's generated files printed byte for byte, one protocol's block, exit 1 on a protocol with no mock and on a target with no plugin; the same command inside `sandbox-exec` with the per-user temporary directory and the per-user `clang/ModuleCache` denied, with `--disable-sandbox` and without it, on a scratch path SwiftPM has not planned and on the same path again; and `Verbatim`'s `Foundation // if canImport` item generated inside `#if canImport(Foundation)` |
 | plugin | `Tests/Checks/PluginFixtureBundleRoute` | the artifact-bundle template route: a bare name resolving with no `templates/` in the consumed checkout, the route named in the log, the resolved path inside an `.artifactbundle`, and the mock the bundle's template generated |
-| xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here; and `print-mocks.sh`'s engine re-run on App's synthesized config — the generated file printed byte for byte, the build's own file unchanged, one protocol's block, exit 1 with no engine to be found and on a target with no plugin; the plugin's `.sourceryBuild/tmp` under App's plugin work directory, and the `.sourceryBuild/ModuleCache` Sourcery's build wrote there |
+| xcode | `Tests/Checks/run-xcode-checks.sh` | the `XcodeBuildToolPlugin` path: config discovery through the target's own directory; the expansion being the target's own input directories and nothing else; a hand-listed `${SOURCERY_PROJECT}` entry that is scanned; passthrough; the defaults; determinism; a target depending on a sibling target; and one red control — a bare template name, which has no package graph to resolve against here; and `mock-templates print`'s engine re-run on App's synthesized config — the generated file printed byte for byte, the build's own file unchanged, one protocol's block, exit 1 with no engine to be found and on a target with no plugin; the plugin's `.sourceryBuild/tmp` under App's plugin work directory, and the `.sourceryBuild/ModuleCache` Sourcery's build wrote there |
 | full | `SwiftSourceryTemplatesMocksSpec.swift` | mock instantiation, call counting, handler execution |
 | full | `EscapingClosureMocksSpec.swift` | `@escaping` preservation — capture, async dispatch |
 | full | `ReturnTypeOverloadMocksSpec.swift` | return-type-only overload disambiguation |
@@ -542,16 +561,19 @@ the assets to the tag's GitHub release.
 3. Write the `CHANGELOG.md` entry **before** tagging. It is written for a consumer deciding whether to
    bump: what the generated output looks like now, what can fail after a regenerate and how to fix it,
    what to do beyond bumping the tag
-4. If `templates/` changed since the bundle `Package.swift` pins, the release needs two tags, in
-   this order. `Scripts/check-pinned-templates.sh` tells you whether it does, and the release lane
-   refuses to publish if you skip it:
+4. If `templates/` or `Sources/mock-templates/` changed since the bundle `Package.swift` pins, the
+   release needs two tags, in this order. A consumer of the plugin runs the `mock-templates` the
+   pinned bundle carries (`mock-templates print`), so a CLI change reaches it only through a new
+   bundle. `Scripts/check-pinned-templates.sh` compares `templates/` only, and the release lane
+   refuses to publish when `templates/` moved and the pin did not; a CLI change is yours to check:
    1. tag `templates-X.Y.Z` on `master`. Its lane assembles the bundle from that commit's
-      `templates/` and publishes it as a prerelease, with the `.binaryTarget` block in the notes
+      `templates/` and CLI and publishes it as a prerelease, with the `.binaryTarget` block in the
+      notes
    2. land a commit that changes **only** the `sourcery` binaryTarget's `url` and `checksum` to
       that asset's
 
-   A release that changes only the plugin, the CLI or the docs skips this: the pin stays where it
-   is and the gate passes, because `templates/` did not move. The pin lands *after* the asset
+   A release that changes only the plugin or the docs skips this: the pin stays where it is and the
+   gate passes, because `templates/` did not move. The pin lands *after* the asset
    exists, so `master` can never reference a zip that was never uploaded
 5. Tag `master` with the bare `X.Y.Z`. There is no release branch
 6. The tag push runs `.github/workflows/release.yml`, which compares the pinned bundle's

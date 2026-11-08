@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "swift-sourcery-mocks",
-      "source": "./",
+      "source": "./skills",
       "description": "Generate Swift protocol mocks, type erasures and forwarding Components with the swift-sourcery-templates Sourcery templates.",
       "category": "development"
     }

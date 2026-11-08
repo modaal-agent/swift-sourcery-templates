@@ -177,10 +177,14 @@ a test collecting to the end also has to `send(completion: .finished)`.
 the Kotlin member map; [references/stream-members.md](references/stream-members.md) the publisher and
 RxSwift shapes, their counters, and when each handler is read.
 
-**Printing a mock without building.** This prints the named protocols' mocks, or every generated
-file, and compiles nothing ([references/printing-mocks.md](references/printing-mocks.md)):
+**Printing a mock without building.** `mock-templates print` prints the named protocols' mocks, or
+every generated file, and compiles nothing. The plugin's artifact bundle carries the binary, under
+`.build/artifacts/` once the package is resolved;
+[references/printing-mocks.md](references/printing-mocks.md) has where an Xcode project keeps it and
+what to download when the bundle predates `print`:
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/print-mocks.sh" <Target> [<Protocol> ...]
+MOCK_TEMPLATES="$(ls .build/artifacts/*/*/*.artifactbundle/mock-templates/bin/mock-templates | head -1)"
+"$MOCK_TEMPLATES" print <Target> [<Protocol> ...]
 ```
 
 ## When it goes wrong

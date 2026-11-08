@@ -18,6 +18,55 @@ templates are distributed through SPM and through the assets a tag publishes on 
 
 ---
 
+## 0.11.0 — unreleased
+
+`mock-templates print <Target> [<Protocol> ...]` prints what `SourcerySwiftCodegenPlugin` generates for
+one target and compiles nothing. The artifact bundle the plugin resolves carries it, so a project that
+builds with the plugin has the binary under `.build/artifacts/` or its derived data's
+`SourcePackages/artifacts/`.
+
+### `mock-templates print`
+
+- **SwiftPM.** From the directory holding `Package.swift` it runs
+  `swift build --target <Target> --print-manifest-job-graph`, which runs the plugin's prebuild command
+  and compiles nothing, and prints each `*.generated.swift` of the target from the build directory's
+  `plugins/outputs/`, after a `// <path>` line. With protocol names it prints each one's
+  `// MARK: - <Protocol>` line through the class's closing brace. A package whose `platforms:` names
+  no macOS is planned for the iOS simulator. Inside another sandbox, a plan that fails on
+  `sandbox_apply: Operation not permitted` or `Plugin ended with exit code 71` is run again with
+  `--disable-sandbox`; `--disable-sandbox` adds the flag from the first plan, and `--scratch-path`
+  names a build directory other than `.build`.
+- **Xcode.** From the directory holding the `.xcodeproj`, or with `--derived-data`, it re-runs the
+  engine on the configs the plugin synthesized at the target's last build, with `output:` pointed at
+  `<DerivedData>/Build/Intermediates.noindex/PrintMocks/<Target>/`; the build's own generated file is
+  left as it was. The engine is the one beside the templates the configs name, else the one beside
+  `mock-templates` in its artifact bundle, else one under the derived data's
+  `SourcePackages/artifacts/`, and `--engine` names it when none is found. `--derived-data-root` and
+  `--project` cover derived data kept elsewhere and a workspace outside the project's directory.
+- Each failure is one `mock-templates: …` line on stderr and exit status 1: a target with no generated
+  file, a protocol with no mock (also named on stdout), a failed plan, no synthesized config, no
+  engine, a failed engine run.
+
+### Generated output
+
+Unchanged. `templates/` is byte-identical to 0.10.2's, and the fast lane's snapshots are unchanged.
+
+### Breaking
+
+None. The plugin, the templates and `generate`, `imprint` and `validate` keep their shapes.
+
+### Adopting
+
+Nothing for the generated code. The agent skill now runs `mock-templates print` and carries no
+script; a script of your own that ran the skill's `scripts/print-mocks.sh` runs
+`mock-templates print` with the same target and protocol names, and passes `--scratch-path`,
+`--disable-sandbox`, `--derived-data`, `--derived-data-root`, `--project` and `--engine` where it set
+`SCRATCH_PATH`, `PRINT_MOCKS_DISABLE_SANDBOX=1`, `DERIVED_DATA`, `DERIVED_DATA_ROOT`,
+`SOURCERY_PROJECT` and `PRINT_MOCKS_ENGINE`. Its stderr lines start `mock-templates: ` where they
+started `print-mocks: `.
+
+---
+
 ## 0.10.2 — 2026-09-16
 
 A `{ get set }` requirement records each value written in `<var>SetArgs` and hands it to

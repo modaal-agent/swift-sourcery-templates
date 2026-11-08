@@ -230,11 +230,12 @@ file was added or removed. After an edit inside an existing file the generated f
 the test compiles against the old members, or fails naming a protocol that is gone. Plan again:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/print-mocks.sh" <Target>
+"$MOCK_TEMPLATES" print <Target>
 ```
 
-or build once with `swift build --disable-build-manifest-caching`. [printing-mocks.md](printing-mocks.md)
-has what the script prints. An Xcode build runs the plugin on every build.
+with the `mock-templates` binary of the package's resolved artifact bundle, or build once with
+`swift build --disable-build-manifest-caching`. [printing-mocks.md](printing-mocks.md) has where the
+binary is and what `print` prints. An Xcode build runs the plugin on every build.
 
 ## The build succeeds and the committed generated file is stale
 
