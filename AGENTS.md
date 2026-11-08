@@ -98,8 +98,8 @@ Habits to avoid (common LLM-isms):
   spec follows this rule too when it plans new work.
 - A change touching no code may go straight to `master`: a note, README or CHANGELOG wording, the
   skill's Markdown under `skills/` or a `.claude-plugin/` manifest, or an addition to a spec whose
-  branch has already merged. `templates/`, `Sources/`, `Plugins/`, `Tests/`, `Scripts/`,
-  `skills/**/scripts/` and `.github/` are code.
+  branch has already merged. `templates/`, `Sources/`, `Plugins/`, `Tests/`, `Scripts/` and
+  `.github/` are code.
 - Branch when the work starts. If code is ready and the checkout is `master`, ask which branch.
 - Pushing, opening a PR and merging one each need their own go-ahead.
 
@@ -175,20 +175,33 @@ templates. `Tests/Checks/run-skill-checks.sh` gates every rule below that a scri
   diff, the release procedure: CONTRIBUTING and this file, both of which an agent working in *this*
   repository already has.
 - **No version literal anywhere in the tree.** A snippet carries a placeholder and the command that
-  resolves the newest tag; check SC9 fails on `[0-9]+\.[0-9]+\.[0-9]+`.
+  resolves the newest tag; check SC9 fails on `[0-9]+\.[0-9]+\.[0-9]+` in the Markdown.
+  `skills/.claude-plugin/plugin.json` carries the plugin's own semver, which SC9 does not read.
+- **A change under `skills/` raises `version` in `skills/.claude-plugin/plugin.json` in the same
+  pull request**: the patch number for a correction, the minor number for new guidance, a new
+  reference or a change to a command the skill tells the agent to run, the major number when a skill
+  is renamed or removed. Claude Code
+  installs a plugin update only when the version string changes. SC15 fails a file under `skills/`
+  changed since the commit that set the current version; it reads the full history, so the
+  `skills` job checks out with `fetch-depth: 0`. CONTRIBUTING.md, The agent skill, rule 9 carries
+  the rule.
 - **Frontmatter is the Agent Skills standard's six keys only** — `name`, `description`, `license`,
   `compatibility`, `metadata`, `allowed-tools` — one key per line, with no unquoted value carrying
   `: `. An extension key stops the directory uploading to claude.ai unedited; the colon stops the
   cross-agent CLI parsing the file at all.
 - **`SKILL.md` stays under 400 lines and each `references/*.md` under 250.** The body is resident
   for every turn after the skill is invoked; a reference costs nothing until the agent opens it.
-- **Its `scripts/` is code, and the skill quotes only what a script prints.** A change to
-  `scripts/print-mocks.sh` goes through a pull request, and the plugin and xcode lanes run it against
-  their fixtures. SC14 fails on a `print-mocks:` line the skill quotes that the script does not
-  print, and SC6 and SC9 read the script as they read the Markdown.
-- **The skill's behavioural gate is `Tests/Evals/`, and it does not live under `skills/`** — the
-  runner refuses a case directory inside a plugin's component directory, so
-  `.claude-plugin/plugin.json` names the suite in `experimental.evals`. Each of the seven prompts is
+- **The skill carries no script; what it tells an agent to run is a `mock-templates` subcommand.**
+  A behaviour the skill needs is added to `Sources/mock-templates/` through a pull request, ships in
+  the artifact bundle, and is run by the plugin and xcode lanes against their fixtures, as `print`
+  is. SC14 fails on a subcommand `MockTemplates.swift` does not register and on a quoted
+  `mock-templates: …` line the CLI does not print. SC16 fails on a file under `skills/` that is not
+  Markdown, text, JSON, YAML or a PNG, JPEG, GIF, WebP or ICO image, on one that starts with `#!`, on a
+  package manager's configuration file, and on a text file that is not UTF-8 or holds a NUL byte:
+  the plugin directory refuses each of them from an organization it has not verified.
+- **The skill's behavioural gate is `Tests/Evals/`, and it does not live under `skills/`**, the
+  plugin root, so an install does not copy it; a run copies the plugin and the suite into one
+  directory (`Tests/Evals/README.md`). Each of the seven prompts is
   run once with the plugin loaded and once without, in fresh sessions, and the two answers compared.
   A with-arm answer that is wrong is a defect in the skill's text: edit the skill and run that case
   again. It spends model calls and no CI job runs it; SC13 only checks that each case would parse.

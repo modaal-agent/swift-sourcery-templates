@@ -79,19 +79,24 @@ jobs:
   # `skills/` is published to adopters through four channels, and two of this
   # script's checks are the reason it lives in this repository at all: every
   # `SOURCERY_*` variable and every `mock-templates` flag the skill writes is
-  # compared against the plugin source and `Commands.swift` on the push that
+  # compared against the plugin source and `Sources/mock-templates/` on the push that
   # changes either side.
   #
   # Ungated for the same reason `rules` and `annotations` are, and here the
-  # filter below makes it load-bearing: a push touching only `skills/` outside
-  # its `scripts/` directories, or `.claude-plugin/`, skips every macOS lane, so
-  # this job is the only one that reads what changed. Markdown, JSON and `python3` — no Swift toolchain, no
-  # Sourcery, no network.
+  # filter below makes it load-bearing: a push touching only `skills/` or
+  # `.claude-plugin/` skips every macOS lane, so this job is the only one that
+  # reads what changed. Markdown, JSON and `python3` — no Swift toolchain, no
+  # Sourcery, no network. SC15 fails a change under skills/ that leaves the
+  # plugin's version where it was, and finds the commit that set the version in
+  # the full history. SC16 fails a file under skills/ that is not Markdown,
+  # text, JSON, YAML or an allowed image, so the tree holds no code.
   skills:
     name: Skill (frontmatter, budgets, the names it claims)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Skill tree and plugin manifests
         run: Tests/Checks/run-skill-checks.sh
@@ -105,9 +110,10 @@ jobs:
   # than spending about six minutes and a simulator boot to confirm a README is
   # still a README. Two more paths are documentation without being markdown:
   # `.claude-plugin/` holds the two manifests that publish the skill, and
-  # `skills/` holds the skill tree, whose non-markdown files are its manifests'
-  # companions — except `skills/<name>/scripts/`, which is code and runs every
-  # lane. `templates/Annotations/` is deliberately not in the pattern —
+  # `skills/` holds the skill tree, whose non-markdown files are its manifests
+  # and the listing's icon (SC16 refuses anything else). The CLI the skill
+  # tells an agent to run, `mock-templates print`, is under `Sources/`, which
+  # runs every lane. `templates/Annotations/` is deliberately not in the pattern —
   # it changes what the templates emit, so it runs every lane.
   #
   # The `rules`, `annotations` and `skills` jobs are deliberately not gated on
@@ -154,10 +160,6 @@ jobs:
           # Tested on the file list, not on grep's exit status: `grep -q -v`
           # is not portable between grep implementations.
           code_files="$(printf '%s\n' "$changed" | grep -vE '\.md$|^\.claude-plugin/|^skills/' || true)"
-          # A skill's scripts/ is code (spec 005 §7.1 D5): the plugin and xcode
-          # lanes run print-mocks.sh against their fixtures.
-          script_files="$(printf '%s\n' "$changed" | grep -E '^skills/[^/]+/scripts/' || true)"
-          code_files="$(printf '%s\n%s\n' "$code_files" "$script_files" | grep -v '^$' || true)"
           if [ -n "$code_files" ]; then
             echo "outside the documentation paths, so every lane runs:"
             printf '%s\n' "$code_files" | sed 's/^/  /'

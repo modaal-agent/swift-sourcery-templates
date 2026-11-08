@@ -4,10 +4,11 @@
 # `.claude-plugin/` manifests that publish it.
 #
 # What it holds the skill to: the frontmatter every install channel can parse,
-# a body inside the documented budgets, and no claim about this repository that
-# this repository does not back — every `SOURCERY_*` variable the skill writes
-# is one the plugin exports, and every `mock-templates` flag it writes is one
-# the CLI declares. SC6 and SC7 compare two sets of names, so rewording a
+# a body inside the documented budgets, only the file types a plugin directory
+# accepts, and no claim about this repository that this repository does not
+# back — every `SOURCERY_*` variable the skill writes is one the plugin exports,
+# and every `mock-templates` flag, subcommand and quoted line it writes is one
+# the CLI declares or prints. SC6 and SC7 compare two sets of names, so rewording a
 # sentence on either side leaves them green; that comparison is the whole reason
 # the skill lives in this repository rather than in one of its own (spec 002,
 # §8 D15).
@@ -71,34 +72,42 @@ if [ "${1:-}" = "--self-test" ]; then
 
   # SC10 — the two manifests name different plugins.
   mutate_SC10() {
-    sed -i.bak 's/"name": "swift-sourcery-mocks"/"name": "swift-sourcery-mock"/' .claude-plugin/plugin.json
-    rm -f .claude-plugin/plugin.json.bak
+    sed -i.bak 's/"name": "swift-sourcery-mocks"/"name": "swift-sourcery-mock"/' skills/.claude-plugin/plugin.json
+    rm -f skills/.claude-plugin/plugin.json.bak
   }
 
   # SC11 — the plugin root and the skill tree come apart. `source` points at a
-  # directory that holds no `skills/<name>/SKILL.md`.
-  mutate_SC11() { sed -i.bak 's|"source": "./"|"source": "./Scripts"|' .claude-plugin/marketplace.json && rm -f .claude-plugin/marketplace.json.bak; }
+  # directory that holds neither the plugin manifest nor the skill.
+  mutate_SC11() { sed -i.bak 's|"source": "./skills"|"source": "./Scripts"|' .claude-plugin/marketplace.json && rm -f .claude-plugin/marketplace.json.bak; }
 
   # SC13 — a grader the runner would refuse: `type:` is the one field it needs
   # to know how to score, and it is checked against a closed set of six.
   mutate_SC13() { sed -i.bak 's/^type: llm$/type: judge/' Tests/Evals/plugin-lane-setup/graders/correct-lane.md && rm -f Tests/Evals/plugin-lane-setup/graders/correct-lane.md.bak; }
 
-  P=skills/swift-sourcery-mocks/scripts/print-mocks.sh
+  # SC15 — a commit changes the skill and leaves the plugin's version where it
+  # was. The copy becomes a git repository of two commits.
+  mutate_SC15() {
+    git_seed() { git -c user.name=self-test -c user.email=self-test@example.invalid \
+      -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@" >/dev/null; }
+    git_seed init -q && git_seed add -A && git_seed commit -q -m "set the version" &&
+      echo "A paragraph." >> skills/swift-sourcery-mocks/references/stream-members.md &&
+      git_seed commit -q -am "change the skill, keep the version"
+  }
 
-  # SC6 over a script — a variable the plugin does not export, read by the script.
-  mutate_SC6_script() { printf '\n# ${SOURCERY_MODULE_ROOT}\n' >> "$P"; }
+  # SC14 — a quoted line the CLI does not print.
+  mutate_SC14_quote() { printf '\n| `mock-templates: <Target> has no generated file` | build it |\n' >> "$S"; }
 
-  # SC9 over a script — a version pinned in a comment.
-  mutate_SC9_script() { printf '\n# measured against 0.8.0\n' >> "$P"; }
+  # SC14 — a subcommand the CLI does not register.
+  mutate_SC14_verb() { printf '\nRun `mock-templates show <Target>`.\n' >> "$S"; }
 
-  # SC14 — the skill names a script that is not there.
-  mutate_SC14_missing() { printf '\nRun `"${CLAUDE_SKILL_DIR}/scripts/print-mock.sh" <Target>`.\n' >> "$S"; }
+  # SC16 — a script under the plugin root.
+  mutate_SC16_script() { printf '#!/bin/bash\necho ok\n' > skills/swift-sourcery-mocks/print.sh; }
 
-  # SC14 — the script lost its mode bit.
-  mutate_SC14_mode() { chmod -x "$P"; }
+  # SC16 — a package manager's configuration file, whose `.json` is an allowed type.
+  mutate_SC16_config() { printf '{}\n' > skills/swift-sourcery-mocks/package.json; }
 
-  # SC14 — a quoted line the script does not print.
-  mutate_SC14_quote() { printf '\n| `print-mocks: <Target> has no generated file` | build it |\n' >> "$S"; }
+  # SC16 — a text file holding a NUL byte.
+  mutate_SC16_nul() { printf 'a\000b\n' > skills/swift-sourcery-mocks/notes.txt; }
 
   seed() {
     local check="$1" expected="$2"
@@ -109,7 +118,7 @@ if [ "${1:-}" = "--self-test" ]; then
     cp -R .claude-plugin "$root/.claude-plugin"
     mkdir -p "$root/Plugins/SourcerySwiftCodegenPlugin" "$root/Sources/mock-templates" "$root/Scripts"
     cp Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift "$root/Plugins/SourcerySwiftCodegenPlugin/"
-    cp Sources/mock-templates/Commands.swift "$root/Sources/mock-templates/"
+    cp Sources/mock-templates/*.swift "$root/Sources/mock-templates/"
     cp "$SCRIPT_DIR/run-skill-checks.sh" "$root/Tests/Checks/"
     if ! ( cd "$root" && "mutate_$check" ); then
       echo "  $check: FAIL — the mutation itself did not apply"
@@ -143,11 +152,12 @@ if [ "${1:-}" = "--self-test" ]; then
   seed SC10 "SC10"
   seed SC11 "SC11"
   seed SC13 "SC13"
-  seed SC6_script "SC6"
-  seed SC9_script "SC9"
-  seed SC14_missing "SC14"
-  seed SC14_mode "SC14"
+  seed SC15 "SC15"
   seed SC14_quote "SC14"
+  seed SC14_verb "SC14"
+  seed SC16_script "SC16"
+  seed SC16_config "SC16"
+  seed SC16_nul "SC16"
 
   echo ""
   if [ "$seed_failures" = "0" ]; then
@@ -159,9 +169,15 @@ if [ "${1:-}" = "--self-test" ]; then
 fi
 
 PLUGIN_SOURCE="Plugins/SourcerySwiftCodegenPlugin/SourcerySwiftCodegenPlugin.swift"
-CLI_SOURCE="Sources/mock-templates/Commands.swift"
+# The CLI's sources: SC7 reads the flags they declare, SC14 the subcommands they
+# register and the lines they print.
+CLI_SOURCES="$(find Sources/mock-templates -name '*.swift' | sort)"
 MARKETPLACE=".claude-plugin/marketplace.json"
-PLUGIN_MANIFEST=".claude-plugin/plugin.json"
+# The plugin root is `skills/`, the marketplace entry's `source` (SC11).
+PLUGIN_MANIFEST="skills/.claude-plugin/plugin.json"
+# The eval cases sit outside the plugin root; a run copies both into one
+# directory (CONTRIBUTING.md, "Running the eval suite").
+EVAL_DIR="Tests/Evals"
 
 # The Agent Skills standard's six keys. Claude Code accepts fourteen more; the
 # Skills API and claude.ai reject every one of them by name, so a skill that has
@@ -176,16 +192,14 @@ pass() { echo "  $1: ok — $2"; }
 fail() { echo "  $1: FAIL — $2"; FAILURES=$((FAILURES + 1)); }
 
 [ -d skills ] || { echo "FAIL: no skills/ directory"; exit 1; }
-SKILLS="$(find skills -mindepth 1 -maxdepth 1 -type d | sort)"
+# `skills/.claude-plugin/` is the plugin's manifest and icon, not a skill.
+SKILLS="$(find skills -mindepth 1 -maxdepth 1 -type d ! -name '.*' | sort)"
 [ -n "$SKILLS" ] || { echo "FAIL: skills/ holds no skill directory"; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 TREE_FILES="$(find skills -type f -name '*.md' | sort)"
-# The code in the tree: what an agent runs from a skill's `scripts/` directory
-# (spec 005 §7.1 D5). SC6, SC9 and SC14 read it; no line budget applies.
-SCRIPT_FILES="$(find skills -type f -path 'skills/*/scripts/*' | sort)"
 
 echo ""
 echo "── skills ──"
@@ -336,7 +350,7 @@ echo ""
 echo "── SC6: every \`SOURCERY_*\` name is one the plugin exports ──"
 grep -oh 'SOURCERY_[A-Z0-9_]*' "$PLUGIN_SOURCE" | sort -u > "$TMP/exported"
 # shellcheck disable=SC2086
-grep -oh 'SOURCERY_[A-Za-z0-9_]*' $TREE_FILES $SCRIPT_FILES | sort -u > "$TMP/written"
+grep -oh 'SOURCERY_[A-Za-z0-9_]*' $TREE_FILES | sort -u > "$TMP/written"
 SC6=""
 while read -r name; do
   [ -z "$name" ] && continue
@@ -375,11 +389,12 @@ while read -r flag; do
   [ -z "$flag" ] && continue
   bare="${flag#--}"
   camel="$(printf '%s' "$bare" | awk -F- '{ out = $1; for (i = 2; i <= NF; i++) out = out toupper(substr($i, 1, 1)) substr($i, 2); print out }')"
-  if grep -q "var $camel\b" "$CLI_SOURCE" || grep -qF "customLong(\"$bare\")" "$CLI_SOURCE"; then continue; fi
+  # shellcheck disable=SC2086
+  if grep -q "var $camel\b" $CLI_SOURCES || grep -qF "customLong(\"$bare\")" $CLI_SOURCES; then continue; fi
   SC7="$SC7 $flag"
 done < "$TMP/flags"
 if [ -n "$SC7" ]; then
-  fail SC7 "the skill names a flag $CLI_SOURCE does not declare:$SC7"
+  fail SC7 "the skill names a flag Sources/mock-templates/ does not declare:$SC7"
 else
   pass SC7 "$(wc -l < "$TMP/flags" | tr -d ' ') flags written, all declared"
 fi
@@ -408,7 +423,7 @@ fi
 echo ""
 echo "── SC9: no version literal in the skill tree ──"
 # shellcheck disable=SC2086
-SC9="$(grep -nE '[0-9]+\.[0-9]+\.[0-9]+' $TREE_FILES $SCRIPT_FILES)"
+SC9="$(grep -nE '[0-9]+\.[0-9]+\.[0-9]+' $TREE_FILES)"
 if [ -n "$SC9" ]; then
   fail SC9 "a version is pinned where nothing will update it:"
   printf '%s\n' "$SC9" | sed 's/^/      /'
@@ -420,7 +435,7 @@ fi
 echo ""
 echo "── SC10: both \`.claude-plugin\` manifests parse and name one plugin ──"
 if SC10="$(python3 - "$MARKETPLACE" "$PLUGIN_MANIFEST" <<'PY'
-import json, sys
+import json, os, re, sys
 
 marketplace_path, plugin_path = sys.argv[1], sys.argv[2]
 problems = []
@@ -449,6 +464,17 @@ if marketplace is not None:
 if plugin is not None and "name" not in plugin:
     problems.append(f"{plugin_path}: no `name` key, which is the one required key")
 
+# Claude Code installs a plugin update only when `version` changes; SC15 holds
+# the raise. The icon is the one the directory listing shows.
+if plugin is not None:
+    version = plugin.get("version")
+    if not (isinstance(version, str) and re.fullmatch(r"\d+\.\d+\.\d+", version)):
+        problems.append(f"{plugin_path}: version {version!r} is not MAJOR.MINOR.PATCH")
+    icon = plugin.get("icon")
+    plugin_root = os.path.dirname(os.path.dirname(plugin_path))
+    if icon is not None and not os.path.isfile(os.path.join(plugin_root, icon)):
+        problems.append(f"{plugin_path}: icon {icon!r} is not a file in the plugin")
+
 if marketplace is not None and plugin is not None:
     names = [entry.get("name") for entry in marketplace.get("plugins", [])]
     if plugin.get("name") not in names:
@@ -465,80 +491,88 @@ else
   printf '%s\n' "$SC10" | sed 's/^/      /'
 fi
 
-# ── SC11: the plugin root still holds the skill tree ─────────────
-# With `source: "./"` the plugin root is the marketplace root and its default
-# `skills/` is the tree the other three channels read. A `source` pointing
-# anywhere else means the plugin channel and the rest have come apart, and the
-# plugin loader would not report it — it would load no skill.
+# ── SC11: the plugin root holds the manifest and loads the skill tree ─
+# The plugin root is the marketplace entry's `source`, `./skills`, so an install
+# copies the skill and none of the templates, the CLI or the tests. The manifest
+# is `<source>/.claude-plugin/plugin.json`, and its `skills` path is what loads
+# each skills/<name>/. A `source` pointing anywhere else, or a `skills` path
+# that misses a skill directory, means the plugin channel and the other three
+# have come apart, and the plugin loader would not report it — it would load no
+# skill.
 echo ""
-echo "── SC11: the marketplace entry's \`source\` holds skills/<name>/SKILL.md ──"
-SC11=""
-while IFS=$'\t' read -r name source; do
-  [ -z "$name" ] && continue
-  root="${source%/}"
-  [ -z "$root" ] && root="."
-  case "$root" in /*) SC11="$SC11 $name(source '$source' is absolute)"; continue ;; esac
-  found=""
-  for dir in $SKILLS; do
-    [ -f "$root/$dir/SKILL.md" ] && found="$found $dir"
-  done
-  if [ -z "$found" ]; then
-    SC11="$SC11 $name(no skills/<name>/SKILL.md under '$source')"
-  fi
-done < <(python3 -c '
-import json, sys
-marketplace = json.load(open(sys.argv[1]))
-for entry in marketplace.get("plugins", []):
-    source = entry.get("source")
-    if isinstance(source, str):
-        print(entry.get("name", ""), source, sep="\t")
-' "$MARKETPLACE" 2>/dev/null)
+echo "── SC11: the entry's \`source\` holds the manifest, which loads skills/<name>/SKILL.md ──"
+# shellcheck disable=SC2086
+SC11="$(python3 - "$MARKETPLACE" "$PLUGIN_MANIFEST" $SKILLS <<'PY'
+import json, os, sys
+
+marketplace_path, manifest_path, skills = sys.argv[1], sys.argv[2], sys.argv[3:]
+try:
+    entries = json.load(open(marketplace_path)).get("plugins", [])
+except Exception:
+    raise SystemExit  # SC10 reports a manifest that does not parse
+for entry in entries:
+    name, source = entry.get("name", ""), entry.get("source")
+    if not isinstance(source, str) or not source.startswith("./"):
+        print(f"{name}: source {source!r} is not a ./ path")
+        continue
+    root = os.path.normpath(source)
+    manifest = os.path.join(root, ".claude-plugin", "plugin.json")
+    if os.path.normpath(manifest) != os.path.normpath(manifest_path):
+        print(f"{name}: source {source!r} puts the manifest at {manifest}, not {manifest_path}")
+        continue
+    try:
+        plugin = json.load(open(manifest))
+    except Exception:
+        continue  # SC10
+    declared = plugin.get("skills", [])
+    declared = [declared] if isinstance(declared, str) else declared
+    scanned = [os.path.join(root, path) for path in declared] + [os.path.join(root, "skills")]
+    for skill in skills:
+        target = os.path.realpath(skill)
+        if not os.path.isfile(os.path.join(skill, "SKILL.md")) or not any(
+                os.path.realpath(path) == target
+                or os.path.realpath(os.path.join(path, os.path.basename(skill))) == target
+                for path in scanned):
+            print(f"{name}: the plugin at {source!r} loads no {skill}/SKILL.md "
+                  f"(its skills paths: {declared or 'none'})")
+PY
+)"
 if [ -n "$SC11" ]; then
-  fail SC11 "the plugin root and the skill tree have come apart:$SC11"
+  fail SC11 "the plugin root and the skill tree have come apart:"
+  printf '%s\n' "$SC11" | sed 's/^/      /'
 else
-  pass SC11 "every entry's source holds the tree the other channels read"
+  pass SC11 "the entry's source holds the manifest, whose skills path loads every skill directory"
 fi
 
 # ── SC13: every eval case parses ─────────────────────────────────
 # The eval suite is the skill's only behavioural gate: each case is run twice,
 # once with the plugin loaded and once without, and the two answers compared
-# (spec 002, §7.1). `claude plugin eval` reads it from the directory
-# `experimental.evals` names — one case per directory, `prompt.md` carrying the
-# frontmatter and the user prompt, one `graders/<name>.md` per grader, the file
-# name being the grader's name.
+# (spec 002, §7.1). The cases live in `Tests/Evals/`, outside the plugin root
+# `skills/`, and a run copies the plugin and the cases into one directory — one
+# case per directory, `prompt.md` carrying the frontmatter and the user prompt,
+# one `graders/<name>.md` per grader, the file name being the grader's name.
 #
 # The two key sets and the six grader types below are the runner's own, read out
-# of the Claude Code binary at 2.1.263 and re-read unchanged at 2.1.267. The
-# runner is in early access, so a machine without it cannot run the suite at all
-# — which is exactly why a mistyped key has to fail here rather than at the first
-# run.
+# of the Claude Code binary at 2.1.263 and re-read unchanged at 2.1.267. No CI
+# job runs the suite, because it costs model calls, so a mistyped key has to
+# fail here rather than at the first run.
 #
 # SC12 is not used: §6.1 assigned that number to a check for D9's fallback, and
 # the fallback was not taken (spec 002, §12.3).
 echo ""
 echo "── SC13: every eval case parses ──"
-if SC13="$(python3 - "$PLUGIN_MANIFEST" <<'PY'
-import json, os, re, sys
+if SC13="$(python3 - "$EVAL_DIR" <<'PY'
+import os, re, sys
 
-COMPONENT_DIRS = {"commands", "skills", "agents", "hooks", "themes", "output-styles", "monitors", "workflows"}
 TOP_KEYS = {"schema_version", "name", "description", "tags", "plugins", "runs", "expected_outcome"}
 EXECUTION_KEYS = {"model", "max_turns", "timeout_seconds", "allowed_tools", "artifact_publish",
                   "growthbook_overrides", "append_system_prompt", "env"}
 GRADER_TYPES = {"regex", "tool_order", "tool_used", "file_exists", "llm", "baseline"}
 
 problems = []
-manifest = json.load(open(sys.argv[1]))
-eval_dir = (manifest.get("experimental") or {}).get("evals")
-if not isinstance(eval_dir, str) or not eval_dir:
-    problems.append(f"{sys.argv[1]}: no `experimental.evals` naming the eval directory")
-    print("\n".join(problems)); raise SystemExit
-
-segments = [s for s in eval_dir.split("/") if s not in ("", ".")]
-if segments and segments[0].lower() in COMPONENT_DIRS:
-    problems.append(f"experimental.evals `{eval_dir}` is inside the plugin's {segments[0]}/ "
-                    "component directory, which the runner refuses")
+eval_dir = sys.argv[1]
 if not os.path.isdir(eval_dir):
-    problems.append(f"experimental.evals names `{eval_dir}`, which is not a directory")
+    problems.append(f"`{eval_dir}` is not a directory")
     print("\n".join(problems)); raise SystemExit
 
 FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(\n|\Z)", re.S)
@@ -600,59 +634,230 @@ for case in cases:
 print("\n".join(problems))
 PY
 )" && [ -z "$SC13" ]; then
-  eval_dir="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["experimental"]["evals"])' "$PLUGIN_MANIFEST")"
-  pass SC13 "$(find "$eval_dir" -mindepth 1 -maxdepth 1 -type d ! -name results | wc -l | tr -d ' ') case(s) under $eval_dir, $(find "$eval_dir" -path '*/graders/*.md' | wc -l | tr -d ' ') graders"
+  pass SC13 "$(find "$EVAL_DIR" -mindepth 1 -maxdepth 1 -type d ! -name results | wc -l | tr -d ' ') case(s) under $EVAL_DIR, $(find "$EVAL_DIR" -path '*/graders/*.md' | wc -l | tr -d ' ') graders"
 else
   fail SC13 "a case the runner would refuse:"
   printf '%s\n' "$SC13" | sed 's/^/      /'
 fi
 
-# ── SC14: the scripts the skill names, and the lines it quotes ───
-# The skill tells an agent to run `scripts/<name>` from its own directory, so a
-# script it names has to be there and executable, and so does every file under a
-# `scripts/` directory. It also quotes the lines a script ends with, each with
-# what to do: every quoted `<script>: …` line has to be a `fail "…"` or
-# `note "…"` string of that script. A `<placeholder>` in the quote and a `$name`
-# or `${…}` in the script each read as one wildcard (spec 005 §3 D6).
+# ── SC14: the subcommands the skill names, and the lines it quotes ─
+# The skill tells an agent to run `mock-templates <subcommand>` and quotes the
+# lines `print` ends with, each with what to do. Every subcommand it writes in
+# code has to be one `MockTemplates.swift` registers, and every quoted
+# `mock-templates: …` line has to be a string the CLI prints: an argument of
+# `print`'s `fail(…)` or `note(…)`, which prepend `mock-templates: `, or a
+# literal starting `mock-templates: `. A `<placeholder>` in the quote and a
+# `\(…)` interpolation in the source each read as one wildcard (spec 005 §3 D6).
 echo ""
-echo "── SC14: every script the skill names is there and executable, and every line it quotes is one the script prints ──"
-SC14=""
-NAMED=0
-for file in $TREE_FILES; do
-  skill="$(printf '%s\n' "$file" | cut -d/ -f1-2)"
-  for script in $(grep -oE 'scripts/[A-Za-z0-9._-]+' "$file" | sed 's/\.*$//' | sort -u); do
-    NAMED=$((NAMED + 1))
-    if [ ! -f "$skill/$script" ]; then
-      SC14="$SC14
-$file names $script, and $skill/$script is not there"
-    fi
-  done
-done
-for script in $SCRIPT_FILES; do
-  [ -x "$script" ] || SC14="$SC14
-$script is not executable"
-done
-: > "$TMP/printed"
-: > "$TMP/quoted"
-for script in $SCRIPT_FILES; do
-  base="$(basename "$script")"; base="${base%.*}"
-  sed -nE 's/.*(fail|note) "([^"]*)".*/\2/p' "$script" \
-    | sed -E 's/\$\{[^}]*\}/<*>/g; s/\$[A-Za-z_][A-Za-z0-9_]*/<*>/g' \
-    | sed "s|^|$base: |" >> "$TMP/printed"
-  # shellcheck disable=SC2086
-  grep -ohE "\`$base: [^\`]*\`" $TREE_FILES | sed -E 's/^`//; s/`$//; s/<[^>]*>/<*>/g' >> "$TMP/quoted"
-done
-while IFS= read -r line; do
-  [ -z "$line" ] && continue
-  grep -qxF -- "$line" "$TMP/printed" || SC14="$SC14
-quoted, and printed by no script: $line"
-done < <(sort -u "$TMP/quoted")
-if [ -n "$SC14" ]; then
-  fail SC14 "the skill describes a script that does not do what it says:"
-  printf '%s\n' "$SC14" | grep -v '^$' | sed 's/^/      /'
+echo "── SC14: every \`mock-templates\` subcommand the skill names is registered, and every line it quotes is one the CLI prints ──"
+# shellcheck disable=SC2086
+SC14="$(python3 - $CLI_SOURCES -- $TREE_FILES <<'PY'
+import re, sys
+
+arguments = sys.argv[1:]
+split = arguments.index("--")
+sources, tree = arguments[:split], arguments[split + 1:]
+text = {path: open(path, encoding="utf-8").read() for path in sources}
+literal = r'"((?:[^"\\\n]|\\.)*)"'
+
+def wildcard(value):
+    out, i = [], 0
+    while i < len(value):
+        if value.startswith("\\(", i):
+            depth, j = 1, i + 2
+            while j < len(value) and depth:
+                depth += {"(": 1, ")": -1}.get(value[j], 0)
+                j += 1
+            out.append("<*>")
+            i = j
+        else:
+            out.append(value[i])
+            i += 1
+    return "".join(out)
+
+printed = set()
+for path, source in text.items():
+    for match in re.finditer(r"\b(?:fail|note)\(\s*" + literal, source):
+        printed.add("mock-templates: " + wildcard(match.group(1)))
+    for match in re.finditer(literal, source):
+        if match.group(1).startswith("mock-templates: "):
+            printed.add(wildcard(match.group(1)))
+
+def kebab(name):
+    return re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower()
+
+registered = set()
+everything = "\n".join(text.values())
+for listing in re.findall(r"subcommands:\s*\[([^\]]*)\]", everything):
+    for type_name in re.findall(r"(\w+)\.self", listing):
+        body = re.search(r"struct " + type_name + r"\b(.*?)(?=\nstruct |\Z)", everything, re.S)
+        named = re.search(r'commandName:\s*"([^"]+)"', body.group(1)) if body else None
+        registered.add(named.group(1) if named else kebab(type_name))
+
+problems = []
+quoted = 0
+tick = chr(96)  # a backtick, kept out of this heredoc
+for path in tree:
+    document = open(path, encoding="utf-8").read()
+    fence = re.compile("^" + tick * 3 + r"[^\n]*\n(.*?)^" + tick * 3, re.S | re.M)
+    fenced = fence.findall(document)
+    spans = re.findall(tick + "([^" + tick + r"\n]+)" + tick, fence.sub("", document))
+    for code in fenced + spans:
+        for verb in re.findall(r"\bmock-templates[ \t]+([a-z][a-z-]*)", code):
+            if verb not in registered:
+                problems.append(f"{path}: mock-templates {verb} is not a subcommand ({', '.join(sorted(registered))})")
+    for span in spans:
+        if span.startswith("mock-templates: "):
+            quoted += 1
+            line = re.sub(r"<[^>]*>", "<*>", span)
+            if line not in printed:
+                problems.append(f"{path}: quoted, and printed by no line of the CLI: {span}")
+print("\n".join(problems) if problems else f"OK {len(registered)} {quoted}")
+PY
+)"
+case "$SC14" in
+  "OK "*)
+    set -- $SC14
+    pass SC14 "$2 subcommands registered, $3 quoted line(s), each printed by the CLI" ;;
+  *)
+    fail SC14 "the skill describes a CLI that does not do what it says:"
+    printf '%s\n' "$SC14" | sed 's/^/      /' ;;
+esac
+
+# ── SC15: a change under the plugin root raises the plugin's version ─
+# Claude Code installs a plugin update only when `version` in the manifest
+# changes, so an edit under `skills/` that leaves the version where it was
+# reaches no user. The check takes the oldest commit of the unbroken run of
+# manifest commits that carry the current version — the commit that set it —
+# and fails when a file under `skills/` differs from that commit or is
+# untracked. It reads git history: outside a checkout, or in a shallow clone, it
+# prints a note and is skipped, so the `skills` job checks out with
+# `fetch-depth: 0`.
+echo ""
+echo "── SC15: a change under skills/ raises the plugin's version ──"
+SC15="$(python3 - "$PLUGIN_MANIFEST" 2>"$TMP/sc15-note" <<'PY'
+import json, os, subprocess, sys
+
+manifest = sys.argv[1]
+plugin_root = os.path.dirname(os.path.dirname(manifest))
+try:
+    version = json.load(open(manifest)).get("version")
+except Exception:
+    raise SystemExit  # SC10 reports a manifest that does not parse
+if not isinstance(version, str):
+    raise SystemExit  # SC10 reports a missing version
+
+def git(*args):
+    return subprocess.run(["git", *args], capture_output=True, text=True)
+
+top = git("rev-parse", "--show-toplevel")
+if top.returncode or os.path.realpath(top.stdout.strip()) != os.path.realpath("."):
+    print("not a git checkout, so the version was not compared with history", file=sys.stderr)
+    raise SystemExit
+if git("rev-parse", "--is-shallow-repository").stdout.strip() == "true":
+    print("a shallow clone; the check needs the full history (fetch-depth: 0)", file=sys.stderr)
+    raise SystemExit
+base = None
+for commit in git("log", "--format=%H", "--", manifest).stdout.split():
+    shown = git("show", f"{commit}:{manifest}")
+    try:
+        committed = json.loads(shown.stdout).get("version") if shown.returncode == 0 else None
+    except ValueError:
+        committed = None
+    if committed != version:
+        break
+    base = commit
+if base is None:
+    raise SystemExit  # the working tree sets or raises the version, and it is not committed yet
+changed = git("diff", "--name-only", base, "--", plugin_root).stdout.splitlines()
+changed += git("ls-files", "--others", "--exclude-standard", "--", plugin_root).stdout.splitlines()
+changed = sorted({path for path in changed if path})
+if changed:
+    listed = ", ".join(changed[:3]) + (", …" if len(changed) > 3 else "")
+    print(f"{plugin_root}/ changed since {base[:12]}, which set version {version} ({listed}): "
+          f"raise `version` in {manifest}")
+PY
+)"
+if [ -s "$TMP/sc15-note" ]; then
+  echo "  SC15: skipped — $(cat "$TMP/sc15-note")"
+elif [ -n "$SC15" ]; then
+  fail SC15 "the skill changed and the plugin's version did not:"
+  printf '%s\n' "$SC15" | sed 's/^/      /'
 else
-  pass SC14 "$(printf '%s\n' $SCRIPT_FILES | grep -c .) script(s), $NAMED mention(s) resolved, $(sort -u "$TMP/quoted" | grep -c .) quoted line(s) printed by one"
+  pass SC15 "version $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["version"])' "$PLUGIN_MANIFEST") covers every change under skills/"
 fi
+
+# ── SC16: the plugin root holds only the file types a directory accepts ─
+# A plugin directory accepts, from an organization it has not verified,
+# Markdown, text, JSON, YAML and PNG, JPEG, GIF, WebP and ICO images, and
+# refuses a file that starts with `#!`, a package manager's configuration file,
+# and a text file that is not UTF-8 or holds a NUL byte. The check reads what a
+# push publishes: in a git checkout the tracked files and the untracked ones
+# git does not ignore, otherwise every file under `skills/`. An image is
+# checked by its first bytes, so a script renamed `.png` is refused too.
+echo ""
+echo "── SC16: every file under skills/ is a type a plugin directory accepts ──"
+SC16="$(python3 - <<'PY'
+import os, subprocess
+
+TEXT = {".md", ".txt", ".json", ".yaml", ".yml"}
+IMAGES = {
+    ".png": lambda d: d.startswith(b"\x89PNG\r\n\x1a\n"),
+    ".jpg": lambda d: d.startswith(b"\xff\xd8\xff"),
+    ".jpeg": lambda d: d.startswith(b"\xff\xd8\xff"),
+    ".gif": lambda d: d.startswith((b"GIF87a", b"GIF89a")),
+    ".webp": lambda d: d[:4] == b"RIFF" and d[8:12] == b"WEBP",
+    ".ico": lambda d: d.startswith(b"\x00\x00\x01\x00"),
+}
+TEXT_NAMES = {"LICENSE", "README", ".gitignore"}
+PACKAGE_CONFIGS = {
+    "pnpm-workspace.yaml", "package.json", "package-lock.json", "yarn.lock", ".npmrc",
+    "Package.swift", "Package.resolved", "Gemfile", "requirements.txt", "pyproject.toml",
+    "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "Cargo.toml", "go.mod",
+}
+
+def git(*args):
+    return subprocess.run(["git", *args], capture_output=True, text=True)
+
+top = git("rev-parse", "--show-toplevel")
+if top.returncode == 0 and os.path.realpath(top.stdout.strip()) == os.path.realpath("."):
+    listed = git("ls-files", "--", "skills").stdout.splitlines()
+    listed += git("ls-files", "--others", "--exclude-standard", "--", "skills").stdout.splitlines()
+else:
+    listed = [os.path.join(d, f) for d, _, files in os.walk("skills") for f in files]
+files = sorted({path for path in listed if os.path.isfile(path)})
+
+problems = []
+for path in files:
+    name = os.path.basename(path)
+    extension = os.path.splitext(name)[1].lower()
+    data = open(path, "rb").read()
+    if name in PACKAGE_CONFIGS:
+        problems.append(f"{path}: a package manager's configuration file")
+    if data.startswith(b"#!"):
+        problems.append(f"{path}: starts with #!")
+    if extension in IMAGES:
+        if not IMAGES[extension](data):
+            problems.append(f"{path}: its first bytes are not a {extension[1:].upper()} image's")
+    elif extension in TEXT or name in TEXT_NAMES:
+        if b"\x00" in data:
+            problems.append(f"{path}: holds a NUL byte")
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            problems.append(f"{path}: not UTF-8 ({error.reason} at byte {error.start})")
+    else:
+        problems.append(f"{path}: {extension or name} is not Markdown, text, JSON, YAML or an allowed image")
+print("\n".join(problems) if problems else f"OK {len(files)}")
+PY
+)"
+case "$SC16" in
+  "OK "*)
+    pass SC16 "${SC16#OK } file(s), each Markdown, text, JSON, YAML or an allowed image, none starting with #!" ;;
+  *)
+    fail SC16 "a file the plugin directory refuses:"
+    printf '%s\n' "$SC16" | sed 's/^/      /' ;;
+esac
 
 # ── Result ────────────────────────────────────────────────────────
 echo ""

@@ -16,20 +16,25 @@ skill and run that case again.
 | `does-not-conform` | why `PaymentsMock` does not conform to `Refunding` | the refined protocol was not among the parsed sources |
 | `publisher-hangs` | why a test awaiting the mock's publisher hangs | the backing `PassthroughSubject` does not replay |
 | `member-names` | which members a mock gives for underscored names and an overload group | the declared name verbatim; the fewest-parameter overload keeps it, the rest take their argument labels |
-| `print-a-mock` | which members a mock has, in a package whose library does not compile at the moment | `print-mocks.sh`, or `--print-manifest-job-graph` and the file it writes, before any build |
+| `print-a-mock` | which members a mock has, in a package whose library does not compile at the moment | `mock-templates print`, or `--print-manifest-job-graph` and the file it writes, before any build |
 
 ## Running them
 
-From the repository root, which is the plugin root:
+The plugin root is `skills/`, and the runner reads eval cases only below the plugin it runs, so a
+run copies the plugin and this directory into one temporary directory, where `evals/` is the
+runner's default eval directory. From the repository root:
 
 ```bash
-claude plugin eval . --ablation with-without
+run=$(mktemp -d) && cp -R skills/. "$run" && cp -R Tests/Evals "$run/evals"
+claude plugin eval "$run" --ablation with-without --runs 1 --no-publish \
+  --output-dir "Tests/Evals/results/$(date +%Y-%m-%dT%H-%M-%S)"
 ```
 
-`.claude-plugin/plugin.json` names this directory in `experimental.evals`, so no `--eval-dir` is
-needed. Results land in `Tests/Evals/results/`, which is not committed. The runner is in early
-access: a Claude Code that has not been granted it answers "`plugin eval` is currently in early
-access" and runs nothing.
+`--output-dir` puts the results in `Tests/Evals/results/`, which is not committed. `--no-publish`
+keeps the HTML report local; without it the runner publishes the report to claude.ai when the
+account supports it. A run outside a terminal also needs `--trust-plugin`. `--case <glob>` selects
+one case. Claude Code 2.1.285 starts the run from the copy; 2.1.267 answers "`plugin eval` is
+currently in early access" and runs nothing.
 
 Without the runner, run one case's two arms by hand and read both answers:
 
@@ -40,7 +45,7 @@ PROMPT="$(awk 'NR==1 && $0=="---" { fm=1; next } fm && $0=="---" { fm=0; next } 
 ARGS=(-p --restricted --strict-mcp-config --allowedTools "Read,Glob,Grep,Skill" --permission-prompts none)
 
 cd "$(mktemp -d)" && claude "${ARGS[@]}" "$PROMPT"                       # without
-cd "$(mktemp -d)" && claude "${ARGS[@]}" --plugin-dir "$REPO" "$PROMPT"  # with
+cd "$(mktemp -d)" && claude "${ARGS[@]}" --plugin-dir "$REPO/skills" "$PROMPT"  # with
 ```
 
 `--plugin-dir` loads the plugin for that session only, so the without-arm needs nothing uninstalled.

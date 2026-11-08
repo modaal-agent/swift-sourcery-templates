@@ -5,7 +5,7 @@ focus: last_message
 The answer gives a command that prints the generated mock without compiling `Payments`, and says to
 read the members from what it prints. Either of these passes:
 
-1. the skill's `print-mocks.sh`, run from the package directory with `PaymentsTests` and
+1. `mock-templates print`, run from the package directory with `PaymentsTests` and
    `RefundService`;
 2. `swift build --target PaymentsTests --print-manifest-job-graph`, followed by reading the
    `*.generated.swift` under `.build/plugins/outputs/…/PaymentsTests/…/.generatedFiles/`.

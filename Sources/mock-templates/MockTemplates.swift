@@ -11,12 +11,14 @@ struct MockTemplates: ParsableCommand {
       SHA-256 of every scanned source file, and the hash of the generated \
       body. `validate` re-hashes that list and the body — no engine run, no \
       template compile — so a cold CI job can prove a committed file current \
-      in seconds. `imprint` refreshes the block without regenerating.
+      in seconds. `imprint` refreshes the block without regenerating. `print` \
+      writes what SourcerySwiftCodegenPlugin generates for one target to \
+      stdout and compiles nothing.
 
       The tool is policy-free: which sources to scan, which template drives \
       a file and which bundle tag to expect are the calling script's to \
       decide.
       """,
-    subcommands: [Generate.self, Imprint.self, Validate.self]
+    subcommands: [Generate.self, Imprint.self, Validate.self, PrintCommand.self]
   )
 }

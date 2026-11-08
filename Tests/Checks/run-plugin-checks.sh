@@ -540,19 +540,21 @@ else
   fi
 fi
 
-# ── 13. print-mocks.sh ────────────────────────────────────────────
-# The skill's script, SwiftPM lane (spec 005 §2.2), over the green fixture's
+# ── 13. mock-templates print ──────────────────────────────────────
+# The CLI's `print`, SwiftPM lane (spec 005 §2.2), over the green fixture's
 # scratch path. It plans the build and compiles nothing, so what it prints has to
 # be the files the builds above wrote, byte for byte. `Leaf` applies no plugin
 # and is the red control. A toolchain on which `--print-manifest-job-graph` stops
 # running prebuild commands fails the first gate here.
 echo ""
-echo "── print-mocks.sh ──"
-PRINT_MOCKS="$GIT_ROOT/skills/swift-sourcery-mocks/scripts/print-mocks.sh"
-PRINTED="$WORK_DIR/print-mocks"
+echo "── mock-templates print ──"
+swift build --package-path "$GIT_ROOT" --product mock-templates > "$WORK_DIR/cli-build.log" 2>&1 \
+  || { cat "$WORK_DIR/cli-build.log"; fail "swift build --product mock-templates failed"; }
+CLI="$(swift build --package-path "$GIT_ROOT" --show-bin-path)/mock-templates"
+PRINTED="$WORK_DIR/print"
 print_mocks() {   # name target [protocol...]
   local name="$1"; shift
-  ( cd "$FIXTURE_DIR" && SCRATCH_PATH="$FIXTURE_SCRATCH" "$PRINT_MOCKS" "$@" ) > "$PRINTED-$name" 2> "$PRINTED-$name.err"
+  ( cd "$FIXTURE_DIR" && "$CLI" print "$@" --scratch-path "$FIXTURE_SCRATCH" ) > "$PRINTED-$name" 2> "$PRINTED-$name.err"
 }
 
 APP_COMPONENT="$(generated App Sourcery.App Component.generated.swift)"
@@ -562,7 +564,7 @@ if print_mocks whole App && cmp -s "$PRINTED-whole" "$PRINTED-whole.expected"; t
 else
   cat "$PRINTED-whole.err"
   diff "$PRINTED-whole.expected" "$PRINTED-whole" | head -10 || true
-  fail "print-mocks.sh App did not print the files the build wrote"
+  fail "mock-templates print App did not print the files the build wrote"
 fi
 
 { sed -n '/^\/\/ MARK: - ProfilePersisting$/,/^}/p' "$APP_MOCK"; echo; } > "$PRINTED-one.expected"
@@ -571,33 +573,33 @@ if print_mocks one App ProfilePersisting && cmp -s "$PRINTED-one" "$PRINTED-one.
 else
   cat "$PRINTED-one.err"
   diff "$PRINTED-one.expected" "$PRINTED-one" | head -10 || true
-  fail "print-mocks.sh App ProfilePersisting did not print that mock's block"
+  fail "mock-templates print App ProfilePersisting did not print that mock's block"
 fi
 
 if print_mocks missing App ProfilePersisting NoSuchProtocol; then
   fail "a protocol with no mock exited 0"
 elif grep -qx '// NoSuchProtocol: no mock generated for App' "$PRINTED-missing" \
-     && grep -qxF "print-mocks: 1 of 2 protocols have no mock in App's generated files" "$PRINTED-missing.err"; then
+     && grep -qxF "mock-templates: 1 of 2 protocols have no mock in App's generated files" "$PRINTED-missing.err"; then
   pass "a protocol with no mock: named on stdout, counted on stderr, exit 1"
 else
   cat "$PRINTED-missing" "$PRINTED-missing.err"
-  fail "a protocol with no mock was not reported as the script documents"
+  fail "a protocol with no mock was not reported as the skill documents"
 fi
 
 if print_mocks leaf Leaf; then
   fail "Leaf, which applies no plugin, exited 0"
-elif grep -qF 'print-mocks: Leaf generated no file' "$PRINTED-leaf.err"; then
+elif grep -qF 'mock-templates: Leaf generated no file' "$PRINTED-leaf.err"; then
   pass "Leaf applies no plugin: exit 1, naming the target"
 else
   cat "$PRINTED-leaf.err"
-  fail "Leaf failed, but not with the message the script documents"
+  fail "Leaf failed, but not with the message the skill documents"
 fi
 
 # Inside an outer sandbox (spec 006 §2.4, D9). The profile denies writes to the
 # per-user temporary directory except SwiftPM's `TemporaryItems`, the shape of
 # an agent's sandbox. Each run has to print the block the unsandboxed run
-# printed. Without the script's stderr variable it fails on `mktemp: mkstemp
-# failed`; without --disable-sandbox on SwiftPM's sandbox; without the plugin's
+# printed. With SwiftPM's stderr written to a temporary file it fails on the
+# write; without --disable-sandbox on SwiftPM's sandbox; without the plugin's
 # TMPDIR inside the prebuild command (§1.3 rows b, c and k).
 #
 # The profile also denies reads and writes of `clang/ModuleCache` under the
@@ -612,13 +614,13 @@ fi
 # SwiftPM caches a manifest by the path it planned it under. On a path it has
 # not planned, the first sandbox it starts compiles the manifest and fails with
 # `sandbox_apply: Operation not permitted`; on a path it has, the first is the
-# plugin's, and the plan fails with `Plugin ended with exit code 71`. The script
+# plugin's, and the plan fails with `Plugin ended with exit code 71`. `print`
 # prints neither once the retry succeeds. The run without the setting takes a
 # path no earlier run of this lane used, and the third run plans that path
 # again: the second print an agent makes in one package.
 #
 # A new path's dependencies are resolved outside the sandbox, from the lane's
-# cache. The script uses SwiftPM's default cache, which on a runner does not hold
+# cache. `print` uses SwiftPM's default cache, which on a runner does not hold
 # the Sourcery artifact bundle, and inside the profile SwiftPM's download of it
 # fails with `Operation not permitted`: the download writes under the per-user
 # temporary directory, outside `TemporaryItems`, whatever TMPDIR holds. Resolving
@@ -627,10 +629,10 @@ fi
 USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)"
 USER_CACHE="$(cd "$(getconf DARWIN_USER_CACHE_DIR)" && pwd -P)"
 SANDBOX_PROFILE="(version 1)(allow default)(deny file-write* (subpath \"$USER_TEMP\"))(allow file-write* (subpath \"$USER_TEMP/TemporaryItems\"))(deny file-read* file-write* (subpath \"$USER_CACHE/clang/ModuleCache\"))"
-RETRY_LINE="print-mocks: SwiftPM could not start its sandbox; planning again with --disable-sandbox"
+RETRY_LINE="mock-templates: SwiftPM could not start its sandbox; planning again with --disable-sandbox"
 SANDBOX_RUN="$(date +%s)-$$"
 rm -rf "$WORK_DIR"/sandboxed-*
-sandboxed_print() {   # name disable-sandbox-setting [earlier run whose scratch path, TMPDIR and module cache to plan again]
+sandboxed_print() {   # name disable-sandbox-flag-or-empty [earlier run whose scratch path, TMPDIR and module cache to plan again]
   local dir="$WORK_DIR/sandboxed-$SANDBOX_RUN-${3:-$1}"
   if [ -z "${3:-}" ]; then
     mkdir -p "$dir/tmp" "$dir/modcache"
@@ -638,28 +640,27 @@ sandboxed_print() {   # name disable-sandbox-setting [earlier run whose scratch 
       > "$PRINTED-sandboxed-$1.err" 2>&1 || return 1
   fi
   ( cd "$FIXTURE_DIR" && env TMPDIR="$dir/tmp" CLANG_MODULE_CACHE_PATH="$dir/modcache" \
-      SCRATCH_PATH="$dir/scratch" PRINT_MOCKS_DISABLE_SANDBOX="$2" \
-      sandbox-exec -p "$SANDBOX_PROFILE" "$PRINT_MOCKS" App ProfilePersisting ) \
+      sandbox-exec -p "$SANDBOX_PROFILE" "$CLI" print App ProfilePersisting --scratch-path "$dir/scratch" ${2:+"$2"} ) \
     > "$PRINTED-sandboxed-$1" 2> "$PRINTED-sandboxed-$1.err"
 }
 
-if ! sandboxed_print setting 1 || ! cmp -s "$PRINTED-sandboxed-setting" "$PRINTED-one.expected"; then
+if ! sandboxed_print setting --disable-sandbox || ! cmp -s "$PRINTED-sandboxed-setting" "$PRINTED-one.expected"; then
   tail -5 "$PRINTED-sandboxed-setting.err"
-  fail "inside a sandbox with PRINT_MOCKS_DISABLE_SANDBOX=1, print-mocks.sh App ProfilePersisting did not print the unsandboxed block"
+  fail "inside a sandbox with --disable-sandbox, mock-templates print App ProfilePersisting did not print the unsandboxed block"
 elif grep -qxF "$RETRY_LINE" "$PRINTED-sandboxed-setting.err"; then
-  fail "inside a sandbox with PRINT_MOCKS_DISABLE_SANDBOX=1, the script planned twice"
+  fail "inside a sandbox with --disable-sandbox, print planned twice"
 else
-  pass "inside a sandbox, with PRINT_MOCKS_DISABLE_SANDBOX=1: the same block, planned once"
+  pass "inside a sandbox, with --disable-sandbox: the same block, planned once"
 fi
 
 sandboxed_retry() {   # name what-the-path-is [earlier run]
   if ! sandboxed_print "$1" "" ${3:+"$3"} || ! cmp -s "$PRINTED-sandboxed-$1" "$PRINTED-one.expected"; then
     tail -5 "$PRINTED-sandboxed-$1.err"
-    fail "inside a sandbox without the setting, on $2, print-mocks.sh App ProfilePersisting did not print the unsandboxed block"
+    fail "inside a sandbox without --disable-sandbox, on $2, mock-templates print App ProfilePersisting did not print the unsandboxed block"
   elif ! grep -qxF "$RETRY_LINE" "$PRINTED-sandboxed-$1.err"; then
-    fail "inside a sandbox without the setting, on $2, the block printed with no retry line: SwiftPM's own sandbox started, and this gate no longer measures the retry"
+    fail "inside a sandbox without --disable-sandbox, on $2, the block printed with no retry line: SwiftPM's own sandbox started, and this gate no longer measures the retry"
   else
-    pass "inside a sandbox, without the setting, on $2: the script plans again with --disable-sandbox and prints the same block"
+    pass "inside a sandbox, without --disable-sandbox, on $2: print plans again with --disable-sandbox and prints the same block"
   fi
 }
 sandboxed_retry unplanned "a scratch path SwiftPM has not planned"

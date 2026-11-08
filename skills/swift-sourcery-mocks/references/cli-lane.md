@@ -18,8 +18,18 @@ shasum -a 256 -c "swift-sourcery-templates-$VERSION.artifactbundle.zip.sha256"
 unzip -q "swift-sourcery-templates-$VERSION.artifactbundle.zip"
 ```
 
-A lane that only validates does not need the engine: `mock-templates-<version>-macos.zip` is
-published beside the bundle, with its own `.sha256`.
+A lane that only validates or prints needs no engine download: `mock-templates-<version>-macos.zip`
+is published beside the bundle, with its own `.sha256`, and holds the `mock-templates` executable:
+
+```bash
+curl -fsSLO "$BASE/mock-templates-$VERSION-macos.zip"
+curl -fsSLO "$BASE/mock-templates-$VERSION-macos.zip.sha256"
+shasum -a 256 -c "mock-templates-$VERSION-macos.zip.sha256"
+unzip -q "mock-templates-$VERSION-macos.zip" -d mock-templates-cli
+```
+
+A project that resolves the build-tool plugin already holds the bundle, and the CLI inside it, under
+`.build/artifacts/` or its derived data's `SourcePackages/artifacts/`.
 
 The engine version a given checkout is checked against is recorded in the repository's
 `Scripts/engine-pin.sh`. Building the CLI from source instead is `swift build --product
@@ -38,7 +48,7 @@ Runs the engine, then writes the output under its fingerprint.
 | `--bundle-version <tag>` | the template bundle tag, recorded on the bundle line |
 | `--root <path>` | recorded input paths are relative to this directory. Default: the working directory |
 | `--output <path>` | the file to write |
-| `--disable-cache` | pass `--disableCache` to the generator |
+| `--disable-cache` | adds `--disableCache` to the generator's arguments |
 
 At least one `--sources` root is required. A source outside `--root` is an error rather than an
 absolute path in the block, so the recorded block reproduces across checkouts.
@@ -80,6 +90,21 @@ Rewrites the fingerprint block over an existing body without regenerating. It ta
 as `generate` except `--sourcery` and `--disable-cache`, and reads `--output` as the file to
 re-imprint. Use it when the recorded inputs moved but the generated body is known good — a source
 file renamed, a `--root` changed.
+
+## `print`
+
+Prints what the build-tool plugin generates for one target, without compiling it:
+`mock-templates print <Target> [<Protocol> ...]`, from the directory holding `Package.swift` or the
+`.xcodeproj`. [printing-mocks.md](printing-mocks.md) has what it prints, each lane and each failure.
+
+| flag | meaning |
+| --- | --- |
+| `--scratch-path <path>` | SwiftPM: the build directory, when it is not `.build` |
+| `--disable-sandbox` | SwiftPM: plan with SwiftPM's sandbox off from the first plan |
+| `--derived-data <path>` | Xcode: the derived data to read; selects the Xcode lane |
+| `--derived-data-root <path>` | Xcode: where to look for derived data, `~/Library/Developer/Xcode/DerivedData` by default |
+| `--project <path>` | Xcode: the directory holding the `.xcodeproj`, when the working directory is another |
+| `--engine <path>` | Xcode: the generator executable, when `print` finds none |
 
 ## The script shape worth copying
 
